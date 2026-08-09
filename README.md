@@ -6,7 +6,8 @@ to OCBC and new members to Pasir Ris — without giving anyone OCBC 3 cycles in 
 row.
 
 Built in pure Dart: `televerse` (Telegram Bot API), `sqlite3` (storage),
-long-polling, no webhook required. Runs on a production host via Docker.
+long-polling, no webhook required. Runs on a production VM as a
+self-contained AOT bundle (no Docker, no Dart SDK on the VM).
 
 ## How a cycle works
 
@@ -55,11 +56,9 @@ dart run bin/main.dart
 
 ## Deploy
 
-- **Railway** — point it at this repo (uses the `Dockerfile`), add a volume at
-  `/data`, set `SDSC_DB=/data/sdsc.db`, and add `TELEGRAM_TOKEN`.
-- **Render** — `render.yaml` is a ready blueprint (free tier + 1 GB disk).
-- **Oracle free VM** — `docker build -t sdsc-bot . && docker run ...` with a
-  mounted volume.
+Deployment is a single self-contained AOT bundle on a production VM — no
+Docker, no Dart SDK on the VM. See `AGENTS.md` at the repo root for the full
+redeploy flow (build with `dart build cli`, tar, scp, restart systemd service).
 
 The scheduler is a periodic timer inside the process; on restart it catches up
 any due prompts/reminders/allocations automatically.

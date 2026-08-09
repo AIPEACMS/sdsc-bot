@@ -2,3 +2,5 @@
 build/
 *.db
 /data/
+.env
+.env.*
