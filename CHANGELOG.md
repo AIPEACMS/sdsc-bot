@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-08-10
+
+### Added
+
+- **Interactive command responses**: commands that need arguments now show
+  inline buttons instead of a dead-end "Usage:" message.
+  - `ask` → paginated member picker (6 per page, ⬅➡ paging) → tap a member
+    to send them the availability picker.
+  - `announce` (broadcast) → asks you to type the message, then shows a
+    [Send] [Cancel] confirmation before sending to all members.
+  - Reusable picker API (`Pickers`): paginated member picker + confirm
+    dialogs, with a 10-minute wizard timeout.
+
+### Fixed
+
+- **Grid buttons now actually run their commands**: the text middleware
+  previously consumed every message before the button-press handlers could
+  run — pressing a grid button did nothing. Handlers now continue the
+  middleware chain.
+- **Admin inline callbacks (confirm, setexp, setgroup) now work**: the
+  member callback handler was consuming all callbacks first.
+
 ## [0.4.1] - 2026-08-10
 
 ### Changed

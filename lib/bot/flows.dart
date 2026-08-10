@@ -35,8 +35,41 @@ class Flows {
     commandBoth(bot, 'holiday', _onHoliday, label: 'holiday');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, 'help', _onHelp, label: 'help');
-    bot.on(bot.filters.text, _onText);
-    bot.on(bot.filters.callbackQuery, _onCallback);
+
+    // Bookkeeping middleware: records seen users and routes pending-input
+    // text, then ALWAYS continues the chain so command handlers registered
+    // later (admin, console, grid-button hears) still receive the update.
+    bot.use((ctx, next) async {
+      final text = ctx.message?.text;
+      if (text != null) {
+        final userId = ctx.from!.id;
+        _recordSeen(ctx, userId);
+
+        // A user mid-wizard (e.g. "type the message to broadcast"): their
+        // next text is the argument. Consume it here and stop the chain.
+        final pending = state.pendingArg[userId];
+        if (pending != null && !pending.isExpired) {
+          state.pendingArg.remove(userId);
+          await _consumePendingArg(ctx, userId, pending.command, text);
+          return;
+        }
+        if (ctx.hasCommand) return;
+      }
+      await next();
+    });
+
+    // Callback middleware: handles member-flow callbacks (slot/done/no),
+    // then continues the chain for everything else (admin/console).
+    bot.use((ctx, next) async {
+      final data = ctx.callbackQuery?.data;
+      if (data == null) return next();
+      final head = data.split('|').first;
+      if (head == 'slot' || head == 'done' || head == 'no') {
+        await _onCallback(ctx);
+        return;
+      }
+      await next();
+    });
   }
 
   // ------------------------------------------------------------- /start
@@ -207,11 +240,22 @@ class Flows {
 
   // ------------------------------------------------------------ text
 
-  Future<void> _onText(Context ctx) async {
-    final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
-    if (ctx.hasCommand) return;
+  /// Routes a wizard's pending-input text to the command that requested it.
+  /// `broadcast` = the message to send to every member (handled in admin).
+  Future<void> _consumePendingArg(
+      Context ctx, int userId, String command, String text) async {
+    switch (command) {
+      case 'broadcast':
+        await onBroadcastText?.call(ctx, userId, text);
+      default:
+        await ctx.reply('That input is not understood. Start over.');
+    }
   }
+
+  /// Set by main.dart: handles the pending "type the message" step of
+  /// /broadcast (shows the confirm dialog).
+  Future<void> Function(Context ctx, int userId, String text)?
+      onBroadcastText;
 
   // ---------------------------------------------------------- callback
 
