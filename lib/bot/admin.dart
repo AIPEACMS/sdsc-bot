@@ -239,13 +239,12 @@ class Admin {
       await ctx.reply('No sessions yet. Run /allocate first.');
       return;
     }
-    final kb = InlineKeyboard();
+    var kb = InlineKeyboard();
     for (final s in sessions) {
       final label = 'Wk${s.weekendIndex + 1} '
           '${s.day == 'sat' ? 'Sat' : 'Sun'} '
           '${s.slot.toUpperCase()} ${s.location == Location.ocbc ? 'OCBC' : 'PR'}';
-      kb.text(label, 'att_sess|${s.id}');
-      kb.row();
+      kb = kb.text(label, 'att_sess|${s.id}').row();
     }
     await ctx.reply(
       'Tap a session to confirm attendance:',
@@ -265,11 +264,10 @@ class Admin {
         .map((a) => a.userId)
         .toSet();
 
-    final kb = InlineKeyboard();
+    var kb = InlineKeyboard();
     for (final user in members) {
       final mark = attended.contains(user.id) ? '✅' : '⬜';
-      kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}');
-      kb.row();
+      kb = kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}').row();
     }
     await ctx.editMessageText(
       '${service.sessionLabel(session)}\nTap to toggle attendance:',
@@ -300,11 +298,10 @@ class Admin {
         .map((a) => a.userId)
         .toSet();
 
-    final kb = InlineKeyboard();
+    var kb = InlineKeyboard();
     for (final user in members) {
       final mark = newAttended.contains(user.id) ? '✅' : '⬜';
-      kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}');
-      kb.row();
+      kb = kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}').row();
     }
     await ctx.editMessageText(
       '${service.sessionLabel(session)}\nTap to toggle attendance:',
@@ -335,10 +332,9 @@ class Admin {
       await ctx.reply('No registered users yet.');
       return;
     }
-    final kb = InlineKeyboard();
+    var kb = InlineKeyboard();
     for (final u in users) {
-      kb.text(u.name, '$kind|$value|${u.id}');
-      kb.row();
+      kb = kb.text(u.name, '$kind|$value|${u.id}').row();
     }
     await ctx.reply(
       'Set <b>${kind == 'setexp' ? 'experience to $value' : 'group to ${value.toUpperCase()}'}</b> for:',

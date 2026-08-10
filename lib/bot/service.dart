@@ -200,7 +200,7 @@ class CycleService {
   /// Builds the availability inline keyboard: toggles per weekend/day, plus
   /// Done and Not available actions.
   static InlineKeyboard buildKeyboard(Cycle cycle, Set<Slot> picked) {
-    final kb = InlineKeyboard();
+    var kb = InlineKeyboard();
     for (final wi in [0, 1]) {
       for (final day in Slot.allDays) {
         final dayLabel = day == 'sat' ? 'Sat' : 'Sun';
@@ -209,17 +209,19 @@ class CycleService {
           final selected = picked.any((s) => s.encode() == key);
           final mark = selected ? '✅' : '▫️';
           final slotLabel = slot == 'am' ? 'AM' : 'PM';
-          kb.text(
+          kb = kb.text(
             '$mark $dayLabel $slotLabel',
             'slot|${cycle.id}|$key',
           );
         }
-        kb.row();
+        kb = kb.row();
       }
-      kb.row();
+      kb = kb.row();
     }
-    kb.text('✅ Done', 'done|${cycle.id}');
-    kb.text('❌ Not available', 'no|${cycle.id}');
+    kb = kb
+        .text('✅ Done', 'done|${cycle.id}')
+        .row()
+        .text('❌ Not available', 'no|${cycle.id}');
     return kb;
   }
 }
