@@ -1,16 +1,23 @@
 #!/usr/bin/env bash
-# Build the AOT bundle and deploy to the production VM by whatever private channel is available.
+# Build the AOT bundle and deploy to the production VM.
 #
 # Usage: ./deploy.sh [host]
-#   host defaults to user@host (SSH daily driver).
+#   host defaults to the value of $SDSC_HOST, or to a generic placeholder.
+#   Set SDSC_HOST=<user>@<host> in your environment — the real hostname is
+#   never committed to this repo.
 #
-# Fallback (no SSH): pipe the tarball through the private channel and
-# copy via SSH — see the root AGENTS.md redeploy flow.
+# Fallback: copy the bundle to the VM by whatever private channel is
+# available (see the root AGENTS.md redeploy flow).
 
 set -euo pipefail
 
-HOST="${1:-user@host}"
+HOST="${1:-${SDSC_HOST:-user@host}}"
 TARBALL="/tmp/sdsc-bundle.tar.gz"
+
+if [[ "$HOST" == "user@host" ]]; then
+  echo "error: set SDSC_HOST (e.g. export SDSC_HOST=user@host) before deploying" >&2
+  exit 1
+fi
 
 echo "==> dart build cli -o build"
 dart build cli -o build

@@ -125,8 +125,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   reminder, allocation, holiday variants, confirmations).
 - **Console id** no longer hard-coded — read from `CONSOLE_ID` env (secret
   file, never in the repo); `ADMIN_IDS` env removed.
-- **One-command deploy** via `deploy.sh` (build → bundle → SSH scp →
-  extract + restart).
+- **One-command deploy** via `deploy.sh` (build → bundle → copy to the
+  production VM → extract + restart).
 - **README slimmed** to a minimal description.
 
 ### Removed

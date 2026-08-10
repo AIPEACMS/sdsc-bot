@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # SDSC bot updater — run on the VM to pull the latest bundle from GitHub
 # Releases and restart the service. No secrets: the repo is public, and the
-# bot's secrets stay in the secret env file, untouched by updates.
+# bot's secrets stay in the VM's secret env file, untouched by updates.
 #
 # Usage:
 #   ./sdsc.sh update            # update to the latest release

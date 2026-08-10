@@ -36,8 +36,8 @@ dart analyze
    (pinned). Pulls the release, verifies checksum, swaps the bundle,
    restarts the service, rolls back on failure.
 
-Secrets never touch CI: `TELEGRAM_TOKEN` / `CONSOLE_ID` live only in
-`the secret env file` on the VM.
+Secrets never touch CI: `TELEGRAM_TOKEN` / `CONSOLE_ID` live only in the
+secret env file on the VM.
 
-**Fallback — manual SSH copy:** `./deploy.sh` builds the bundle locally
-and ships it over `ssh user@host` when GitHub is unreachable.
+**Fallback — manual copy:** `./deploy.sh` builds the bundle locally and ships
+it over SSH (set `SDSC_HOST=user@host`) when GitHub is unreachable.
