@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-08-10
+
+### Fixed
+
+- **Console auto-registers on first `/start`**: the console (configured via
+  `CONSOLE_ID`) is registered as an admin member on first `/start`, so the
+  console grid appears immediately instead of `/start` staying silent.
+
 ## [0.3.0] - 2026-08-10
 
 ### Added

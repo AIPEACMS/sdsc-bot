@@ -44,7 +44,23 @@ class Flows {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
 
-    final user = repo.findUser(userId);
+    var user = repo.findUser(userId);
+    // The console is the first user and is admin by default. On their first
+    // /start, register them so they get the console grid — nobody has to add
+    // them first.
+    if (user == null && config.isConsole(userId)) {
+      final name = ctx.from?.username != null
+          ? '@${ctx.from!.username}'
+          : 'Console';
+      repo.upsertUser(User(
+        id: userId,
+        name: name,
+        experience: Experience.newbie,
+        group: 'A',
+        isAdmin: true,
+      ));
+      user = repo.findUser(userId);
+    }
     // A user that no admin has added yet gets silence: no backend traffic,
     // no hint that the bot exists.
     if (user == null) return;
