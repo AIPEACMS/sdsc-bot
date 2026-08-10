@@ -9,12 +9,18 @@ import 'service.dart';
 /// Periodically checks the calendar and fires whatever is due for the current
 /// cycle. A lightweight Timer replaces a cron daemon and naturally catches up
 /// when the bot restarts.
+///
+/// Two timers:
+///  - a one-shot armed to the next milestone (prompt / reminder / deadline /
+///    allocation) so things fire on the sharp hour they are scheduled for;
+///  - a slow periodic safety net that catches up after restarts and drift.
 class Scheduler {
   final Repo repo;
   final Config config;
   final CycleService service;
 
   Timer? _timer;
+  Timer? _milestone;
 
   Scheduler({
     required this.repo,
@@ -29,10 +35,13 @@ class Scheduler {
 
   void stop() {
     _timer?.cancel();
+    _milestone?.cancel();
     _timer = null;
+    _milestone = null;
   }
 
   Future<void> _tick() async {
+    _milestone?.cancel();
     try {
       final now = config.toLocal(Config.nowUtc());
       final cycle = repo.ensureCurrentCycle(now);
@@ -66,5 +75,29 @@ class Scheduler {
       // ignore: avoid_print
       print('scheduler error: $e');
     }
+    _scheduleNext();
+  }
+
+  /// Arms a one-shot timer for the next not-yet-done milestone of the current
+  /// cycle so it fires on the sharp scheduled hour.
+  void _scheduleNext() {
+    final now = config.toLocal(Config.nowUtc());
+    final cycle = repo.ensureCurrentCycle(now);
+
+    final due = <DateTime>[];
+    if (cycle.status == CycleStatus.open) {
+      if (!cycle.promptSent) due.add(cycle.promptDay);
+      if (!cycle.reminderSent) due.add(cycle.reminderDay);
+      due.add(cycle.deadline); // auto-close availability
+    } else if (!cycle.allocated) {
+      due.add(cycle.allocationDay);
+    }
+
+    DateTime? next;
+    for (final d in due) {
+      if (d.isAfter(now) && (next == null || d.isBefore(next))) next = d;
+    }
+    if (next == null) return;
+    _milestone = Timer(next.difference(now), () => _tick());
   }
 }

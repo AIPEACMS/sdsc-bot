@@ -153,4 +153,19 @@ void main() {
     expect(byUser[1], 1); // OCBC Sat AM
     expect(byUser[2], 2); // PR Sat AM
   });
+
+  test('a member is allocated at most one session per weekend', () {
+    // User picks every slot of weekend 0 (both locations, all days/times).
+    final allWk0 = <Slot>{
+      for (final day in Slot.allDays)
+        for (final slot in Slot.allSlots)
+          for (final loc in Slot.allLocations) Slot(0, day, slot, loc),
+    };
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, allWk0)],
+      users: users([_user(1, Experience.experienced)]),
+    );
+    expect(result.where((e) => e.$1 == 1).length, 1);
+  });
 }

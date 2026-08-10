@@ -52,6 +52,9 @@ class Allocator {
     }
 
     for (final weekendIndex in const [0, 1]) {
+      // A member gets at most one session per weekend, so people spread
+      // evenly across the two weekends instead of piling into one.
+      final taken = <int>{};
       for (final day in Slot.allDays) {
         for (final slot in Slot.allSlots) {
           final key = '$weekendIndex:$day:$slot';
@@ -62,12 +65,14 @@ class Allocator {
           final pr = firstOf(slotSessions, Location.pasirRis);
           if (ocbc == null && pr == null) continue;
 
-          // Candidates = members who marked this exact session available.
+          // Candidates = members who marked this exact session available and
+          // are not yet allocated this weekend.
           List<User> candidatesFor(String loc) {
             final locKey = '$key:$loc';
             final out = <User>[];
             for (final av in availability) {
               if (!av.available) continue;
+              if (taken.contains(av.userId)) continue;
               if (!av.slots.any((s) => s.encode() == locKey)) continue;
               final user = users[av.userId];
               if (user != null) out.add(user);
@@ -120,12 +125,14 @@ class Allocator {
           if (ocbc != null) {
             for (final uid in ocbcTaken) {
               result.add((uid, ocbc.id));
+              taken.add(uid);
               newStreaks[uid] = streakOf(uid) + 1;
             }
           }
           if (pr != null) {
             for (final uid in prTaken) {
               result.add((uid, pr.id));
+              taken.add(uid);
               newStreaks[uid] = 0;
             }
           }

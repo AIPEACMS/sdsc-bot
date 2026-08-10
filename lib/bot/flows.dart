@@ -5,6 +5,7 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
+import '../core/week.dart';
 import 'command_both.dart';
 import 'keyboards.dart';
 import 'service.dart';
@@ -33,6 +34,7 @@ class Flows {
     commandBoth(bot, 'start', _onStart, label: 'start');
     commandBoth(bot, 'reindicate', _onReindicate, label: 're-pick');
     commandBoth(bot, 'holiday', _onHoliday, label: 'holiday');
+    commandBoth(bot, 'mystatus', _onMyStatus, label: 'my-status');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, 'help', _onHelp, label: 'help');
 
@@ -58,13 +60,15 @@ class Flows {
       await next();
     });
 
-    // Callback middleware: handles member-flow callbacks (slot/done/no),
-    // then continues the chain for everything else (admin/console).
+    // Callback middleware: handles member-flow callbacks (slot/done/no/
+    // holiday opt-out), then continues the chain for everything else
+    // (admin/console).
     bot.use((ctx, next) async {
       final data = ctx.callbackQuery?.data;
       if (data == null) return next();
       final head = data.split('|').first;
-      if (head == 'slot' || head == 'done' || head == 'no') {
+      if (head == 'slot' || head == 'done' || head == 'no' ||
+          head == 'holidayout') {
         await _onCallback(ctx);
         return;
       }
@@ -123,17 +127,16 @@ class Flows {
         ..writeln('/users — registered members')
         ..writeln('/prompt — send availability prompts now')
         ..writeln('/remind — remind non-responders now')
-        ..writeln('/allocate — run allocation and send notices now')
         ..writeln('/ask [telegram_id] — prompt one member')
         ..writeln('/confirm — mark attendance')
         ..writeln('/setexp experienced|newbie — change a member\'s experience')
-        ..writeln('/setgroup A|B — change a member\'s group')
-        ..writeln('/broadcast [message] — message everyone');
+        ..writeln('/setgroup A|B — change a member\'s group');
     }
 
     sb
       ..writeln('\n<b>Member</b>')
       ..writeln('/reindicate — update your availability')
+      ..writeln('/mystatus — your picks, allocation and attendance')
       ..writeln('/holiday — opt out of an upcoming break')
       ..writeln('\nUse the buttons above the keyboard to jump to a command. '
           'Type /grid to switch which grid you see (console only).');
@@ -233,20 +236,86 @@ class Flows {
 
   // -------------------------------------------------------- /holiday
 
+  /// Opts the member out of the current cycle's holiday (if any) so they are
+  /// not prompted again during it.
   Future<void> _onHoliday(Context ctx) async {
+    final userId = ctx.from!.id;
+    final user = repo.findUser(userId);
+    if (user == null) return;
+    final cycle = _currentCycle(ctx);
+    if (cycle == null) return;
+    final week = _holidayWeekOf(cycle);
+    if (week == null) {
+      await ctx.reply('There is no holiday right now.');
+      return;
+    }
+    repo.setHolidayOptout(userId, week);
     await ctx.reply(messages.msg5Z());
+  }
+
+  // ------------------------------------------------------- /mystatus
+
+  /// Member-facing status: what they indicated, what they are allocated to,
+  /// and their attendance (total + per location).
+  Future<void> _onMyStatus(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+    final user = repo.findUser(userId);
+    if (user == null) return;
+    final cycle = _currentCycle(ctx);
+    if (cycle == null) return;
+
+    final sb = StringBuffer()..writeln('📋 <b>Your status</b>');
+
+    final avail = repo.getAvailability(cycle.id, userId);
+    if (avail != null && avail.available) {
+      final lines = avail.slots.map((s) => '• ${s.toString()}').join('\n');
+      sb.writeln('\n<b>Indicated</b> (this cycle):\n$lines');
+    } else {
+      sb.writeln('\n<b>Indicated</b>: none yet for this cycle.');
+    }
+
+    final allocated = repo
+        .allocationsForCycle(cycle.id)
+        .where((a) => a.$1.id == userId)
+        .map((a) => '• ${service.sessionLabel(a.$2)}')
+        .join('\n');
+    if (allocated.isNotEmpty) {
+      sb.writeln('\n<b>Allocated</b>:\n$allocated');
+    } else {
+      sb.writeln('\n<b>Allocated</b>: not yet — allocation runs at '
+          '${_allocLabel(cycle.allocationDay)} sharp.');
+    }
+
+    final stats = repo.attendanceStats(userId);
+    sb.writeln('\n<b>Attendance</b>: ${stats.total} sessions total '
+        '(${stats.ocbc} OCBC · ${stats.pasirRis} PR).');
+
+    await ctx.reply(sb.toString(), parseMode: ParseMode.html);
+  }
+
+  /// The Monday of the holiday covering this cycle's sessions, if any.
+  DateTime? _holidayWeekOf(Cycle cycle) {
+    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
+    final weekend2 =
+        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
+    return repo.holidayOn(weekend1)?.weekStart ??
+        repo.holidayOn(weekend2)?.weekStart;
   }
 
   // ------------------------------------------------------------ text
 
   /// Routes a wizard's pending-input text to the command that requested it.
   /// `broadcast` = the message to send to every member (handled in admin);
+  /// `adduser` = the handle to add (handled in admin);
   /// `setdate` / `synccalendar` = typed console wizard input (in console).
   Future<void> _consumePendingArg(
       Context ctx, int userId, String command, String text) async {
     switch (command) {
       case 'broadcast':
         await onBroadcastText?.call(ctx, userId, text);
+      case 'adduser':
+        await onAddUserText?.call(ctx, userId, text);
       case 'setdate':
         await onSetDateText?.call(ctx, userId, text);
       case 'synccalendar':
@@ -260,6 +329,10 @@ class Flows {
   /// /broadcast (shows the confirm dialog).
   Future<void> Function(Context ctx, int userId, String text)?
       onBroadcastText;
+
+  /// Set by main.dart: handles the typed handle of the /adduser wizard
+  /// (shows the confirm dialog).
+  Future<void> Function(Context ctx, int userId, String text)? onAddUserText;
 
   /// Set by main.dart: applies the typed date of the /setdate wizard.
   Future<void> Function(Context ctx, int userId, String text)? onSetDateText;
@@ -284,7 +357,38 @@ class Flows {
         await _saveAvailability(ctx, userId, parts[1], false);
       case 'no':
         await _saveAvailability(ctx, userId, parts[1], true);
+      case 'holidayout':
+        await _optOutHoliday(ctx, userId, parts);
     }
+  }
+
+  Future<void> _optOutHoliday(Context ctx, int userId, List<String> parts) async {
+    await ctx.answerCallbackQuery();
+    final cycleId = int.tryParse(parts[1]);
+    final cycle = cycleId == null ? null : repo.cycleById(cycleId);
+    if (cycle == null) return;
+    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
+    final weekend2 =
+        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
+    var opted = false;
+    for (final week in [weekend1, weekend2]) {
+      final holiday = repo.holidayOn(week);
+      if (holiday != null) {
+        repo.setHolidayOptout(userId, holiday.weekStart);
+        opted = true;
+      }
+    }
+    if (!opted) return;
+    // They are out for this holiday: no longer a candidate for allocation.
+    state.forgetAvailability(userId);
+    repo.setAvailability(Availability(
+      cycleId: cycle.id,
+      userId: userId,
+      slots: {},
+      available: false,
+      updatedAt: config.toLocal(Config.nowUtc()),
+    ));
+    await ctx.editMessageText(messages.msg5Z());
   }
 
   Future<void> _toggleSlot(Context ctx, int userId, List<String> parts) async {
@@ -306,7 +410,11 @@ class Flows {
     try {
       await ctx.editMessageText(
         text,
-        replyMarkup: CycleService.buildKeyboard(cycle, picks),
+        replyMarkup: CycleService.buildKeyboard(
+          cycle,
+          picks,
+          holiday: CycleService.isHolidayCycle(repo, cycle),
+        ),
       );
     } catch (_) {
       // message may be gone; ignore
@@ -352,7 +460,22 @@ class Flows {
     } catch (_) {
       // message may be gone; ignore
     }
-    await ctx.reply(notAvailable ? messages.msg6() : messages.msg3(picks));
+    await ctx.reply(
+        notAvailable ? messages.msg6() : messages.msg3(picks, _allocLabel(cycle.allocationDay)));
+  }
+
+  /// "Fri 14 Aug at 7:00pm" — the sharp hour allocation runs.
+  static String _allocLabel(DateTime d) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final hour = d.hour;
+    final ampm = hour >= 12 ? 'pm' : 'am';
+    final h12 = hour % 12 == 0 ? 12 : hour % 12;
+    return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]} '
+        'at $h12:00$ampm';
   }
 
   // ------------------------------------------------------------- helpers
