@@ -6,6 +6,7 @@ import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
 import '../core/week.dart';
+import 'command_both.dart';
 import 'service.dart';
 import 'state.dart';
 
@@ -28,19 +29,30 @@ class Admin {
   });
 
   void register() {
-    bot.command('adduser', _guard(_addUser));
-    bot.command('status', _guard(_status));
-    bot.command('users', _guard(_users));
-    bot.command('prompt', _guard((ctx) => service.sendPrompts(_cycle(ctx))));
-    bot.command('remind', _guard((ctx) => service.sendReminders(_cycle(ctx))));
-    bot.command('allocate', _guard((ctx) => service.allocate(_cycle(ctx))));
-    bot.command('ask', _guard(_ask));
-    bot.command('confirm', _guard(_confirm));
-    bot.command('setexp', _guard((ctx) => _pickUser(ctx, 'setexp')));
-    bot.command('setgroup', _guard((ctx) => _pickUser(ctx, 'setgroup')));
-    bot.command('holidayset', _guard(_holidaySet));
-    bot.command('holidayclear', _guard(_holidayClear));
-    bot.command('broadcast', _guard(_broadcast));
+    commandBoth(bot, 'adduser', _guard(_addUser), label: 'adduser');
+    commandBoth(bot, 'status', _guard(_status), label: 'status');
+    commandBoth(bot, 'users', _guard(_users), label: 'users');
+    commandBoth(bot, 'prompt',
+        _guard((ctx) => service.sendPrompts(_cycle(ctx))),
+        label: 'prompt');
+    commandBoth(bot, 'remind',
+        _guard((ctx) => service.sendReminders(_cycle(ctx))),
+        label: 'remind');
+    commandBoth(bot, 'allocate',
+        _guard((ctx) => service.allocate(_cycle(ctx))),
+        label: 'allocate');
+    commandBoth(bot, 'ask', _guard(_ask), label: 'ask');
+    commandBoth(bot, 'confirm', _guard(_confirm), label: 'confirm');
+    commandBoth(bot, 'setexp',
+        _guard((ctx) => _pickUser(ctx, 'setexp')),
+        label: 'setexp');
+    commandBoth(bot, 'setgroup',
+        _guard((ctx) => _pickUser(ctx, 'setgroup')),
+        label: 'setgroup');
+    commandBoth(bot, 'holidayset', _guard(_holidaySet), label: 'holidayset');
+    commandBoth(bot, 'holidayclear', _guard(_holidayClear),
+        label: 'holidayclear');
+    commandBoth(bot, 'broadcast', _guard(_broadcast), label: 'broadcast');
     bot.on(bot.filters.callbackQuery, _onAdminCallback);
   }
 

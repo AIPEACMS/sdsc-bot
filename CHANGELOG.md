@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-08-10
+
+### Changed
+
+- **Command grid buttons show no leading slash** (e.g. `status` not
+  `/status`); pressing a button still runs the command.
+- **Grid buttons are color-coded by tier**: green = member commands, blue =
+  admin, red = console. A member sees only green; an admin sees blue +
+  green; the console sees all three.
+
 ## [0.3.2] - 2026-08-10
 
 ### Fixed

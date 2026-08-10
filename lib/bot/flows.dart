@@ -5,6 +5,7 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
+import 'command_both.dart';
 import 'keyboards.dart';
 import 'service.dart';
 import 'state.dart';
@@ -29,11 +30,11 @@ class Flows {
   });
 
   void register() {
-    bot.command('start', _onStart);
-    bot.command('reindicate', _onReindicate);
-    bot.command('holiday', _onHoliday);
-    bot.command('grid', _onGrid);
-    bot.command('help', _onHelp);
+    commandBoth(bot, 'start', _onStart, label: 'start');
+    commandBoth(bot, 'reindicate', _onReindicate, label: 'reindicate');
+    commandBoth(bot, 'holiday', _onHoliday, label: 'holiday');
+    commandBoth(bot, 'grid', _onGrid, label: 'grid');
+    commandBoth(bot, 'help', _onHelp, label: 'help');
     bot.on(bot.filters.text, _onText);
     bot.on(bot.filters.callbackQuery, _onCallback);
   }

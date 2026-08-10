@@ -3,6 +3,7 @@ import 'package:televerse/televerse.dart';
 import '../core/config.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
+import 'command_both.dart';
 
 /// Console commands — only for the first user, hard-coded in [Config].
 /// The console has admin rights + debug rights, but is not an admin per se:
@@ -19,10 +20,10 @@ class Console {
   });
 
   void register() {
-    bot.command('addadmin', _guard(_addAdmin));
-    bot.command('setdate', _guard(_setDate));
-    bot.command('resetdate', _guard(_resetDate));
-    bot.command('demote', _guard(_demote));
+    commandBoth(bot, 'addadmin', _guard(_addAdmin), label: 'addadmin');
+    commandBoth(bot, 'setdate', _guard(_setDate), label: 'setdate');
+    commandBoth(bot, 'resetdate', _guard(_resetDate), label: 'resetdate');
+    commandBoth(bot, 'demote', _guard(_demote), label: 'demote');
   }
 
   bool _isConsole(Context ctx) {
