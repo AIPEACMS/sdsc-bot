@@ -28,13 +28,15 @@ class CycleService {
   });
 
   /// Picks the right prompt for [user] for [cycle]: holiday variant first,
-  /// then the "you did not attend" variant for lapsed members.
-  String promptFor(User user, Cycle cycle) {
+  /// then the "you did not attend" variant for lapsed members. Returns null
+  /// when the member opted out of the holiday.
+  String? promptFor(User user, Cycle cycle) {
     final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
     final weekend2 =
         WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
     final holiday = repo.holidayOn(weekend1) ?? repo.holidayOn(weekend2);
     if (holiday != null) {
+      if (repo.hasHolidayOptout(user.id, holiday.weekStart)) return null;
       if (holiday.kind == HolidayKind.middle) {
         return messages.msg5A(user.group);
       }
@@ -67,7 +69,9 @@ class CycleService {
       try {
         // Never send the same prompt to the same user twice in one day.
         if (repo.messageSentOnDay(user.id, 'prompt', today)) continue;
-        await showAvailability(user, cycle, promptFor(user, cycle));
+        final text = promptFor(user, cycle);
+        if (text == null) continue; // opted out of this holiday
+        await showAvailability(user, cycle, text);
         repo.markMessageSent(user.id, 'prompt', today);
       } catch (_) {
         failures++; // member may have blocked the bot
@@ -84,6 +88,10 @@ class CycleService {
     for (final user in repo.nonResponders(cycle.id)) {
       try {
         if (repo.messageSentOnDay(user.id, 'reminder', today)) continue;
+        final holidayWeek = _cycleHolidayWeek(cycle);
+        if (holidayWeek != null && repo.hasHolidayOptout(user.id, holidayWeek)) {
+          continue;
+        }
         await showAvailability(user, cycle, messages.msg2(user.group));
         repo.markMessageSent(user.id, 'reminder', today);
       } catch (_) {
@@ -93,6 +101,23 @@ class CycleService {
     repo.markReminderSent(cycle.id);
     // ignore: avoid_print
     if (failures > 0) print('remind: $failures members unreachable');
+  }
+
+  /// The week (Monday) of the holiday covering this cycle's sessions, if any.
+  DateTime? _cycleHolidayWeek(Cycle cycle) {
+    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
+    final weekend2 =
+        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
+    return repo.holidayOn(weekend1)?.weekStart ??
+        repo.holidayOn(weekend2)?.weekStart;
+  }
+
+  /// Whether this cycle's sessions fall on a holiday week.
+  static bool isHolidayCycle(Repo repo, Cycle cycle) {
+    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
+    final weekend2 =
+        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
+    return repo.holidayOn(weekend1) != null || repo.holidayOn(weekend2) != null;
   }
 
   /// Runs the allocator, persists allocations + streaks, then sends msg4.
@@ -162,7 +187,11 @@ class CycleService {
     String text,
   ) async {
     final picked = state.picksFor(user.id);
-    final keyboard = buildKeyboard(cycle, picked);
+    final keyboard = buildKeyboard(
+      cycle,
+      picked,
+      holiday: isHolidayCycle(repo, cycle),
+    );
 
     final existing = state.availabilityMessages[user.id];
     if (existing != null) {
@@ -211,8 +240,13 @@ class CycleService {
       'Not able to attend? Tap <b>Not available</b>.';
 
   /// Builds the availability inline keyboard: toggles per weekend/day/slot
-  /// and location, plus Done and Not available actions.
-  static InlineKeyboard buildKeyboard(Cycle cycle, Set<Slot> picked) {
+  /// and location, plus Done and Not available actions. On a holiday cycle a
+  /// "skip me this holiday" opt-out button is appended.
+  static InlineKeyboard buildKeyboard(
+    Cycle cycle,
+    Set<Slot> picked, {
+    bool holiday = false,
+  }) {
     var kb = InlineKeyboard();
     for (final wi in [0, 1]) {
       for (final day in Slot.allDays) {
@@ -238,6 +272,11 @@ class CycleService {
         .text('✅ Done', 'done|${cycle.id}')
         .row()
         .text('❌ Not available', 'no|${cycle.id}');
+    if (holiday) {
+      kb = kb
+          .row()
+          .text('🔕 Skip me this holiday', 'holidayout|${cycle.id}');
+    }
     return kb;
   }
 }

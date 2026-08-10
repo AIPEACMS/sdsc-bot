@@ -33,17 +33,13 @@ class Admin {
     commandBoth(bot, 'adduser', _guard(_addUser), label: 'add-user');
     commandBoth(bot, 'status', _guard(_status), label: 'status');
     commandBoth(bot, 'users', _guard(_users), label: 'users');
-    commandBoth(bot, 'prompt',
-        _guard((ctx) => service.sendPrompts(_cycle(ctx))),
-        label: 'prompt');
-    commandBoth(bot, 'remind',
-        _guard((ctx) => service.sendReminders(_cycle(ctx))),
-        label: 'remind');
+    commandBoth(bot, 'prompt', _guard(_promptConfirm), label: 'prompt');
+    commandBoth(bot, 'remind', _guard(_remindConfirm), label: 'remind');
     commandBoth(bot, 'allocate',
         _guard((ctx) => service.allocate(_cycle(ctx))),
         label: 'allocate');
     commandBoth(bot, 'ask', _guard(_ask), label: 'ask');
-    commandBoth(bot, 'confirm', _guard(_confirm), label: 'confirm');
+    commandBoth(bot, 'confirm', _guard(_confirm), label: 'mark-attend');
     commandBoth(bot, 'setexp',
         _guard((ctx) => _pickUser(ctx, 'setexp')),
         label: 'set-exp');
@@ -59,7 +55,7 @@ class Admin {
       final head = data.split('|').first;
       const mine = {
         'att_sess', 'att_toggle', 'setexp', 'setgroup', 'setval',
-        'mpick', 'bcast', 'cancel',
+        'mpick', 'bcast', 'adduser', 'prompt', 'remind', 'cancel',
       };
       if (mine.contains(head)) {
         await _onAdminCallback(ctx);
@@ -94,34 +90,43 @@ class Admin {
 
   // ----------------------------------------------------------- /adduser
 
+  /// /adduser with no args starts the wizard: the admin sends one handle and
+  /// confirms before anything is added. With a handle, adds it directly.
   Future<void> _addUser(Context ctx) async {
     final args = ctx.args;
     if (args.isEmpty) {
-      await _addUserPicker(ctx, 0, isAdmin: false);
+      final userId = ctx.from!.id;
+      state.pendingArg[userId] = PendingArg('adduser');
+      await ctx.reply(
+        '➕ Send me the handle to add (e.g. <b>@username</b>), or tap Cancel.',
+        parseMode: ParseMode.html,
+        replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
+      );
       return;
     }
-    await _addByHandle(ctx, args.first, isAdmin: false);
+    await ctx.reply(_addOutcome(args.first, isAdmin: false));
   }
 
-  /// Arg-less /adduser (and /addadmin): show a picker of users the bot has
-  /// seen but not registered yet.
-  Future<void> _addUserPicker(Context ctx, int page, {required bool isAdmin}) async {
-    final seen = repo.unregisteredSeen();
-    if (seen.isEmpty) {
-      await ctx.reply(isAdmin ? 'Usage: /addadmin @handle' : 'Usage: /adduser @handle');
+  /// Entry point for the /adduser wizard: the admin typed the handle; show
+  /// the confirm dialog.
+  Future<void> onAddUserText(Context ctx, int userId, String text) async {
+    final handle = text.trim().replaceFirst('@', '');
+    if (handle.isEmpty || handle.contains(' ')) {
+      await ctx.reply('That is not a valid handle. Try again, or /cancel.');
       return;
     }
+    _pendingAddUser[userId] = handle;
     await ctx.reply(
-      isAdmin ? '➕ Promote which member to admin?' : '➕ Add which member?',
-      replyMarkup: Pickers.memberPicker(
-        action: isAdmin ? 'addadmin' : 'adduser',
-        members: seen,
-        page: page,
-      ),
+      'Add <b>@$handle</b>?',
+      parseMode: ParseMode.html,
+      replyMarkup: Pickers.confirm('adduser'),
     );
   }
 
-  /// Registers a member picked from the seen-users list.
+  /// The handle awaiting confirmation per admin, from the /adduser wizard.
+  final Map<int, String> _pendingAddUser = {};
+
+  /// Registers a member picked from the seen-users list (add-admin picker).
   Future<void> _addSeenById(Context ctx, int memberId, {required bool isAdmin}) async {
     final username = repo.seenUsername(memberId);
     if (username == null) return;
@@ -152,20 +157,16 @@ class Admin {
     );
   }
 
-  Future<void> _addByHandle(Context ctx, String rawHandle,
-      {required bool isAdmin}) async {
+  /// Registers (or queues) @handle and returns the outcome message.
+  String _addOutcome(String rawHandle, {required bool isAdmin}) {
     final handle = rawHandle.replaceFirst('@', '');
     final userId = repo.userIdByUsername(handle);
     if (userId != null && repo.findUser(userId) != null) {
-      await ctx.reply('@$handle is already a member.');
-      return;
+      return '@$handle is already a member.';
     }
     if (repo.isPendingUser(handle)) {
-      await ctx.reply(
-        '@$handle is already queued — they will be registered the first time '
-        'they message the bot.',
-      );
-      return;
+      return '@$handle is already queued — they will be registered the first '
+          'time they message the bot.';
     }
     if (userId != null) {
       // Seen before: register now.
@@ -176,22 +177,17 @@ class Admin {
         group: 'A',
         isAdmin: isAdmin,
       ));
-      await ctx.reply(
-        isAdmin
-            ? '✅ @$handle is now an admin.'
-            : '✅ @$handle added. They can now use /start to see their commands.',
-      );
-      return;
+      return isAdmin
+          ? '✅ @$handle is now an admin.'
+          : '✅ @$handle added. They can now use /start to see their commands.';
     }
     // Not seen yet: queue by handle; auto-register on first contact.
     repo.addPendingUser(handle, isAdmin: isAdmin);
-    await ctx.reply(
-      isAdmin
-          ? '✅ @$handle queued as admin — no need for them to message first. '
-              'The moment they message this bot, they are promoted automatically.'
-          : '✅ @$handle queued — no need for them to message first. The moment '
-              'they message this bot, they are registered automatically.',
-    );
+    return isAdmin
+        ? '✅ @$handle queued as admin — no need for them to message first. '
+            'The moment they message this bot, they are promoted automatically.'
+        : '✅ @$handle queued — no need for them to message first. The moment '
+            'they message this bot, they are registered automatically.';
   }
 
   // ----------------------------------------------------------- /status
@@ -243,6 +239,24 @@ class Admin {
     );
   }
 
+  // ------------------------------------------------- /prompt /remind confirm
+
+  /// /prompt asks for confirmation before messaging everyone.
+  Future<void> _promptConfirm(Context ctx) async {
+    await ctx.reply(
+      '📣 Send availability prompts to all members now?',
+      replyMarkup: Pickers.confirm('prompt'),
+    );
+  }
+
+  /// /remind asks for confirmation before messaging non-responders.
+  Future<void> _remindConfirm(Context ctx) async {
+    await ctx.reply(
+      '⏰ Remind non-responders now?',
+      replyMarkup: Pickers.confirm('remind'),
+    );
+  }
+
   // ------------------------------------------------------------- /ask
 
   Future<void> _ask(Context ctx) async {
@@ -258,7 +272,8 @@ class Admin {
       return;
     }
     final cycle = _cycle(ctx);
-    await service.showAvailability(user, cycle, service.promptFor(user, cycle));
+    final text = service.promptFor(user, cycle) ?? messages.msg1(user.group);
+    await service.showAvailability(user, cycle, text);
   }
 
   Future<void> _askPicker(Context ctx, int page) async {
@@ -282,7 +297,8 @@ class Admin {
     final user = repo.findUser(memberId);
     if (user == null) return;
     final cycle = _cycle(ctx);
-    await service.showAvailability(user, cycle, service.promptFor(user, cycle));
+    final text = service.promptFor(user, cycle) ?? messages.msg1(user.group);
+    await service.showAvailability(user, cycle, text);
     await ctx.editMessageText('✅ Availability picker sent to ${user.name}.');
   }
 
@@ -540,10 +556,31 @@ class Admin {
           final text = _pendingBroadcast.remove(ctx.from!.id);
           if (text != null) await _doBroadcast(ctx, text);
         }
+      case 'adduser':
+        final yes = parts.length > 1 && parts[1] == 'yes';
+        await ctx.answerCallbackQuery();
+        if (!yes) {
+          await ctx.editMessageText('Cancelled — nobody was added.');
+          return;
+        }
+        final handle = _pendingAddUser.remove(ctx.from!.id);
+        if (handle == null) return;
+        await ctx.editMessageText(_addOutcome(handle, isAdmin: false));
+      case 'prompt':
+        final yes = parts.length > 1 && parts[1] == 'yes';
+        await ctx.answerCallbackQuery();
+        await ctx.editMessageText(yes ? 'Sending prompts…' : 'Cancelled — nothing was sent.');
+        if (yes) await service.sendPrompts(_cycle(ctx));
+      case 'remind':
+        final yes = parts.length > 1 && parts[1] == 'yes';
+        await ctx.answerCallbackQuery();
+        await ctx.editMessageText(yes ? 'Sending reminders…' : 'Cancelled — nothing was sent.');
+        if (yes) await service.sendReminders(_cycle(ctx));
       case 'cancel':
         await ctx.answerCallbackQuery();
         state.pendingArg.remove(ctx.from!.id);
         _pendingBroadcast.remove(ctx.from!.id);
+        _pendingAddUser.remove(ctx.from!.id);
         await ctx.editMessageText('Cancelled.');
     }
   }
@@ -576,12 +613,11 @@ class Admin {
       if (memberId != null) await _askPick(ctx, memberId);
       return;
     }
-    if (action == 'adduser' || action == 'addadmin') {
-      final isAdmin = action == 'addadmin';
+    if (action == 'addadmin') {
       if (target == 'prev' || target == 'next') {
         final seen = repo.unregisteredSeen();
         await ctx.editMessageText(
-          isAdmin ? '➕ Promote which member to admin?' : '➕ Add which member?',
+          '➕ Promote which member to admin?',
           replyMarkup: Pickers.memberPicker(
             action: action,
             members: seen,
@@ -592,7 +628,7 @@ class Admin {
       }
       final memberId = int.tryParse(target);
       if (memberId != null) {
-        await _addSeenById(ctx, memberId, isAdmin: isAdmin);
+        await _addSeenById(ctx, memberId, isAdmin: true);
       }
       return;
     }

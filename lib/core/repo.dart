@@ -236,15 +236,23 @@ ON CONFLICT(username) DO UPDATE SET
 
   /// Creates the cycle for the given first-session block week (odd ISO week),
   /// or returns the existing one.
+  ///
+  /// Timeline (all in the week of the first session weekend, so members are
+  /// only asked to commit to the coming days, not weeks ahead):
+  ///   - prompt:   Monday 08:00
+  ///   - reminder: Thursday 18:00
+  ///   - deadline: Friday 18:00
+  ///   - allocate: Friday 19:00 — the hour sharp after the deadline
+  ///   - sessions: Sat/Sun of blockWeek and blockWeek+1
   Cycle ensureCycle(int blockWeek, int blockYear) {
     final existing = cycleByBlock(blockYear, blockWeek);
     if (existing != null) return existing;
 
-    final promptMonday = WeekMath.mondayOfWeek(blockWeek - 1, blockYear);
-    final reminder = promptMonday.add(const Duration(days: 3));
-    final deadline = promptMonday.add(const Duration(days: 4));
-    final allocDay = WeekMath.mondayOfWeek(blockWeek, blockYear)
-        .add(const Duration(days: 2));
+    final monday = WeekMath.mondayOfWeek(blockWeek, blockYear);
+    final promptDay = WeekMath.atTime(monday, 8);
+    final reminder = WeekMath.atTime(monday.add(const Duration(days: 3)), 18);
+    final deadline = WeekMath.atTime(monday.add(const Duration(days: 4)), 18);
+    final allocDay = WeekMath.atTime(monday.add(const Duration(days: 4)), 19);
 
     raw.execute(
       '''
@@ -255,7 +263,7 @@ VALUES (?, ?, ?, ?, ?, ?)
       [
         blockYear,
         blockWeek,
-        _fmt(promptMonday),
+        _fmt(promptDay),
         _fmt(reminder),
         _fmt(deadline),
         _fmt(allocDay),
@@ -558,6 +566,49 @@ WHERE user_id = ? AND confirmed_at >= ?
       [_fmt(monday)],
     );
     return rows.isEmpty ? null : Holiday.fromRow(rows.first);
+  }
+
+  // -------------------------------------------------------- holiday optouts
+
+  /// Marks [user] as "don't bother me this holiday" for the week starting
+  /// [weekMonday].
+  void setHolidayOptout(int userId, DateTime weekMonday) {
+    raw.execute(
+      'INSERT OR REPLACE INTO holiday_optouts (user_id, week_start) '
+      'VALUES (?, ?)',
+      [userId, _fmt(weekMonday)],
+    );
+  }
+
+  bool hasHolidayOptout(int userId, DateTime weekMonday) {
+    final rows = raw.select(
+      'SELECT 1 FROM holiday_optouts WHERE user_id = ? AND week_start = ?',
+      [userId, _fmt(weekMonday)],
+    );
+    return rows.isNotEmpty;
+  }
+
+  // ------------------------------------------------------------- attendance
+
+  /// Total attendance of [userId], split by location.
+  ({int total, int ocbc, int pasirRis}) attendanceStats(int userId) {
+    final rows = raw.select(
+      '''
+SELECT COUNT(*) AS total,
+       SUM(CASE WHEN s.location = 'ocbc' THEN 1 ELSE 0 END) AS ocbc,
+       SUM(CASE WHEN s.location = 'pasirRis' THEN 1 ELSE 0 END) AS pr
+FROM attendance a
+JOIN sessions s ON s.id = a.session_id
+WHERE a.user_id = ?
+''',
+      [userId],
+    );
+    final r = rows.first;
+    return (
+      total: r['total'] as int,
+      ocbc: (r['ocbc'] as int?) ?? 0,
+      pasirRis: (r['pr'] as int?) ?? 0,
+    );
   }
 
   // ------------------------------------------------------------ calendar

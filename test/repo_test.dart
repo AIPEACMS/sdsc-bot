@@ -50,21 +50,23 @@ void main() {
   }
 
   test('cycle timeline computed from an even prompt week', () {
-    // 2026-08-03 is the Monday of ISO week 32 (even) — the prompt week of the
+    // 2026-08-03 is the Monday of ISO week 32 (even) — the week before the
     // cycle whose first session weekend is week 33 (odd).
     final now = DateTime(2026, 8, 3);
     final cycle = repo.ensureCurrentCycle(now);
 
     expect(cycle.blockWeek, 33);
     expect(cycle.blockWeek.isOdd, true);
-    expect(cycle.promptDay, DateTime(2026, 8, 3));
-    expect(cycle.deadline, DateTime(2026, 8, 7));
-    expect(cycle.allocationDay, DateTime(2026, 8, 12));
+    // Availability is asked within the session week: prompt Mon 08:00,
+    // reminder Thu 18:00, deadline Fri 18:00, allocation Fri 19:00 sharp.
+    expect(cycle.promptDay, DateTime(2026, 8, 10, 8));
+    expect(cycle.reminderDay, DateTime(2026, 8, 13, 18));
+    expect(cycle.deadline, DateTime(2026, 8, 14, 18));
+    expect(cycle.allocationDay, DateTime(2026, 8, 14, 19));
     expect(cycle.deadline.weekday, DateTime.friday);
-    expect(cycle.allocationDay.weekday, DateTime.wednesday);
-    // deadline (Friday of blockWeek-1) is before allocation (Wednesday of
-    // blockWeek).
+    // Deadline (Fri 18:00) is before allocation (Fri 19:00).
     expect(cycle.deadline.isBefore(cycle.allocationDay), true);
+    expect(cycle.allocationDay.isBefore(DateTime(2026, 8, 15)), true);
   });
 
   test('deadline closes the cycle automatically', () {
@@ -175,6 +177,39 @@ void main() {
     expect(holiday, isNotNull);
     expect(holiday!.kind, HolidayKind.winter);
     expect(repo.holidayOn(DateTime(2026, 8, 10)), isNull);
+  });
+
+  test('holiday opt-out is per user and per week', () {
+    addUser(7);
+    addUser(8);
+    repo.setHolidayOptout(7, DateTime(2026, 8, 3));
+    expect(repo.hasHolidayOptout(7, DateTime(2026, 8, 3)), true);
+    expect(repo.hasHolidayOptout(7, DateTime(2026, 8, 10)), false);
+    expect(repo.hasHolidayOptout(8, DateTime(2026, 8, 3)), false);
+  });
+
+  test('attendance stats split by location', () {
+    addUser(1);
+    addUser(2);
+    final cycle = repo.ensureCurrentCycle(DateTime(2026, 8, 10));
+    repo.ensureSessionsForCycle(
+      cycle,
+      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+      tzOffsetHours: 8,
+    );
+    final sessions = repo.sessionsForCycle(cycle.id);
+    final ocbc = sessions.firstWhere((s) => s.location == Location.ocbc);
+    final pr = sessions.firstWhere((s) => s.location == Location.pasirRis);
+    repo.confirmAttendance(1, ocbc.id);
+    repo.confirmAttendance(1, ocbc.id); // same session dedupes
+    repo.confirmAttendance(1, pr.id);
+    repo.confirmAttendance(2, ocbc.id);
+
+    final stats = repo.attendanceStats(1);
+    expect(stats.total, 2);
+    expect(stats.ocbc, 1);
+    expect(stats.pasirRis, 1);
+    expect(repo.attendanceStats(2).total, 1);
   });
 
   test('seen users resolve handles to ids', () {

@@ -111,6 +111,12 @@ CREATE TABLE IF NOT EXISTS calendar_years (
   yaml TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS holiday_optouts (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  week_start TEXT NOT NULL,
+  PRIMARY KEY (user_id, week_start)
+);
 ''');
   }
 

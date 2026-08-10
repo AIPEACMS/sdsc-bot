@@ -5,6 +5,44 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.9.0] - 2026-08-10
+
+### Added
+
+- **Availability timeline moved into the session week**: members are asked
+  the same week the sessions happen — prompt Monday 08:00, reminder
+  Thursday 18:00, deadline Friday 18:00, allocation Friday 19:00 sharp (the
+  hour after the deadline). The confirmation message tells each member the
+  exact allocation time (e.g. "Allocation runs at Fri 14 Aug at 7:00pm
+  sharp") instead of leaving them guessing weeks ahead.
+- **Sharp scheduling**: the scheduler arms a one-shot timer to the next
+  milestone instead of relying only on the 12h tick, so prompts, reminders,
+  deadline closure and allocation fire on their scheduled hour.
+- **Smarter allocation**: experienced members are satisfied first, the
+  "no OCBC 3 cycles in a row" rule is honoured, and each member is allocated
+  at most one session per weekend so volunteers spread evenly across
+  sessions.
+- **Member status** (`/mystatus`): shows what the member indicated this
+  cycle, what they are allocated to, and their attendance (total, plus
+  OCBC/PR split).
+- **`/adduser` wizard**: pressing the button asks for one handle, then
+  shows a Confirm button before anything is added.
+- **`/prompt` and `/remind` confirm first**: they show a confirmation
+  dialog instead of messaging everyone immediately.
+- **Holiday opt-out**: the holiday availability prompt carries a
+  "Skip me this holiday" button; opting out (button or `/holiday`) stops
+  further prompts and reminders for that holiday.
+
+### Changed
+
+- **Grid buttons**: attendance marking is now `mark-attend` (was
+  `confirm`); the `allocate` and `announce` buttons are removed (allocation
+  is automatic, and broadcast moves to a group chat); the member `holiday`
+  button is gone — holiday prompts arrive automatically.
+- **Allocation notice** no longer references a fixed Friday bail cut-off.
+
+## [Unreleased]
+
 ## [0.8.0] - 2026-08-10
 
 ### Added
@@ -26,8 +64,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   attended the past 2 weeks" variant is only used when the member joined
   more than 2 weeks ago AND the semester has been running for 2+ weeks.
   Fresh members and holiday-period cycles get the regular prompt.
-
-## [Unreleased]
 
 ## [0.7.1] - 2026-08-10
 

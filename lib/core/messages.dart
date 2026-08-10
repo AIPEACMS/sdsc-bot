@@ -37,12 +37,14 @@ class Messages {
         '$contact.';
   }
 
-  /// Confirmation echoing the chosen availability slots.
-  String msg3(Iterable<Slot> slots) {
+  /// Confirmation echoing the chosen availability slots. [allocLabel] is the
+  /// sharp time allocation runs, e.g. "Fri 14 Aug at 7:00pm".
+  String msg3(Iterable<Slot> slots, String allocLabel) {
     final lines = slots.map((s) => '• ${s.toString()}').toList();
     final list = lines.isEmpty ? '(none)' : lines.join('\n');
     return 'Thank you! Here is what you told us:\n$list\n\n'
-        'Changed your mind? Send /reindicate to update your availability.';
+        'Allocation runs at $allocLabel sharp. '
+        'Changed your mind? Send /reindicate to update before then.';
   }
 
   /// Confirmation when the member indicated they are not available.
@@ -57,7 +59,7 @@ class Messages {
   String msg4(String group, String sessionLabel, String timeLabel) {
     final contact = contactForGroup(group);
     return 'You have been allocated to <b>$sessionLabel</b>, $timeLabel.\n\n'
-        'If your plans suddenly change, message $contact by Friday 12:00pm.';
+        'If your plans suddenly change, message $contact as soon as possible.';
   }
 
   /// Holiday prompt — middle week break.

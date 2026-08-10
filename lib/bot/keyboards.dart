@@ -51,7 +51,7 @@ class RoleKeyboard {
   static const List<GridButton> memberButtons = [
     GridButton('start', '/start', RoleColor.member),
     GridButton('re-pick', '/reindicate', RoleColor.member),
-    GridButton('holiday', '/holiday', RoleColor.member),
+    GridButton('my-status', '/mystatus', RoleColor.member),
   ];
 
   static const List<GridButton> adminButtons = [
@@ -60,12 +60,10 @@ class RoleKeyboard {
     GridButton('users', '/users', RoleColor.admin),
     GridButton('prompt', '/prompt', RoleColor.admin),
     GridButton('remind', '/remind', RoleColor.admin),
-    GridButton('allocate', '/allocate', RoleColor.admin),
     GridButton('ask', '/ask', RoleColor.admin),
-    GridButton('confirm', '/confirm', RoleColor.admin),
+    GridButton('mark-attend', '/confirm', RoleColor.admin),
     GridButton('set-exp', '/setexp', RoleColor.admin),
     GridButton('set-group', '/setgroup', RoleColor.admin),
-    GridButton('announce', '/broadcast', RoleColor.admin),
     ...memberButtons,
   ];
 
