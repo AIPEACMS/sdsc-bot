@@ -50,12 +50,12 @@ class RoleKeyboard {
 
   static const List<GridButton> memberButtons = [
     GridButton('start', '/start', RoleColor.member),
-    GridButton('reindicate', '/reindicate', RoleColor.member),
+    GridButton('re-pick', '/reindicate', RoleColor.member),
     GridButton('holiday', '/holiday', RoleColor.member),
   ];
 
   static const List<GridButton> adminButtons = [
-    GridButton('adduser', '/adduser', RoleColor.admin),
+    GridButton('add-user', '/adduser', RoleColor.admin),
     GridButton('status', '/status', RoleColor.admin),
     GridButton('users', '/users', RoleColor.admin),
     GridButton('prompt', '/prompt', RoleColor.admin),
@@ -63,18 +63,18 @@ class RoleKeyboard {
     GridButton('allocate', '/allocate', RoleColor.admin),
     GridButton('ask', '/ask', RoleColor.admin),
     GridButton('confirm', '/confirm', RoleColor.admin),
-    GridButton('setexp', '/setexp', RoleColor.admin),
-    GridButton('setgroup', '/setgroup', RoleColor.admin),
-    GridButton('holidayset', '/holidayset', RoleColor.admin),
-    GridButton('holidayclear', '/holidayclear', RoleColor.admin),
-    GridButton('broadcast', '/broadcast', RoleColor.admin),
+    GridButton('set-exp', '/setexp', RoleColor.admin),
+    GridButton('set-group', '/setgroup', RoleColor.admin),
+    GridButton('set-holiday', '/holidayset', RoleColor.admin),
+    GridButton('clear-holiday', '/holidayclear', RoleColor.admin),
+    GridButton('announce', '/broadcast', RoleColor.admin),
     ...memberButtons,
   ];
 
   static const List<GridButton> consoleButtons = [
-    GridButton('addadmin', '/addadmin', RoleColor.console),
-    GridButton('setdate', '/setdate', RoleColor.console),
-    GridButton('resetdate', '/resetdate', RoleColor.console),
+    GridButton('add-admin', '/addadmin', RoleColor.console),
+    GridButton('set-date', '/setdate', RoleColor.console),
+    GridButton('reset-date', '/resetdate', RoleColor.console),
     GridButton('demote', '/demote', RoleColor.console),
     ...adminButtons,
   ];

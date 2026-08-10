@@ -20,9 +20,9 @@ class Console {
   });
 
   void register() {
-    commandBoth(bot, 'addadmin', _guard(_addAdmin), label: 'addadmin');
-    commandBoth(bot, 'setdate', _guard(_setDate), label: 'setdate');
-    commandBoth(bot, 'resetdate', _guard(_resetDate), label: 'resetdate');
+    commandBoth(bot, 'addadmin', _guard(_addAdmin), label: 'add-admin');
+    commandBoth(bot, 'setdate', _guard(_setDate), label: 'set-date');
+    commandBoth(bot, 'resetdate', _guard(_resetDate), label: 'reset-date');
     commandBoth(bot, 'demote', _guard(_demote), label: 'demote');
   }
 

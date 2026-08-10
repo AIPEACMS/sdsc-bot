@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-08-10
+
+### Changed
+
+- **Grid button labels never wrap**: every word in a button label is at most
+  8 characters (Telegram folds longer words). Long commands are split into
+  two short words (e.g. `set-holiday`, `clear-holiday`, `add-admin`,
+  `re-pick`).
+
 ## [0.4.0] - 2026-08-10
 
 ### Changed
