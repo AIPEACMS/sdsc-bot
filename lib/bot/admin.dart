@@ -211,7 +211,7 @@ class Admin {
     final sb = StringBuffer()
       ..writeln('📊 <b>SDSC status</b>')
       ..writeln('Cycle sessions: ${_day(w1)} & ${_day(w2)} '
-          '(week ${cycle.blockWeek})')
+          '(${_cycleLabel(cycle)})')
       ..writeln('Prompt: ${_day(cycle.promptDay)}'
           '${cycle.promptSent ? ' ✅' : ''}  |  '
           'Reminder: ${_day(cycle.reminderDay)}'
@@ -598,11 +598,39 @@ class Admin {
     }
   }
 
+  /// Labels the cycle's session weekends in academic-calendar terms:
+  /// "sem1, week 5 & 6" when inside a semester, "winter holiday" /
+  /// "summer holiday" / "middle break" for breaks, else the raw ISO week.
+  String _cycleLabel(Cycle cycle) {
+    final year = repo.latestCalendarYear();
+    if (year == null) return 'week ${cycle.blockWeek}';
+    final w1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
+    final w2 =
+        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
+    final info1 = year.weekOf(w1);
+    if (info1 != null) {
+      final sem = info1.$1 == 'semester_1' ? 'sem1' : 'sem2';
+      final info2 = year.weekOf(w2);
+      final week2 = info2 != null && info2.$1 == info1.$1 ? info2.$2 : info1.$2 + 1;
+      return '$sem, week ${info1.$2} & $week2';
+    }
+    final holiday = repo.holidayOn(w1);
+    if (holiday != null) {
+      return switch (holiday.kind) {
+        HolidayKind.winter => 'winter holiday',
+        HolidayKind.summer => 'summer holiday',
+        HolidayKind.middle => 'middle break',
+      };
+    }
+    return 'week ${cycle.blockWeek}';
+  }
+
   static String _day(DateTime d) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const months = [
       'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
     ];
-    return '${d.day} ${months[d.month - 1]}';
+    return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
   }
 }

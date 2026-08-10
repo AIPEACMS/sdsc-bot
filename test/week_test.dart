@@ -96,11 +96,29 @@ void main() {
 
   group('Slot encode/decode', () {
     test('roundtrip', () {
-      const s = Slot(0, 'sat', 'am');
+      const s = Slot(0, 'sat', 'am', 'ocbc');
       expect(Slot.parse(s.encode()), s);
+      expect(Slot.parse('0:sat:am:pasirRis')!.location, 'pasirRis');
+      // Legacy 3-part keys are rejected by parse.
       expect(Slot.parse('2:sat:am'), isNull);
-      expect(Slot.parse('0:xx:am'), isNull);
+      expect(Slot.parse('0:sat:am'), isNull);
+      expect(Slot.parse('0:xx:am:ocbc'), isNull);
+      expect(Slot.parse('0:sat:am:xx'), isNull);
       expect(Slot.parse('garbage'), isNull);
+    });
+
+    test('decodeSet expands legacy 3-part keys to both locations', () {
+      final set = Slot.decodeSet('["0:sat:am"]');
+      expect(set, {
+        const Slot(0, 'sat', 'am', 'ocbc'),
+        const Slot(0, 'sat', 'am', 'pasirRis'),
+      });
+      // New 4-part keys decode as-is.
+      final set2 = Slot.decodeSet('["0:sat:am:ocbc","1:sun:pm:pasirRis"]');
+      expect(set2, {
+        const Slot(0, 'sat', 'am', 'ocbc'),
+        const Slot(1, 'sun', 'pm', 'pasirRis'),
+      });
     });
   });
 }

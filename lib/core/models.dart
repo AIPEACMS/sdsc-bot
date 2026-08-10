@@ -60,52 +60,80 @@ class User {
       );
 }
 
-/// One day+time slot of one weekend, e.g. `0:sat:am` = weekend 0, Saturday AM.
-/// Format: `{weekendIndex}:{day}:{slot}` where day in {sat,sun}, slot in {am,pm}.
+/// One session of one weekend, e.g. `0:sat:am:ocbc` = weekend 0, Saturday AM,
+/// OCBC. Format: `{weekendIndex}:{day}:{slot}:{location}` where day in
+/// {sat,sun}, slot in {am,pm}, location in {ocbc,pasirRis}.
 class Slot {
   final int weekendIndex; // 0 or 1
   final String day; // 'sat' | 'sun'
   final String slot; // 'am' | 'pm'
+  final String location; // 'ocbc' | 'pasirRis'
 
-  const Slot(this.weekendIndex, this.day, this.slot);
+  const Slot(this.weekendIndex, this.day, this.slot, this.location);
 
   static const allDays = ['sat', 'sun'];
   static const allSlots = ['am', 'pm'];
+  static const allLocations = ['ocbc', 'pasirRis'];
 
-  String encode() => '$weekendIndex:$day:$slot';
+  String encode() => '$weekendIndex:$day:$slot:$location';
+
+  String get dayLabel => day == 'sat' ? 'Sat' : 'Sun';
+  String get slotLabel => slot == 'am' ? 'AM' : 'PM';
+  String get locationLabel => location == 'ocbc' ? 'OCBC' : 'PR';
 
   static Slot? parse(String raw) {
     final parts = raw.split(':');
-    if (parts.length != 3) return null;
+    if (parts.length != 4) return null;
     final wi = int.tryParse(parts[0]);
     if (wi == null || wi < 0 || wi > 1) return null;
     if (!allDays.contains(parts[1]) || !allSlots.contains(parts[2])) {
       return null;
     }
-    return Slot(wi, parts[1], parts[2]);
+    if (!allLocations.contains(parts[3])) return null;
+    return Slot(wi, parts[1], parts[2], parts[3]);
   }
 
   static Set<Slot> decodeSet(String? raw) {
     if (raw == null || raw.isEmpty) return {};
     final list = jsonDecode(raw) as List<dynamic>;
-    return list
-        .map((e) => Slot.parse(e as String))
-        .whereType<Slot>()
-        .toSet();
+    final result = <Slot>{};
+    for (final e in list) {
+      final key = e as String;
+      final parts = key.split(':');
+      if (parts.length == 3) {
+        // Legacy slot-level picks (before locations): available for both
+        // locations of that slot.
+        final wi = int.tryParse(parts[0]);
+        if (wi == null || wi < 0 || wi > 1) continue;
+        if (!allDays.contains(parts[1]) || !allSlots.contains(parts[2])) {
+          continue;
+        }
+        result.addAll([
+          Slot(wi, parts[1], parts[2], 'ocbc'),
+          Slot(wi, parts[1], parts[2], 'pasirRis'),
+        ]);
+      } else {
+        final slot = Slot.parse(key);
+        if (slot != null) result.add(slot);
+      }
+    }
+    return result;
   }
 
   @override
-  String toString() => 'Weekend ${weekendIndex + 1} $day/$slot';
+  String toString() => 'Weekend ${weekendIndex + 1} · $locationLabel · '
+      '$dayLabel $slotLabel';
 
   @override
   bool operator ==(Object other) =>
       other is Slot &&
       other.weekendIndex == weekendIndex &&
       other.day == day &&
-      other.slot == slot;
+      other.slot == slot &&
+      other.location == location;
 
   @override
-  int get hashCode => Object.hash(weekendIndex, day, slot);
+  int get hashCode => Object.hash(weekendIndex, day, slot, location);
 }
 
 /// A 2-week cycle identified by its first session weekend ISO week (`blockWeek`, odd).
