@@ -41,7 +41,20 @@ class CycleService {
       final season = holiday.kind == HolidayKind.winter ? 'winter' : 'summer';
       return messages.msg5B(user.group, season: season);
     }
-    if (!repo.hasAttendedInPastDays(user.id, 14)) {
+    // The "we noticed you have not attended the past 2 weeks" variant only
+    // makes sense when the member could actually have attended: they joined
+    // more than 2 weeks ago, and the semester containing the sessions has
+    // been running for at least 2 weeks.
+    final joinedRecently = user.registeredAt == null ||
+        Config.nowUtc().difference(user.registeredAt!.toUtc()) <
+            const Duration(days: 14);
+    final year = repo.latestCalendarYear();
+    final sem = year?.semesterAt(weekend1);
+    final semesterMature = sem?.firstStart != null &&
+        weekend1.difference(sem!.firstStart!) >= const Duration(days: 14);
+    if (!joinedRecently &&
+        semesterMature &&
+        !repo.hasAttendedInPastDays(user.id, 14)) {
       return messages.msg1A(user.group);
     }
     return messages.msg1(user.group);
@@ -197,24 +210,27 @@ class CycleService {
   String _hint() => 'Tap the sessions you can attend, then <b>Done</b>. '
       'Not able to attend? Tap <b>Not available</b>.';
 
-  /// Builds the availability inline keyboard: toggles per weekend/day, plus
-  /// Done and Not available actions.
+  /// Builds the availability inline keyboard: toggles per weekend/day/slot
+  /// and location, plus Done and Not available actions.
   static InlineKeyboard buildKeyboard(Cycle cycle, Set<Slot> picked) {
     var kb = InlineKeyboard();
     for (final wi in [0, 1]) {
       for (final day in Slot.allDays) {
         final dayLabel = day == 'sat' ? 'Sat' : 'Sun';
         for (final slot in Slot.allSlots) {
-          final key = '$wi:$day:$slot';
-          final selected = picked.any((s) => s.encode() == key);
-          final mark = selected ? '✅' : '▫️';
           final slotLabel = slot == 'am' ? 'AM' : 'PM';
-          kb = kb.text(
-            '$mark $dayLabel $slotLabel',
-            'slot|${cycle.id}|$key',
-          );
+          for (final loc in Slot.allLocations) {
+            final key = '$wi:$day:$slot:$loc';
+            final selected = picked.any((s) => s.encode() == key);
+            final mark = selected ? '✅' : '▫️';
+            final locLabel = loc == 'ocbc' ? 'OCBC' : 'PR';
+            kb = kb.text(
+              '$mark $locLabel $dayLabel $slotLabel',
+              'slot|${cycle.id}|$key',
+            );
+          }
+          kb = kb.row();
         }
-        kb = kb.row();
       }
       kb = kb.row();
     }

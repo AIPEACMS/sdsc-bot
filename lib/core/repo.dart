@@ -582,6 +582,20 @@ ON CONFLICT(academic_year) DO UPDATE SET
     raw.execute('DELETE FROM holidays WHERE week_start >= ?', [_fmt(from)]);
   }
 
+  /// The most recently synced calendar year, parsed; null when none is stored
+  /// or the stored YAML fails to parse.
+  CalendarYear? latestCalendarYear() {
+    final rows = raw.select(
+      'SELECT yaml FROM calendar_years ORDER BY updated_at DESC LIMIT 1',
+    );
+    if (rows.isEmpty) return null;
+    try {
+      return CalendarYear.fromYaml(rows.first['yaml'] as String);
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Maps calendar week types to bot holiday kinds.
   ///
   /// - recess weeks → `middle` break (msg5A)

@@ -54,6 +54,30 @@ class CalendarYear {
     return null;
   }
 
+  /// The semester containing [date], or null when the date falls outside all
+  /// semesters (winter gap, summer tail, before the year starts).
+  CalendarSemester? semesterAt(DateTime date) {
+    for (final s in semesters) {
+      for (final w in s.weeks) {
+        if (!date.isBefore(w.start) && !date.isAfter(w.end)) return s;
+      }
+    }
+    return null;
+  }
+
+  /// The (semester name, calendar week number) of the week containing [date],
+  /// or null when [date] is outside all semesters.
+  (String semester, int week)? weekOf(DateTime date) {
+    final sem = semesterAt(date);
+    if (sem == null) return null;
+    for (final w in sem.weeks) {
+      if (!date.isBefore(w.start) && !date.isAfter(w.end)) {
+        return (sem.name, w.week);
+      }
+    }
+    return null;
+  }
+
   /// Parses the YAML produced by the `parse-ntu-calander` tool.
   /// Throws [FormatException] on malformed input.
   factory CalendarYear.fromYaml(String source) {

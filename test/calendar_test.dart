@@ -140,4 +140,26 @@ void main() {
       "SELECT academic_year FROM calendar_years WHERE academic_year = '2026-27'");
     expect(rows.length, 1);
   });
+
+  test('weekOf maps a date to its semester and calendar week', () {
+    final year = CalendarYear.fromYaml(sampleYaml);
+    expect(year.weekOf(DateTime(2026, 8, 12)), ('semester_1', 1));
+    expect(year.weekOf(DateTime(2026, 9, 25)), ('semester_1', 7));
+    expect(year.weekOf(DateTime(2027, 1, 6)), ('semester_2', 1));
+    // Outside all semesters (before S1 and in the winter gap).
+    expect(year.weekOf(DateTime(2026, 8, 1)), isNull);
+    expect(year.weekOf(DateTime(2026, 12, 7)), isNull);
+  });
+
+  test('semesterAt and weekOf agree', () {
+    final year = CalendarYear.fromYaml(sampleYaml);
+    expect(year.semesterAt(DateTime(2026, 8, 12))!.name, 'semester_1');
+    expect(year.semesterAt(DateTime(2026, 12, 7)), isNull);
+  });
+
+  test('latestCalendarYear returns the most recently synced calendar', () {
+    expect(repo.latestCalendarYear(), isNull);
+    sync.apply(sampleYaml);
+    expect(repo.latestCalendarYear()!.academicYear, '2026-27');
+  });
 }

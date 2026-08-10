@@ -110,7 +110,10 @@ void main() {
       repo.setAvailability(Availability(
         cycleId: cycle.id,
         userId: id,
-        slots: {const Slot(0, 'sat', 'am')},
+        slots: {
+          const Slot(0, 'sat', 'am', 'ocbc'),
+          const Slot(0, 'sat', 'am', 'pasirRis'),
+        },
         available: true,
         updatedAt: DateTime(2026, 8, 12),
       ));
@@ -158,7 +161,7 @@ void main() {
     repo.setAvailability(Availability(
       cycleId: cycle.id,
       userId: 2,
-        slots: {Slot(0, 'sat', 'am')},
+        slots: {Slot(0, 'sat', 'am', 'ocbc')},
       available: true,
       updatedAt: DateTime(2026, 8, 11),
     ));

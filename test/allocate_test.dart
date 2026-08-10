@@ -1,8 +1,10 @@
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 
-const _am = Slot(0, 'sat', 'am');
-const _wi1Am = Slot(1, 'sat', 'am');
+const _am = Slot(0, 'sat', 'am', 'ocbc');
+const _amPr = Slot(0, 'sat', 'am', 'pasirRis');
+const _wi1Am = Slot(1, 'sat', 'am', 'ocbc');
+const _wi1AmPr = Slot(1, 'sat', 'am', 'pasirRis');
 
 User _user(int id, Experience exp, {int streak = 0}) => User(
       id: id,
@@ -58,7 +60,7 @@ void main() {
     ];
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [_avail(1, {_am}), _avail(2, {_am}), _avail(3, {_am})],
+      availability: [_avail(1, {_am, _amPr}), _avail(2, {_am, _amPr}), _avail(3, {_am, _amPr})],
       users: users(usersList),
     );
 
@@ -79,7 +81,7 @@ void main() {
     ];
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [_avail(1, {_am}), _avail(2, {_am}), _avail(3, {_am})],
+      availability: [_avail(1, {_am, _amPr}), _avail(2, {_am, _amPr}), _avail(3, {_am, _amPr})],
       users: users(usersList),
     );
     final byUser = <int, int>{};
@@ -95,7 +97,7 @@ void main() {
     final usersList = [_user(1, Experience.experienced, streak: 2)];
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [_avail(1, {_am})],
+      availability: [_avail(1, {_am, _amPr})],
       users: users(usersList),
     );
     expect(result.map((e) => e.$2), [1]); // still OCBC (no alternative)
@@ -108,7 +110,7 @@ void main() {
     ];
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [for (var i = 1; i <= 4; i++) _avail(i, {_am})],
+      availability: [for (var i = 1; i <= 4; i++) _avail(i, {_am, _amPr})],
       users: users(usersList),
     );
     final ocbcCount = result.where((e) => e.$2 == 1).length;
@@ -125,12 +127,30 @@ void main() {
     final result = allocator.run(
       sessions: _sessions(),
       availability: [
-        _avail(1, {_am, _wi1Am}),
-        _avail(2, {_am, _wi1Am}),
+        _avail(1, {_am, _amPr, _wi1Am, _wi1AmPr}),
+        _avail(2, {_am, _amPr, _wi1Am, _wi1AmPr}),
       ],
       users: users(usersList),
     );
     final sessionsFor1 = result.where((e) => e.$1 == 1).map((e) => e.$2).toSet();
     expect(sessionsFor1.length, 2); // one OCBC session per weekend
+  });
+
+  test('a member who picks one location is only allocated there', () {
+    // User 1 picks only OCBC Sat AM; user 2 picks only Pasir Ris Sat AM.
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [
+        _avail(1, {_am}),
+        _avail(2, {_amPr}),
+      ],
+      users: users([_user(1, Experience.experienced), _user(2, Experience.newbie)]),
+    );
+    final byUser = <int, int>{};
+    for (final (uid, sid) in result) {
+      byUser[uid] = sid;
+    }
+    expect(byUser[1], 1); // OCBC Sat AM
+    expect(byUser[2], 2); // PR Sat AM
   });
 }

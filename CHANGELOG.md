@@ -5,6 +5,30 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.8.0] - 2026-08-10
+
+### Added
+
+- **Per-location availability picks**: the availability grid now lists each
+  session with its location (e.g. `OCBC Sat AM`, `PR Sat PM`) as separate
+  toggles, so members can say which location they can cover. Previously one
+  toggle covered both locations of a slot. Existing slot-level picks are
+  read as "both locations" (no data loss).
+
+### Fixed
+
+- **`/status` shows calendar context**: the sessions line now reads
+  `sem1, week 5 & 6` (or `sem2`) when inside a semester, and
+  `winter holiday` / `summer holiday` / `middle break` for breaks, instead
+  of the raw ISO week. Prompt/reminder/deadline dates now include the
+  weekday (e.g. `Mon 3 Aug`).
+- **Prompt no longer chides new members**: the "we noticed you have not
+  attended the past 2 weeks" variant is only used when the member joined
+  more than 2 weeks ago AND the semester has been running for 2+ weeks.
+  Fresh members and holiday-period cycles get the regular prompt.
+
+## [Unreleased]
+
 ## [0.7.1] - 2026-08-10
 
 ### Fixed
@@ -14,8 +38,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   were parsed as an HTML tag, so Telegram rejected the whole reply (grid
   included) and nothing appeared on screen. The placeholder now uses square
   brackets (`[yaml]`), matching the older `<telegram_id>` fix.
-
-## [Unreleased]
 
 ## [0.7.0] - 2026-08-10
 
