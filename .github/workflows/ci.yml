@@ -1,13 +1,26 @@
 name: ci
 
-# Lint, test, and build the bundle on every push/PR.
+# Lint, test, and build the bundle on every push/PR that touches code.
+# Doc-only changes (markdown, license, changelog) skip CI — nothing to build.
 # No secrets here: the bot reads TELEGRAM_TOKEN / CONSOLE_ID from env at
 # runtime, so CI never needs them.
 
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+      - 'LICENSE'
+      - 'LICENSE.*'
+      - 'docs/**'
   pull_request:
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+      - 'LICENSE'
+      - 'LICENSE.*'
+      - 'docs/**'
 
 jobs:
   build:

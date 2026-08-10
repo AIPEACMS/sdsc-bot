@@ -5,11 +5,20 @@ name: release
 #
 # The tag is the deploy trigger and the version record: bump pubspec.yaml +
 # CHANGELOG and push a v* tag when a build is cut.
+#
+# Doc-only changes (markdown, license, changelog) never cut a release — the
+# release must contain a code change to be worth tagging.
 
 on:
   push:
     tags:
       - 'v*'
+    paths-ignore:
+      - '*.md'
+      - '**/*.md'
+      - 'LICENSE'
+      - 'LICENSE.*'
+      - 'docs/**'
 
 jobs:
   release:
