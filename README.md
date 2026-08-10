@@ -12,6 +12,7 @@ weekends, then allocates them to sessions (Sat/Sun, AM/PM).
 
 ```sh
 export TELEGRAM_TOKEN=...  # required
+export CONSOLE_ID=...      # required — the console user's Telegram id (secret)
 dart pub get
 dart run bin/main.dart
 ```

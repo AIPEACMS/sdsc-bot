@@ -13,6 +13,7 @@ void main() {
     db = Database.open(Config(
       botToken: 'test',
       dbPath: '${tmp.path}/test.db',
+      consoleId: 1,
       groupAContact: 'TBD',
       groupBContact: 'TBD',
       ocbcCapacity: 2,

@@ -5,10 +5,11 @@ class Config {
   final String botToken;
   final String dbPath;
 
-  /// The console user's Telegram id. The console is the first user: they have
-  /// admin rights + debug rights, but are not themselves an admin — they can
-  /// step down from admin later. Hard-coded on purpose.
-  static const int consoleId = 0; // TODO: replace with the first user's id
+  /// The console user's Telegram id, read from the `CONSOLE_ID` environment
+  /// variable (kept in the secret env file, never committed). The console is
+  /// the first user: they have admin rights + debug rights, but are not
+  /// themselves an admin — they can step down from admin later.
+  final int consoleId;
 
   final String groupAContact;
   final String groupBContact;
@@ -31,6 +32,7 @@ class Config {
   const Config({
     required this.botToken,
     required this.dbPath,
+    required this.consoleId,
     required this.groupAContact,
     required this.groupBContact,
     required this.ocbcCapacity,
@@ -72,9 +74,19 @@ class Config {
       throw StateError('TELEGRAM_TOKEN is required.');
     }
 
+    final consoleRaw = env('CONSOLE_ID');
+    final consoleId = int.tryParse(consoleRaw);
+    if (consoleId == null) {
+      throw StateError(
+        'CONSOLE_ID is required (the console user\'s Telegram id). '
+        'Keep it in the secret env file, never in the repo.',
+      );
+    }
+
     return Config(
       botToken: token,
       dbPath: env('SDSC_DB', 'sdsc.db'),
+      consoleId: consoleId,
       groupAContact: env('GROUP_A_CONTACT', 'TBD'),
       groupBContact: env('GROUP_B_CONTACT', 'TBD'),
       ocbcCapacity: envInt('OCBC_CAPACITY', 6),
