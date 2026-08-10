@@ -12,7 +12,7 @@ class User {
   final int id;
   final String name;
   final Experience experience;
-  final String group; // 'A' (TBD) or 'B' (TBD)
+  final String group; // 'A' or 'B'
   final bool isAdmin;
   final int ocbcStreak; // consecutive OCBC allocations
   final DateTime? registeredAt;
