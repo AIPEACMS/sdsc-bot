@@ -1,0 +1,43 @@
+name: ci
+
+# Lint, test, and build the bundle on every push/PR.
+# No secrets here: the bot reads TELEGRAM_TOKEN / CONSOLE_ID from env at
+# runtime, so CI never needs them.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Test
+        run: dart test
+
+      - name: Build bundle (AOT + native assets)
+        run: dart build cli -o build
+
+      - name: Smoke-check the bundle
+        run: |
+          test -x build/bundle/bin/main
+          file build/bundle/bin/main
+
+      - name: Upload bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: bundle
+          path: build/bundle

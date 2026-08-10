@@ -26,9 +26,18 @@ dart analyze
 
 ## Deploy
 
-```sh
-./deploy.sh
-```
+**Primary — GitHub Releases + `sdsc.sh`:**
 
-Builds a self-contained AOT bundle and deploys it to the production VM
-by whatever private channel is available (`ssh user@host`).
+1. Bump `pubspec.yaml` + move CHANGELOG `[Unreleased]` to the new version,
+   commit, push.
+2. Tag the build: `git tag v0.2.0 && git push --tags` — GitHub Actions builds
+   the bundle and publishes it as a Release.
+3. On the VM: `./sdsc.sh update` (latest) or `./sdsc.sh update v0.2.0`
+   (pinned). Pulls the release, verifies checksum, swaps the bundle,
+   restarts the service, rolls back on failure.
+
+Secrets never touch CI: `TELEGRAM_TOKEN` / `CONSOLE_ID` live only in
+`the secret env file` on the VM.
+
+**Fallback — manual SSH copy:** `./deploy.sh` builds the bundle locally
+and ships it over `ssh user@host` when GitHub is unreachable.

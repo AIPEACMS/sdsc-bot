@@ -1,0 +1,51 @@
+name: release
+
+# On a version tag (v0.2.0, ...), build the bundle and publish it as a
+# GitHub Release asset. The VM then pulls it with `./sdsc.sh update`.
+#
+# The tag is the deploy trigger and the version record: bump pubspec.yaml +
+# CHANGELOG and push a v* tag when a build is cut.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dart-lang/setup-dart@v1
+        with:
+          sdk: stable
+
+      - name: Install dependencies
+        run: dart pub get
+
+      - name: Analyze
+        run: dart analyze
+
+      - name: Test
+        run: dart test
+
+      - name: Build bundle (AOT + native assets)
+        run: dart build cli -o build
+
+      - name: Package bundle + checksum
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          tar czf "sdsc-bot-${TAG}.tar.gz" -C build/bundle .
+          sha256sum "sdsc-bot-${TAG}.tar.gz" > "sdsc-bot-${TAG}.tar.gz.sha256"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            sdsc-bot-*.tar.gz
+            sdsc-bot-*.tar.gz.sha256
+          generate_release_notes: false
