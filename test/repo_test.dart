@@ -181,6 +181,18 @@ void main() {
     expect(repo.userIdByUsername('bob'), isNull);
   });
 
+  test('unregisteredSeen lists seen users not yet registered', () {
+    repo.upsertSeenUser(111, 'alice');
+    repo.upsertSeenUser(222, 'bob');
+    addUser(222); // bob is now registered
+    final seen = repo.unregisteredSeen();
+    expect(seen.map((u) => u.id), [111]);
+    expect(seen.single.name, '@alice');
+    expect(repo.seenUsername(111), 'alice');
+    expect(repo.seenUsername(222), 'bob');
+    expect(repo.seenUsername(333), isNull);
+  });
+
   test('pending users queue by handle before first contact', () {
     expect(repo.isPendingUser('bob'), false);
     repo.addPendingUser('@Bob', isAdmin: false);

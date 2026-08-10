@@ -74,6 +74,7 @@ class RoleKeyboard {
     GridButton('set-date', '/setdate', RoleColor.console),
     GridButton('reset-date', '/resetdate', RoleColor.console),
     GridButton('demote', '/demote', RoleColor.console),
+    GridButton('sync-calendar', '/sync-calendar', RoleColor.console),
     ...adminButtons,
   ];
 

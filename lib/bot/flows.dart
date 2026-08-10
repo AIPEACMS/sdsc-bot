@@ -111,7 +111,8 @@ class Flows {
         ..writeln('/addadmin @handle — make a user an admin')
         ..writeln('/setdate YYYY-MM-DD — debug: pretend it is that date')
         ..writeln('/resetdate — stop pretending')
-        ..writeln('/demote — step down as admin (you stay console)');
+        ..writeln('/demote — step down as admin (you stay console)')
+        ..writeln('/sync-calendar <yaml> — apply a calendar YAML');
     }
 
     if (isAdmin) {
@@ -127,8 +128,6 @@ class Flows {
         ..writeln('/confirm — mark attendance')
         ..writeln('/setexp experienced|newbie — change a member\'s experience')
         ..writeln('/setgroup A|B — change a member\'s group')
-        ..writeln('/holidayset [middle|winter|summer] [YYYY-MM-DD] — break')
-        ..writeln('/holidayclear [YYYY-MM-DD] — remove a break')
         ..writeln('/broadcast [message] — message everyone');
     }
 
@@ -241,12 +240,17 @@ class Flows {
   // ------------------------------------------------------------ text
 
   /// Routes a wizard's pending-input text to the command that requested it.
-  /// `broadcast` = the message to send to every member (handled in admin).
+  /// `broadcast` = the message to send to every member (handled in admin);
+  /// `setdate` / `synccalendar` = typed console wizard input (in console).
   Future<void> _consumePendingArg(
       Context ctx, int userId, String command, String text) async {
     switch (command) {
       case 'broadcast':
         await onBroadcastText?.call(ctx, userId, text);
+      case 'setdate':
+        await onSetDateText?.call(ctx, userId, text);
+      case 'synccalendar':
+        await onSyncCalendarText?.call(ctx, userId, text);
       default:
         await ctx.reply('That input is not understood. Start over.');
     }
@@ -256,6 +260,13 @@ class Flows {
   /// /broadcast (shows the confirm dialog).
   Future<void> Function(Context ctx, int userId, String text)?
       onBroadcastText;
+
+  /// Set by main.dart: applies the typed date of the /setdate wizard.
+  Future<void> Function(Context ctx, int userId, String text)? onSetDateText;
+
+  /// Set by main.dart: applies the pasted YAML of the /sync-calendar wizard.
+  Future<void> Function(Context ctx, int userId, String text)?
+      onSyncCalendarText;
 
   // ---------------------------------------------------------- callback
 

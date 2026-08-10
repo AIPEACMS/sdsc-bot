@@ -58,7 +58,7 @@ class Admin {
       if (data == null) return next();
       final head = data.split('|').first;
       const mine = {
-        'att_sess', 'att_toggle', 'setexp', 'setgroup',
+        'att_sess', 'att_toggle', 'setexp', 'setgroup', 'setval',
         'mpick', 'bcast', 'cancel',
       };
       if (mine.contains(head)) {
@@ -97,10 +97,64 @@ class Admin {
   Future<void> _addUser(Context ctx) async {
     final args = ctx.args;
     if (args.isEmpty) {
-      await ctx.reply('Usage: /adduser @handle');
+      await _addUserPicker(ctx, 0, isAdmin: false);
       return;
     }
-    final handle = args.first.replaceFirst('@', '');
+    await _addByHandle(ctx, args.first, isAdmin: false);
+  }
+
+  /// Arg-less /adduser (and /addadmin): show a picker of users the bot has
+  /// seen but not registered yet.
+  Future<void> _addUserPicker(Context ctx, int page, {required bool isAdmin}) async {
+    final seen = repo.unregisteredSeen();
+    if (seen.isEmpty) {
+      await ctx.reply(isAdmin ? 'Usage: /addadmin @handle' : 'Usage: /adduser @handle');
+      return;
+    }
+    await ctx.reply(
+      isAdmin ? '➕ Promote which member to admin?' : '➕ Add which member?',
+      replyMarkup: Pickers.memberPicker(
+        action: isAdmin ? 'addadmin' : 'adduser',
+        members: seen,
+        page: page,
+      ),
+    );
+  }
+
+  /// Registers a member picked from the seen-users list.
+  Future<void> _addSeenById(Context ctx, int memberId, {required bool isAdmin}) async {
+    final username = repo.seenUsername(memberId);
+    if (username == null) return;
+    final existing = repo.findUser(memberId);
+    if (existing != null) {
+      final alreadyAdmin = existing.isAdmin;
+      if (isAdmin && !alreadyAdmin) repo.updateAdmin(memberId, true);
+      await ctx.editMessageText(
+        isAdmin
+            ? (alreadyAdmin
+                ? '✅ @$username is already an admin.'
+                : '✅ @$username is now an admin.')
+            : '✅ @$username is already a member.',
+      );
+      return;
+    }
+    repo.upsertUser(User(
+      id: memberId,
+      name: '@$username',
+      experience: Experience.newbie,
+      group: 'A',
+      isAdmin: isAdmin,
+    ));
+    await ctx.editMessageText(
+      isAdmin
+          ? '✅ @$username promoted to admin.'
+          : '✅ @$username added. They can now use /start to see their commands.',
+    );
+  }
+
+  Future<void> _addByHandle(Context ctx, String rawHandle,
+      {required bool isAdmin}) async {
+    final handle = rawHandle.replaceFirst('@', '');
     final userId = repo.userIdByUsername(handle);
     if (userId != null && repo.findUser(userId) != null) {
       await ctx.reply('@$handle is already a member.');
@@ -120,17 +174,23 @@ class Admin {
         name: '@$handle',
         experience: Experience.newbie,
         group: 'A',
+        isAdmin: isAdmin,
       ));
       await ctx.reply(
-        '✅ @$handle added. They can now use /start to see their commands.',
+        isAdmin
+            ? '✅ @$handle is now an admin.'
+            : '✅ @$handle added. They can now use /start to see their commands.',
       );
       return;
     }
     // Not seen yet: queue by handle; auto-register on first contact.
-    repo.addPendingUser(handle, isAdmin: false);
+    repo.addPendingUser(handle, isAdmin: isAdmin);
     await ctx.reply(
-      '✅ @$handle queued — no need for them to message first. The moment '
-      'they message this bot, they are registered automatically.',
+      isAdmin
+          ? '✅ @$handle queued as admin — no need for them to message first. '
+              'The moment they message this bot, they are promoted automatically.'
+          : '✅ @$handle queued — no need for them to message first. The moment '
+              'they message this bot, they are registered automatically.',
     );
   }
 
@@ -310,19 +370,43 @@ class Admin {
   Future<void> _pickUser(Context ctx, String kind) async {
     final args = ctx.args;
     if (args.isEmpty) {
-      final what = kind == 'setexp' ? 'experienced|newbie' : 'A|B';
-      await ctx.reply('Usage: /$kind <$what>');
+      await _pickValue(ctx, kind);
       return;
     }
     final value = args.first.toLowerCase();
-    if (kind == 'setexp' && value != 'experienced' && value != 'newbie') {
-      await ctx.reply('Usage: /setexp experienced|newbie');
+    if (!_isValidValue(kind, value)) {
+      await ctx.reply(kind == 'setexp'
+          ? 'Usage: /setexp experienced|newbie'
+          : 'Usage: /setgroup A|B');
       return;
     }
-    if (kind == 'setgroup' && value != 'a' && value != 'b') {
-      await ctx.reply('Usage: /setgroup A|B');
-      return;
+    await _pickUserFor(ctx, kind, value);
+  }
+
+  bool _isValidValue(String kind, String value) {
+    if (kind == 'setexp') {
+      return value == 'experienced' || value == 'newbie';
     }
+    return value == 'a' || value == 'b';
+  }
+
+  /// Arg-less /setexp or /setgroup: pick the value first, then the member.
+  Future<void> _pickValue(Context ctx, String kind) async {
+    final choices = kind == 'setexp'
+        ? [('Experienced', 'experienced'), ('Newbie', 'newbie')]
+        : [('Group A', 'a'), ('Group B', 'b')];
+    var kb = InlineKeyboard();
+    for (final (label, value) in choices) {
+      kb = kb.text(label, 'setval|$kind|$value').row();
+    }
+    kb = kb.text('❌ Cancel', 'cancel|0');
+    await ctx.reply(
+      kind == 'setexp' ? 'Set experience to:' : 'Set group to:',
+      replyMarkup: kb,
+    );
+  }
+
+  Future<void> _pickUserFor(Context ctx, String kind, String value) async {
     final users = repo.allUsers();
     if (users.isEmpty) {
       await ctx.reply('No registered users yet.');
@@ -332,11 +416,14 @@ class Admin {
     for (final u in users) {
       kb = kb.text(u.name, '$kind|$value|${u.id}').row();
     }
-    await ctx.reply(
-      'Set <b>${kind == 'setexp' ? 'experience to $value' : 'group to ${value.toUpperCase()}'}</b> for:',
-      parseMode: ParseMode.html,
-      replyMarkup: kb,
-    );
+    final text = 'Set <b>'
+        '${kind == 'setexp' ? 'experience to $value' : 'group to ${value.toUpperCase()}'}'
+        '</b> for:';
+    if (ctx.callbackQuery != null) {
+      await ctx.editMessageText(text, parseMode: ParseMode.html, replyMarkup: kb);
+    } else {
+      await ctx.reply(text, parseMode: ParseMode.html, replyMarkup: kb);
+    }
   }
 
   Future<void> _applySet(
@@ -434,6 +521,13 @@ class Admin {
       case 'setgroup':
         final uid = int.tryParse(parts[2]);
         if (uid != null) await _applySet(ctx, parts[0], parts[1], uid);
+      case 'setval':
+        final kind = parts.length > 1 ? parts[1] : '';
+        final value = parts.length > 2 ? parts[2] : '';
+        if (kind == 'setexp' || kind == 'setgroup') {
+          await ctx.answerCallbackQuery();
+          await _pickUserFor(ctx, kind, value);
+        }
       case 'mpick':
         await _onMemberPick(ctx, parts);
       case 'bcast':
@@ -460,26 +554,48 @@ class Admin {
   Future<void> _onMemberPick(Context ctx, List<String> parts) async {
     await ctx.answerCallbackQuery();
     final (action, page, target) = Pickers.parsePick(parts);
-    if (action != 'ask') return;
     if (target == 'cancel') {
       await ctx.editMessageText('Cancelled.');
       return;
     }
-    if (target == 'prev' || target == 'next') {
-      // Re-render the picker at the new page.
-      final members = repo.allUsers();
-      await ctx.editMessageText(
-        '🤔 Send the availability picker to which member?',
-        replyMarkup: Pickers.memberPicker(
-          action: 'ask',
-          members: members,
-          page: target == 'prev' ? page - 1 : page + 1,
-        ),
-      );
+    if (action == 'ask') {
+      if (target == 'prev' || target == 'next') {
+        // Re-render the picker at the new page.
+        final members = repo.allUsers();
+        await ctx.editMessageText(
+          '🤔 Send the availability picker to which member?',
+          replyMarkup: Pickers.memberPicker(
+            action: 'ask',
+            members: members,
+            page: target == 'prev' ? page - 1 : page + 1,
+          ),
+        );
+        return;
+      }
+      final memberId = int.tryParse(target);
+      if (memberId != null) await _askPick(ctx, memberId);
       return;
     }
-    final memberId = int.tryParse(target);
-    if (memberId != null) await _askPick(ctx, memberId);
+    if (action == 'adduser' || action == 'addadmin') {
+      final isAdmin = action == 'addadmin';
+      if (target == 'prev' || target == 'next') {
+        final seen = repo.unregisteredSeen();
+        await ctx.editMessageText(
+          isAdmin ? '➕ Promote which member to admin?' : '➕ Add which member?',
+          replyMarkup: Pickers.memberPicker(
+            action: action,
+            members: seen,
+            page: target == 'prev' ? page - 1 : page + 1,
+          ),
+        );
+        return;
+      }
+      final memberId = int.tryParse(target);
+      if (memberId != null) {
+        await _addSeenById(ctx, memberId, isAdmin: isAdmin);
+      }
+      return;
+    }
   }
 
   static String _day(DateTime d) {
