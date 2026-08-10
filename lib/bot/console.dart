@@ -51,27 +51,28 @@ class Console {
     }
     final handle = args.first.replaceFirst('@', '');
     final userId = repo.userIdByUsername(handle);
-    if (userId == null) {
-      await ctx.reply(
-        'I have never seen @$handle message this bot. '
-        'Ask them to press /start once, then try again.',
-      );
+    if (userId != null) {
+      final existing = repo.findUser(userId);
+      if (existing == null) {
+        repo.upsertUser(User(
+          id: userId,
+          name: '@$handle',
+          experience: Experience.newbie,
+          group: 'A',
+          isAdmin: true,
+        ));
+      } else {
+        repo.updateAdmin(userId, true);
+      }
+      await ctx.reply('✅ @$handle is now an admin.');
       return;
     }
-    final existing = repo.findUser(userId);
-    if (existing == null) {
-      final user = User(
-        id: userId,
-        name: '@$handle',
-        experience: Experience.newbie,
-        group: 'A',
-        isAdmin: true,
-      );
-      repo.upsertUser(user);
-    } else {
-      repo.updateAdmin(userId, true);
-    }
-    await ctx.reply('✅ @$handle is now an admin.');
+    // Not seen yet: queue by handle; auto-promote on first contact.
+    repo.addPendingUser(handle, isAdmin: true);
+    await ctx.reply(
+      '✅ @$handle queued as admin — no need for them to message first. The '
+      'moment they message this bot, they are promoted automatically.',
+    );
   }
 
   // -------------------------------------------------- /setdate /resetdate

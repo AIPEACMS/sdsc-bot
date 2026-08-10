@@ -77,26 +77,35 @@ class Admin {
     }
     final handle = args.first.replaceFirst('@', '');
     final userId = repo.userIdByUsername(handle);
-    if (userId == null) {
-      await ctx.reply(
-        'I have never seen @$handle message this bot. '
-        'Ask them to press /start once, then try again.',
-      );
-      return;
-    }
-    if (repo.findUser(userId) != null) {
+    if (userId != null && repo.findUser(userId) != null) {
       await ctx.reply('@$handle is already a member.');
       return;
     }
-    final user = User(
-      id: userId,
-      name: '@$handle',
-      experience: Experience.newbie,
-      group: 'A',
-    );
-    repo.upsertUser(user);
+    if (repo.isPendingUser(handle)) {
+      await ctx.reply(
+        '@$handle is already queued — they will be registered the first time '
+        'they message the bot.',
+      );
+      return;
+    }
+    if (userId != null) {
+      // Seen before: register now.
+      repo.upsertUser(User(
+        id: userId,
+        name: '@$handle',
+        experience: Experience.newbie,
+        group: 'A',
+      ));
+      await ctx.reply(
+        '✅ @$handle added. They can now use /start to see their commands.',
+      );
+      return;
+    }
+    // Not seen yet: queue by handle; auto-register on first contact.
+    repo.addPendingUser(handle, isAdmin: false);
     await ctx.reply(
-      '✅ @$handle added. They can now use /start to see their commands.',
+      '✅ @$handle queued — no need for them to message first. The moment '
+      'they message this bot, they are registered automatically.',
     );
   }
 

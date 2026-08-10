@@ -119,6 +119,45 @@ ON CONFLICT(id) DO UPDATE SET username = excluded.username
     return rows.isEmpty ? null : rows.first['id'] as int;
   }
 
+  // -------------------------------------------------------- pending users
+
+  /// A handle added by an admin before the user has ever messaged the bot.
+  /// The user is auto-registered (with admin rights if [isAdmin]) the first
+  /// time they contact the bot.
+  void addPendingUser(String handle, {required bool isAdmin}) {
+    raw.execute(
+      '''
+INSERT INTO pending_users (username, is_admin) VALUES (?, ?)
+ON CONFLICT(username) DO UPDATE SET
+  is_admin = MAX(pending_users.is_admin, excluded.is_admin)
+''',
+      [handle.replaceFirst('@', '').toLowerCase(), isAdmin ? 1 : 0],
+    );
+  }
+
+  bool isPendingUser(String handle) {
+    final rows = raw.select(
+      'SELECT 1 FROM pending_users WHERE username = ?',
+      [handle.replaceFirst('@', '').toLowerCase()],
+    );
+    return rows.isNotEmpty;
+  }
+
+  bool pendingIsAdmin(String handle) {
+    final rows = raw.select(
+      'SELECT is_admin FROM pending_users WHERE username = ?',
+      [handle.replaceFirst('@', '').toLowerCase()],
+    );
+    return rows.isNotEmpty && (rows.first['is_admin'] as int) == 1;
+  }
+
+  void removePendingUser(String handle) {
+    raw.execute(
+      'DELETE FROM pending_users WHERE username = ?',
+      [handle.replaceFirst('@', '').toLowerCase()],
+    );
+  }
+
   // --------------------------------------------------------- message log
 
   /// Whether [kind] of message was already sent to [user] on the local date

@@ -16,7 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   responds. Until then the bot stays silent (no reply, no traffic). Once
   added, `/start` shows the user's own usable command list, filtered by role.
 - **`/adduser @handle`** (admin): add a member by handle, persisted to the DB.
-- **`/addadmin @handle`** (console): promote a user to admin.
+  No message-first requirement — a not-yet-seen handle is queued and the user
+  is auto-registered the first time they contact the bot.
+- **`/addadmin @handle`** (console): promote a user to admin (also queued and
+  auto-promoted on first contact if not yet seen).
 - **`/demote`** (console): the console can step down from admin; admins cannot
   remove each other.
 - **Debug clock** (console): `/setdate YYYY-MM-DD [HH:MM]` temporarily

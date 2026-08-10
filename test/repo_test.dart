@@ -181,6 +181,21 @@ void main() {
     expect(repo.userIdByUsername('bob'), isNull);
   });
 
+  test('pending users queue by handle before first contact', () {
+    expect(repo.isPendingUser('bob'), false);
+    repo.addPendingUser('@Bob', isAdmin: false);
+    expect(repo.isPendingUser('bob'), true);
+    expect(repo.pendingIsAdmin('bob'), false);
+    repo.removePendingUser('Bob');
+    expect(repo.isPendingUser('bob'), false);
+  });
+
+  test('pending admin flag survives upsert and wins over non-admin', () {
+    repo.addPendingUser('carol', isAdmin: false);
+    repo.addPendingUser('carol', isAdmin: true);
+    expect(repo.pendingIsAdmin('carol'), true);
+  });
+
   test('updateAdmin toggles the admin flag', () {
     addUser(7);
     expect(repo.findUser(7)!.isAdmin, false);

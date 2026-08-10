@@ -214,14 +214,45 @@ class Flows {
   }
 
   /// Remembers (id, username) from any update so admins can add members by
-  /// handle later. Never replies, never errors.
+  /// handle later. If the handle is in the pending queue (added by an admin
+  /// before the user ever contacted the bot), the user is auto-registered
+  /// right here. Never replies, never errors.
   void _recordSeen(Context ctx, int userId) {
     final username = ctx.from?.username;
     if (username == null || username.isEmpty) return;
     try {
       repo.upsertSeenUser(userId, username);
+      _autoRegisterPending(ctx, userId, username);
     } catch (_) {
       // bookkeeping failure should not break the flow
     }
+  }
+
+  /// If [username] was added to the pending queue (via /adduser or
+  /// /addadmin) before the user ever messaged the bot, register them now.
+  void _autoRegisterPending(Context ctx, int userId, String username) {
+    if (!repo.isPendingUser(username)) return;
+    final isAdmin = repo.pendingIsAdmin(username);
+    repo.removePendingUser(username);
+
+    final existing = repo.findUser(userId);
+    if (existing == null) {
+      repo.upsertUser(User(
+        id: userId,
+        name: '@$username',
+        experience: Experience.newbie,
+        group: 'A',
+        isAdmin: isAdmin,
+      ));
+    } else if (isAdmin) {
+      repo.updateAdmin(userId, true);
+    }
+    // Let the user know they're in — they can now use /start.
+    ctx.reply(
+      isAdmin
+          ? 'Welcome! You have been added as an <b>admin</b>. Send /start to see your commands.'
+          : 'Welcome! You have been added. Send /start to see your commands.',
+      parseMode: ParseMode.html,
+    );
   }
 }
