@@ -5,7 +5,7 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.2.0] - 2026-08-10
 
 ### Added
 
@@ -28,6 +28,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Same-day message dedupe**: a given message kind is never sent to the same
   user twice in one local day (prompt, reminder, allocation).
 - **Scheduler tick reduced** from 5 minutes to 12 hours.
+- **CI/CD**: GitHub Actions lint/test/build on every push, and a release
+  workflow that builds the bundle and publishes it as a GitHub Release when
+  a `v*` tag is pushed. The VM pulls builds via `./sdsc.sh update`.
 
 ### Changed
 
