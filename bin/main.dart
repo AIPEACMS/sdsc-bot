@@ -54,6 +54,7 @@ Future<void> main() async {
     bot: bot,
     repo: repo,
     config: config,
+    state: state,
     calendarSync: calendarSync,
   );
 
@@ -78,7 +79,10 @@ Future<void> main() async {
 
   // The /broadcast wizard asks the admin to type the message; the text lands
   // in Flows' text middleware, which hands it back to Admin for confirmation.
+  // The /setdate and /sync-calendar wizards hand the typed input to Console.
   flows.onBroadcastText = admin.onBroadcastText;
+  flows.onSetDateText = console.onSetDateText;
+  flows.onSyncCalendarText = console.onSyncCalendarText;
 
   bot.onError((error) {
     // ignore: avoid_print

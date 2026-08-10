@@ -5,6 +5,26 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.0] - 2026-08-10
+
+### Changed
+
+- **`/start` list trimmed to current commands**: removed the retired
+  `/holidayset` and `/holidayclear` lines; added the console's
+  `/sync-calendar` to the console section and its grid.
+- **More interactive command responses**: the picker/wizard pattern from
+  `ask`/`announce` now covers the remaining argument-taking commands.
+  - `add-user` / `add-admin` → picker of users who have contacted the bot
+    but aren't registered yet (paginated, tap to add).
+  - `set-exp` / `set-group` → pick the value first (experienced/newbie,
+    A/B), then pick the member.
+  - `set-date` → asks you to send the date as the next message (with a
+    Cancel button) instead of demanding it inline.
+  - `sync-calendar` → asks you to paste the calendar YAML as the next
+    message (with a Cancel button).
+
+## [Unreleased]
+
 ## [0.6.0] - 2026-08-10
 
 ### Added
@@ -25,8 +45,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - Manual admin holiday commands (`/holidayset`, `/holidayclear` and their
   grid buttons) — breaks now come from the academic calendar.
-
-## [Unreleased]
 
 ## [0.5.0] - 2026-08-10
 

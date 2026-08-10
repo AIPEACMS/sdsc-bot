@@ -1,10 +1,13 @@
 import 'package:televerse/televerse.dart';
+import 'package:televerse/telegram.dart' hide Location, User;
 
 import '../core/config.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
 import 'calendar_sync.dart';
 import 'command_both.dart';
+import 'pickers.dart';
+import 'state.dart';
 
 /// Console commands — only for the first user, hard-coded in [Config].
 /// The console has admin rights + debug rights, but is not an admin per se:
@@ -13,12 +16,14 @@ class Console {
   final Bot bot;
   final Repo repo;
   final Config config;
+  final BotState state;
   final CalendarSync? calendarSync;
 
   Console({
     required this.bot,
     required this.repo,
     required this.config,
+    required this.state,
     this.calendarSync,
   });
 
@@ -52,7 +57,19 @@ class Console {
   Future<void> _addAdmin(Context ctx) async {
     final args = ctx.args;
     if (args.isEmpty) {
-      await ctx.reply('Usage: /addadmin @handle');
+      final seen = repo.unregisteredSeen();
+      if (seen.isEmpty) {
+        await ctx.reply('Usage: /addadmin @handle');
+        return;
+      }
+      await ctx.reply(
+        '➕ Promote which member to admin?',
+        replyMarkup: Pickers.memberPicker(
+          action: 'addadmin',
+          members: seen,
+          page: 0,
+        ),
+      );
       return;
     }
     final handle = args.first.replaceFirst('@', '');
@@ -88,19 +105,36 @@ class Console {
   Future<void> _setDate(Context ctx) async {
     final args = ctx.args;
     if (args.isEmpty) {
-      await ctx.reply('Usage: /setdate YYYY-MM-DD [HH:MM]');
+      final userId = ctx.from!.id;
+      state.pendingArg[userId] = PendingArg('setdate');
+      await ctx.reply(
+        '📅 Send the date as <b>YYYY-MM-DD</b>, optionally with a time '
+        '(YYYY-MM-DD HH:MM), or tap Cancel.',
+        parseMode: ParseMode.html,
+        replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
+      );
       return;
     }
-    final date = DateTime.tryParse(args.first);
+    await _applyDate(ctx, args.join(' '));
+  }
+
+  /// Entry point for the set-date wizard: the console typed the date.
+  Future<void> onSetDateText(Context ctx, int userId, String text) async {
+    await _applyDate(ctx, text.trim());
+  }
+
+  Future<void> _applyDate(Context ctx, String input) async {
+    final parts = input.trim().split(RegExp(r'\s+'));
+    final date = DateTime.tryParse(parts.first);
     if (date == null) {
       await ctx.reply('Invalid date. Use YYYY-MM-DD.');
       return;
     }
     var local = DateTime(date.year, date.month, date.day);
-    if (args.length > 1) {
-      final parts = args[1].split(':');
-      final h = int.tryParse(parts[0]);
-      final m = parts.length > 1 ? int.tryParse(parts[1]) : 0;
+    if (parts.length > 1) {
+      final t = parts[1].split(':');
+      final h = int.tryParse(t[0]);
+      final m = t.length > 1 ? int.tryParse(t[1]) : 0;
       if (h == null || m == null) {
         await ctx.reply('Invalid time. Use HH:MM.');
         return;
@@ -146,14 +180,25 @@ class Console {
     }
     final args = ctx.args;
     if (args.isEmpty) {
+      final userId = ctx.from!.id;
+      state.pendingArg[userId] = PendingArg('synccalendar');
       await ctx.reply(
-        'Usage: /sync-calendar <yaml> — or paste the full YAML as the '
-        'message text.',
+        '📆 Paste the academic-calendar YAML, or tap Cancel.',
+        replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
       );
       return;
     }
+    await _applyCalendarYaml(ctx, args.join(' '));
+  }
+
+  /// Entry point for the sync-calendar wizard: the console pasted the YAML.
+  Future<void> onSyncCalendarText(Context ctx, int userId, String text) async {
+    await _applyCalendarYaml(ctx, text.trim());
+  }
+
+  Future<void> _applyCalendarYaml(Context ctx, String yaml) async {
     try {
-      final result = calendarSync!.apply(args.join(' '));
+      final result = calendarSync!.apply(yaml);
       await ctx.reply(
         '✅ Calendar ${result.academicYear}: ${result.weeks} weeks, '
         '${result.holidays} holiday rows.',

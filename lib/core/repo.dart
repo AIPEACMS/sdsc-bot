@@ -121,6 +121,38 @@ ON CONFLICT(id) DO UPDATE SET username = excluded.username
     return rows.isEmpty ? null : rows.first['id'] as int;
   }
 
+  /// Users the bot has seen in messages but who are not registered yet —
+  /// the candidates for the /adduser and /addadmin pickers.
+  List<User> unregisteredSeen() {
+    final rows = raw.select(
+      '''
+SELECT s.id, s.username
+FROM seen_users s
+LEFT JOIN users u ON u.id = s.id
+WHERE u.id IS NULL
+ORDER BY s.username
+''',
+    );
+    return [
+      for (final r in rows)
+        User(
+          id: r['id'] as int,
+          name: '@${r['username']}',
+          experience: Experience.newbie,
+          group: 'A',
+        ),
+    ];
+  }
+
+  /// The username the bot saw for [id], or null if never seen.
+  String? seenUsername(int id) {
+    final rows = raw.select(
+      'SELECT username FROM seen_users WHERE id = ?',
+      [id],
+    );
+    return rows.isEmpty ? null : rows.first['username'] as String;
+  }
+
   // -------------------------------------------------------- pending users
 
   /// A handle added by an admin before the user has ever messaged the bot.
