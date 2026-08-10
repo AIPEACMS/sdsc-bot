@@ -31,7 +31,7 @@ class Flows {
 
   void register() {
     commandBoth(bot, 'start', _onStart, label: 'start');
-    commandBoth(bot, 'reindicate', _onReindicate, label: 'reindicate');
+    commandBoth(bot, 'reindicate', _onReindicate, label: 're-pick');
     commandBoth(bot, 'holiday', _onHoliday, label: 'holiday');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, 'help', _onHelp, label: 'help');

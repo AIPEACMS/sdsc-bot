@@ -23,6 +23,31 @@ void main() {
     }
   });
 
+  test('every word in a label is 8 chars or fewer (no Telegram wrap)', () {
+    for (final b in [
+      ...RoleKeyboard.memberButtons,
+      ...RoleKeyboard.adminButtons,
+      ...RoleKeyboard.consoleButtons,
+    ]) {
+      for (final word in b.label.split(RegExp(r'[ -]'))) {
+        expect(word.length, lessThanOrEqualTo(8),
+            reason: '${b.label} (word "$word" is too long)');
+      }
+    }
+  });
+
+  test('each grid has distinct labels', () {
+    for (final grid in [
+      RoleKeyboard.memberButtons,
+      RoleKeyboard.adminButtons,
+      RoleKeyboard.consoleButtons,
+    ]) {
+      final labels = grid.map((b) => b.label).toSet();
+      expect(labels.length, grid.length,
+          reason: 'duplicate label in grid');
+    }
+  });
+
   test('colors: member=green, admin=blue, console=red', () {
     for (final b in RoleKeyboard.memberButtons) {
       expect(b.color, RoleColor.member, reason: b.label);

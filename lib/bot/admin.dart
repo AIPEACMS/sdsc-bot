@@ -29,7 +29,7 @@ class Admin {
   });
 
   void register() {
-    commandBoth(bot, 'adduser', _guard(_addUser), label: 'adduser');
+    commandBoth(bot, 'adduser', _guard(_addUser), label: 'add-user');
     commandBoth(bot, 'status', _guard(_status), label: 'status');
     commandBoth(bot, 'users', _guard(_users), label: 'users');
     commandBoth(bot, 'prompt',
@@ -45,14 +45,15 @@ class Admin {
     commandBoth(bot, 'confirm', _guard(_confirm), label: 'confirm');
     commandBoth(bot, 'setexp',
         _guard((ctx) => _pickUser(ctx, 'setexp')),
-        label: 'setexp');
+        label: 'set-exp');
     commandBoth(bot, 'setgroup',
         _guard((ctx) => _pickUser(ctx, 'setgroup')),
-        label: 'setgroup');
-    commandBoth(bot, 'holidayset', _guard(_holidaySet), label: 'holidayset');
+        label: 'set-group');
+    commandBoth(bot, 'holidayset', _guard(_holidaySet),
+        label: 'set-holiday');
     commandBoth(bot, 'holidayclear', _guard(_holidayClear),
-        label: 'holidayclear');
-    commandBoth(bot, 'broadcast', _guard(_broadcast), label: 'broadcast');
+        label: 'clear-holiday');
+    commandBoth(bot, 'broadcast', _guard(_broadcast), label: 'announce');
     bot.on(bot.filters.callbackQuery, _onAdminCallback);
   }
 
