@@ -29,6 +29,14 @@ class Config {
 
   final int timezoneOffsetHours; // from UTC
 
+  /// Token that the calendar-sync cron must present to the bot's IPC
+  /// endpoint. Read from `CALENDAR_IPC_TOKEN` (secret env file, never in the
+  /// repo). Null disables the IPC listener.
+  final String? calendarIpcToken;
+
+  /// Port for the loopback calendar-sync IPC listener. Default 8737.
+  final int calendarIpcPort;
+
   const Config({
     required this.botToken,
     required this.dbPath,
@@ -44,6 +52,8 @@ class Config {
     required this.allocationHour,
     required this.bailHour,
     required this.timezoneOffsetHours,
+    this.calendarIpcToken,
+    this.calendarIpcPort = 8737,
   });
 
   /// Debug override for "now" (UTC). Set by the console via /setdate; lets
@@ -107,6 +117,8 @@ class Config {
       allocationHour: envInt('ALLOCATION_HOUR', 9),
       bailHour: envInt('BAIL_HOUR', 12),
       timezoneOffsetHours: envInt('TZ_OFFSET', 8),
+      calendarIpcToken: env('CALENDAR_IPC_TOKEN'),
+      calendarIpcPort: envInt('CALENDAR_IPC_PORT', 8737),
     );
   }
 

@@ -3,6 +3,7 @@ import 'package:televerse/televerse.dart';
 import '../core/config.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
+import 'calendar_sync.dart';
 import 'command_both.dart';
 
 /// Console commands — only for the first user, hard-coded in [Config].
@@ -12,11 +13,13 @@ class Console {
   final Bot bot;
   final Repo repo;
   final Config config;
+  final CalendarSync? calendarSync;
 
   Console({
     required this.bot,
     required this.repo,
     required this.config,
+    this.calendarSync,
   });
 
   void register() {
@@ -24,6 +27,8 @@ class Console {
     commandBoth(bot, 'setdate', _guard(_setDate), label: 'set-date');
     commandBoth(bot, 'resetdate', _guard(_resetDate), label: 'reset-date');
     commandBoth(bot, 'demote', _guard(_demote), label: 'demote');
+    commandBoth(bot, 'sync-calendar', _guard(_syncCalendar),
+        label: 'sync-calendar');
   }
 
   bool _isConsole(Context ctx) {
@@ -128,6 +133,34 @@ class Console {
     }
     repo.updateAdmin(userId, false);
     await ctx.reply('✅ You stepped down as admin. You remain the console.');
+  }
+
+  // ------------------------------------------------------ /sync-calendar
+
+  /// Manual trigger for the calendar sync. The cron script pushes YAML via
+  /// IPC; this lets the console do the same by typing/pasting the YAML.
+  Future<void> _syncCalendar(Context ctx) async {
+    if (calendarSync == null) {
+      await ctx.reply('Calendar sync is not wired up in this build.');
+      return;
+    }
+    final args = ctx.args;
+    if (args.isEmpty) {
+      await ctx.reply(
+        'Usage: /sync-calendar <yaml> — or paste the full YAML as the '
+        'message text.',
+      );
+      return;
+    }
+    try {
+      final result = calendarSync!.apply(args.join(' '));
+      await ctx.reply(
+        '✅ Calendar ${result.academicYear}: ${result.weeks} weeks, '
+        '${result.holidays} holiday rows.',
+      );
+    } catch (e) {
+      await ctx.reply('❌ Sync failed: $e');
+    }
   }
 
   static String _fmt(DateTime d) {

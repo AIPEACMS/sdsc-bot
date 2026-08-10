@@ -105,6 +105,12 @@ CREATE TABLE IF NOT EXISTS sent_messages (
   day TEXT NOT NULL,
   UNIQUE(user_id, kind, day)
 );
+
+CREATE TABLE IF NOT EXISTS calendar_years (
+  academic_year TEXT PRIMARY KEY,
+  yaml TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 ''');
   }
 

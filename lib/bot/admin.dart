@@ -50,10 +50,6 @@ class Admin {
     commandBoth(bot, 'setgroup',
         _guard((ctx) => _pickUser(ctx, 'setgroup')),
         label: 'set-group');
-    commandBoth(bot, 'holidayset', _guard(_holidaySet),
-        label: 'set-holiday');
-    commandBoth(bot, 'holidayclear', _guard(_holidayClear),
-        label: 'clear-holiday');
     commandBoth(bot, 'broadcast', _guard(_broadcast), label: 'announce');
 
     // Callback middleware: handles admin prefixes, continues otherwise.
@@ -368,50 +364,6 @@ class Admin {
       '✅ <b>${updated.name}</b> → $exp, group ${updated.group}',
       parseMode: ParseMode.html,
     );
-  }
-
-  // ----------------------------------------------------------- holidays
-
-  Future<void> _holidaySet(Context ctx) async {
-    final args = ctx.args;
-    if (args.length < 2) {
-      await ctx.reply(
-        'Usage: /holidayset <middle|winter|summer> <YYYY-MM-DD>\n'
-        'The date can be any day of the affected week.',
-      );
-      return;
-    }
-    final kind = switch (args[0].toLowerCase()) {
-      'middle' => HolidayKind.middle,
-      'winter' => HolidayKind.winter,
-      'summer' => HolidayKind.summer,
-      _ => null,
-    };
-    final date = DateTime.tryParse(args[1]);
-    if (kind == null || date == null) {
-      await ctx.reply('Invalid arguments. See /holidayset for usage.');
-      return;
-    }
-    final monday = WeekMath.mondayOf(date);
-    repo.addHoliday(monday, kind);
-    await ctx.reply(
-      '✅ ${kind.name} break set for the week of ${_day(monday)}.',
-    );
-  }
-
-  Future<void> _holidayClear(Context ctx) async {
-    final args = ctx.args;
-    if (args.isEmpty) {
-      await ctx.reply('Usage: /holidayclear <YYYY-MM-DD>');
-      return;
-    }
-    final date = DateTime.tryParse(args.first);
-    if (date == null) {
-      await ctx.reply('Invalid date.');
-      return;
-    }
-    repo.removeHoliday(WeekMath.mondayOf(date));
-    await ctx.reply('✅ Holiday cleared.');
   }
 
   // ----------------------------------------------------------- broadcast

@@ -8,3 +8,4 @@ export 'core/db.dart';
 export 'core/repo.dart';
 export 'core/messages.dart';
 export 'core/allocate.dart';
+export 'core/calendar.dart';
