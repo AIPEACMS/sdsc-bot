@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+## [1.0.1] - 2026-08-11
+
+### Fixed
+
+- Admin API would not start without a dedicated admin token because the
+  calendar-token fallback was never used. An unset token now correctly falls
+  back and the API serves as intended.
+
 ## [1.0.0] - 2026-08-11
 
 ### Added
@@ -36,8 +46,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **`check`/`old` users are excluded** from availability prompts, reminders,
   allocation, broadcasts, the `/ask` picker and the `/status` counts.
 - `/users` now shows each member's tier.
-
-## [Unreleased]
 
 ## [0.9.0] - 2026-08-10
 
@@ -74,8 +82,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   is automatic, and broadcast moves to a group chat); the member `holiday`
   button is gone — holiday prompts arrive automatically.
 - **Allocation notice** no longer references a fixed Friday bail cut-off.
-
-## [Unreleased]
 
 ## [0.8.0] - 2026-08-10
 

@@ -127,12 +127,15 @@ class Config {
       allocationHour: envInt('ALLOCATION_HOUR', 9),
       bailHour: envInt('BAIL_HOUR', 12),
       timezoneOffsetHours: envInt('TZ_OFFSET', 8),
-      calendarIpcToken: env('CALENDAR_IPC_TOKEN'),
+      calendarIpcToken: _nonEmpty(env('CALENDAR_IPC_TOKEN')),
       calendarIpcPort: envInt('CALENDAR_IPC_PORT', 8737),
-      adminApiToken: env('ADMIN_API_TOKEN'),
+      adminApiToken: _nonEmpty(env('ADMIN_API_TOKEN')),
       adminApiPort: envInt('ADMIN_API_PORT', 8738),
     );
   }
+
+  /// Null for blank values — an unset token must not silently become "".
+  static String? _nonEmpty(String value) => value.isEmpty ? null : value;
 
   /// Converts a UTC instant to local wall-clock time for scheduling decisions.
   DateTime toLocal(DateTime utc) =>
