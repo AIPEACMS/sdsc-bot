@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Reply-keyboard command grids**: a persistent button grid above the
+  message bar, one per role and strictly nested (member ⊂ admin ⊂ console).
+  Each user sees the grid of their highest role; the grids never merge.
+- **`/grid`** (console): cycle through the console/admin/member grids to
+  preview what each role sees; `/help` returns to the console's own grid.
+- **`/help`**: re-sends the user's command grid.
+
 ## [0.2.1] - 2026-08-10
 
 ### Fixed

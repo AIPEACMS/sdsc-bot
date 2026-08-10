@@ -1,13 +1,18 @@
 import '../core/models.dart';
 
 /// Transient in-memory state for the bot. Nothing here is durable — it only
-/// tracks interactive flows in progress (availability picks).
+/// tracks interactive flows in progress (availability picks) and the console's
+/// grid preview.
 class BotState {
   final Map<int, Set<Slot>> availabilityPicks = {};
 
   /// Inline-keyboard message ids for availability selection per user, so a
   /// new /reindicate or prompt replaces the old keyboard instead of stacking.
   final Map<int, (int chatId, int messageId)> availabilityMessages = {};
+
+  /// The console's grid preview: which role's grid is currently shown
+  /// ('console' | 'admin' | 'member'). Absent = console's own grid.
+  final Map<int, String> gridPreview = {};
 
   void forgetAvailability(int userId) => availabilityPicks.remove(userId);
 

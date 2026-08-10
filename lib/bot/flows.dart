@@ -5,6 +5,7 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
+import 'keyboards.dart';
 import 'service.dart';
 import 'state.dart';
 
@@ -31,6 +32,8 @@ class Flows {
     bot.command('start', _onStart);
     bot.command('reindicate', _onReindicate);
     bot.command('holiday', _onHoliday);
+    bot.command('grid', _onGrid);
+    bot.command('help', _onHelp);
     bot.on(bot.filters.text, _onText);
     bot.on(bot.filters.callbackQuery, _onCallback);
   }
@@ -82,9 +85,83 @@ class Flows {
     sb
       ..writeln('\n<b>Member</b>')
       ..writeln('/reindicate — update your availability')
-      ..writeln('/holiday — opt out of an upcoming break');
+      ..writeln('/holiday — opt out of an upcoming break')
+      ..writeln('\nUse the buttons above the keyboard to jump to a command. '
+          'Type /grid to switch which grid you see (console only).');
 
-    await ctx.reply(sb.toString(), parseMode: ParseMode.html);
+    await ctx.reply(
+      sb.toString(),
+      parseMode: ParseMode.html,
+      replyMarkup: RoleKeyboard.build(_gridFor(userId)),
+    );
+  }
+
+  // ------------------------------------------------------------- /grid
+
+  /// Console-only: cycle through the console/admin/member grids to preview
+  /// what each role sees. Type /grid again to step to the next grid.
+  Future<void> _onGrid(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+
+    if (!config.isConsole(userId)) {
+      await ctx.reply(
+        'Only the console can preview other grids.',
+        replyMarkup: RoleKeyboard.build(RoleKeyboard.roleFor(
+          isConsole: false,
+          isAdmin: repo.findUser(userId)?.isAdmin ?? false,
+        )),
+      );
+      return;
+    }
+
+    const order = ['console', 'admin', 'member'];
+    final current = state.gridPreview[userId] ?? 'console';
+    final next = order[(order.indexOf(current) + 1) % order.length];
+    state.gridPreview[userId] = next;
+
+    await ctx.reply(
+      '👀 <b>Preview: $next grid</b>\n'
+      'This is what a $next sees. Type /grid again to cycle to the next '
+      'grid, or /resetgrid to return to your own console grid.',
+      parseMode: ParseMode.html,
+      replyMarkup: RoleKeyboard.build(next),
+    );
+  }
+
+  /// Returns to the console's own grid.
+  Future<void> _onHelp(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+    if (config.isConsole(userId)) {
+      state.gridPreview.remove(userId);
+      await ctx.reply(
+        'Back to your console grid.',
+        replyMarkup: RoleKeyboard.build('console'),
+      );
+      return;
+    }
+    final user = repo.findUser(userId);
+    if (user == null) return;
+    await ctx.reply(
+      'Your grid is shown above the keyboard.',
+      replyMarkup: RoleKeyboard.build(RoleKeyboard.roleFor(
+        isConsole: false,
+        isAdmin: user.isAdmin,
+      )),
+    );
+  }
+
+  /// Which grid to show: the console's preview if set, otherwise the
+  /// highest-role grid.
+  String _gridFor(int userId) {
+    if (config.isConsole(userId) && state.gridPreview[userId] != null) {
+      return state.gridPreview[userId]!;
+    }
+    return RoleKeyboard.roleFor(
+      isConsole: config.isConsole(userId),
+      isAdmin: repo.findUser(userId)?.isAdmin ?? false,
+    );
   }
 
   // ----------------------------------------------------- /reindicate
@@ -253,6 +330,7 @@ class Flows {
           ? 'Welcome! You have been added as an <b>admin</b>. Send /start to see your commands.'
           : 'Welcome! You have been added. Send /start to see your commands.',
       parseMode: ParseMode.html,
+      replyMarkup: RoleKeyboard.build(isAdmin ? 'admin' : 'member'),
     );
   }
 }
