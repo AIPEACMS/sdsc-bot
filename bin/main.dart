@@ -69,8 +69,14 @@ Future<void> main() async {
   });
 
   final stopCompleter = Completer<void>();
-  ProcessSignal.sigterm.watch().listen((_) => stopCompleter.complete());
-  ProcessSignal.sigint.watch().listen((_) => stopCompleter.complete());
+  ProcessSignal.sigterm.watch().listen((_) async {
+    await bot.stop();
+    stopCompleter.complete();
+  });
+  ProcessSignal.sigint.watch().listen((_) async {
+    await bot.stop();
+    stopCompleter.complete();
+  });
 
   scheduler.start();
   // ignore: avoid_print
