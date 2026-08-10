@@ -5,6 +5,40 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-08-11
+
+### Added
+
+- **Admin HTTP API**: a token-authenticated HTTP server the new desktop
+  console app talks to over the tailnet — list users, change a user's tier,
+  set/reset the debug date, trigger a calendar sync, hold/unhold, and read
+  recent logs. The token comes from the secret env file (`ADMIN_API_TOKEN`,
+  falling back to the calendar IPC token); the port defaults to 8738.
+- **In-memory log ring**: everything the bot logs is kept in a bounded
+  buffer and served by `GET /api/logs`, so the console app can show
+  copyable machine logs without touching journald.
+- **`check` tier**: a non-member who only reports — their single button,
+  `check-status`, prints this week's allocation (who is assigned to which
+  session).
+- **`old` tier**: archived former members — no buttons, no prompts, never
+  allocated. Admin promotion is cleared when someone is moved to old.
+- **Hold/unhold**: console-only buttons. `hold` suppresses every outgoing
+  message (block & drop — nothing queues or replays) while the bot keeps
+  running and the admin API stays reachable; `unhold` resumes. Persisted, so
+  a restart keeps the bot held.
+
+### Changed
+
+- **Console buttons trimmed to hold/unhold.** Everything else the console
+  used to do in Telegram (add-admin, set-date, reset-date, sync-calendar)
+  now lives in the desktop console app. The commands still work when typed.
+- **Admin grid drops `set-group`** — group changes move to the console app.
+- **`check`/`old` users are excluded** from availability prompts, reminders,
+  allocation, broadcasts, the `/ask` picker and the `/status` counts.
+- `/users` now shows each member's tier.
+
+## [Unreleased]
+
 ## [0.9.0] - 2026-08-10
 
 ### Added

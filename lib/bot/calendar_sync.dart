@@ -6,6 +6,7 @@ import '../core/calendar.dart';
 import '../core/config.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
+import '../core/log.dart';
 import '../core/week.dart';
 
 /// Result of a calendar sync.
@@ -144,8 +145,7 @@ class CalendarIpcServer {
   Future<void> start() async {
     _server = await ServerSocket.bind(InternetAddress.loopbackIPv4, port);
     _server!.listen(_handle);
-    // ignore: avoid_print
-    print('calendar IPC listening on 127.0.0.1:$boundPort');
+        LogRing.log('calendar IPC listening on 127.0.0.1:$boundPort');
   }
 
   Future<void> stop() async {

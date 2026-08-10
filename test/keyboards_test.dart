@@ -80,11 +80,43 @@ void main() {
     expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: true), 'console');
   });
 
+  test('roleFor honours the check/old tiers', () {
+    expect(RoleKeyboard.roleFor(
+        isConsole: false, isAdmin: false, tier: 'check'), 'check');
+    expect(RoleKeyboard.roleFor(
+        isConsole: false, isAdmin: false, tier: 'old'), 'old');
+    // Admin tier wins over a stored check/old tier.
+    expect(RoleKeyboard.roleFor(
+        isConsole: false, isAdmin: true, tier: 'old'), 'admin');
+    expect(RoleKeyboard.roleFor(
+        isConsole: true, isAdmin: false, tier: 'old'), 'console');
+  });
+
   test('gridButtons resolves each role', () {
     expect(RoleKeyboard.gridButtons('console'),
         RoleKeyboard.consoleButtons);
     expect(RoleKeyboard.gridButtons('admin'), RoleKeyboard.adminButtons);
     expect(RoleKeyboard.gridButtons('member'), RoleKeyboard.memberButtons);
+    expect(RoleKeyboard.gridButtons('check'), RoleKeyboard.checkButtons);
+    expect(RoleKeyboard.gridButtons('old'), isEmpty);
+  });
+
+  test('console keeps exactly two extra buttons: hold + unhold', () {
+    final console = RoleKeyboard.consoleButtons.toSet();
+    final admin = RoleKeyboard.adminButtons.toSet();
+    final consoleOnly = console.difference(admin);
+    expect(consoleOnly.map((b) => b.command), hasLength(2));
+    expect(consoleOnly.map((b) => b.command), containsAll(['/hold', '/unhold']));
+  });
+
+  test('admin grid no longer has set-group', () {
+    expect(
+        RoleKeyboard.adminButtons.map((b) => b.command), isNot(contains('/setgroup')));
+  });
+
+  test('check grid is a single button', () {
+    expect(RoleKeyboard.checkButtons, hasLength(1));
+    expect(RoleKeyboard.checkButtons.single.command, '/check-status');
   });
 
   test('built keyboard is persistent, resized, and buttons are styled', () {

@@ -5,6 +5,7 @@ import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/week.dart';
 import 'service.dart';
+import '../core/log.dart';
 
 /// Periodically checks the calendar and fires whatever is due for the current
 /// cycle. A lightweight Timer replaces a cron daemon and naturally catches up
@@ -72,8 +73,7 @@ class Scheduler {
       }
     } catch (e) {
       // Scheduling failures should not kill the bot.
-      // ignore: avoid_print
-      print('scheduler error: $e');
+            LogRing.log('scheduler error: $e');
     }
     _scheduleNext();
   }

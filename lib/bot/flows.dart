@@ -35,6 +35,7 @@ class Flows {
     commandBoth(bot, 'reindicate', _onReindicate, label: 're-pick');
     commandBoth(bot, 'holiday', _onHoliday, label: 'holiday');
     commandBoth(bot, 'mystatus', _onMyStatus, label: 'my-status');
+    commandBoth(bot, 'check-status', _onCheckStatus, label: 'check-status');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, 'help', _onHelp, label: 'help');
 
@@ -104,6 +105,29 @@ class Flows {
     if (user == null) return;
 
     final isConsole = config.isConsole(userId);
+    final tier = MemberTier.of(user, isConsole: isConsole);
+
+    // A former member: no buttons, no prompts — just a heads-up.
+    if (tier == MemberTier.old) {
+      await ctx.reply(
+        '👋 You are no longer an active member.\n\n'
+        'If this is a mistake, contact an admin.',
+        replyMarkup: RoleKeyboard.build('old'),
+      );
+      return;
+    }
+
+    // A checker: not a member, but reports on the current week's allocation.
+    if (tier == MemberTier.check) {
+      await ctx.reply(
+        '👋 <b>${user.name}</b>, you are a checker.\n\n'
+        '/check-status — the current week\'s allocation',
+        parseMode: ParseMode.html,
+        replyMarkup: RoleKeyboard.build('check'),
+      );
+      return;
+    }
+
     final isAdmin = user.isAdmin || isConsole;
 
     final sb = StringBuffer()
@@ -112,11 +136,10 @@ class Flows {
     if (isConsole) {
       sb
         ..writeln('\n<b>Console</b>')
-        ..writeln('/addadmin @handle — make a user an admin')
-        ..writeln('/setdate YYYY-MM-DD — debug: pretend it is that date')
-        ..writeln('/resetdate — stop pretending')
-        ..writeln('/demote — step down as admin (you stay console)')
-        ..writeln('/sync-calendar [yaml] — apply a calendar YAML');
+        ..writeln('/hold — pause the bot: no messages at all')
+        ..writeln('/unhold — resume sending')
+        ..writeln('\n<i>Set-date, reset-date, sync-calendar and account '
+            'management now live in the desktop console app.</i>');
     }
 
     if (isAdmin) {
@@ -129,8 +152,7 @@ class Flows {
         ..writeln('/remind — remind non-responders now')
         ..writeln('/ask [telegram_id] — prompt one member')
         ..writeln('/confirm — mark attendance')
-        ..writeln('/setexp experienced|newbie — change a member\'s experience')
-        ..writeln('/setgroup A|B — change a member\'s group');
+        ..writeln('/setexp experienced|newbie — change a member\'s experience');
     }
 
     sb
@@ -159,10 +181,7 @@ class Flows {
     if (!config.isConsole(userId)) {
       await ctx.reply(
         'Only the console can preview other grids.',
-        replyMarkup: RoleKeyboard.build(RoleKeyboard.roleFor(
-          isConsole: false,
-          isAdmin: repo.findUser(userId)?.isAdmin ?? false,
-        )),
+        replyMarkup: RoleKeyboard.build(_gridFor(userId)),
       );
       return;
     }
@@ -197,22 +216,21 @@ class Flows {
     if (user == null) return;
     await ctx.reply(
       'Your grid is shown above the keyboard.',
-      replyMarkup: RoleKeyboard.build(RoleKeyboard.roleFor(
-        isConsole: false,
-        isAdmin: user.isAdmin,
-      )),
+      replyMarkup: RoleKeyboard.build(_gridFor(userId)),
     );
   }
 
   /// Which grid to show: the console's preview if set, otherwise the
-  /// highest-role grid.
+  /// highest-tier grid.
   String _gridFor(int userId) {
     if (config.isConsole(userId) && state.gridPreview[userId] != null) {
       return state.gridPreview[userId]!;
     }
+    final user = repo.findUser(userId);
     return RoleKeyboard.roleFor(
       isConsole: config.isConsole(userId),
-      isAdmin: repo.findUser(userId)?.isAdmin ?? false,
+      isAdmin: user?.isAdmin ?? false,
+      tier: user?.memberTier ?? MemberTier.member,
     );
   }
 
@@ -221,8 +239,8 @@ class Flows {
   Future<void> _onReindicate(Context ctx) async {
     final userId = ctx.from!.id;
     final user = repo.findUser(userId);
-    if (user == null) {
-      // Silent for unadded users, same as /start.
+    if (user == null || !_isActive(user)) {
+      // Silent for unadded and non-active (check/old) users.
       return;
     }
     final cycle = _currentCycle(ctx);
@@ -234,6 +252,12 @@ class Flows {
     await service.showAvailability(user, cycle, messages.msg1(user.group));
   }
 
+  /// True for members/admins/console — anyone with availability duties.
+  bool _isActive(User user) {
+    final tier = MemberTier.of(user, isConsole: config.isConsole(user.id));
+    return MemberTier.isActive(tier);
+  }
+
   // -------------------------------------------------------- /holiday
 
   /// Opts the member out of the current cycle's holiday (if any) so they are
@@ -241,7 +265,7 @@ class Flows {
   Future<void> _onHoliday(Context ctx) async {
     final userId = ctx.from!.id;
     final user = repo.findUser(userId);
-    if (user == null) return;
+    if (user == null || !_isActive(user)) return;
     final cycle = _currentCycle(ctx);
     if (cycle == null) return;
     final week = _holidayWeekOf(cycle);
@@ -261,7 +285,7 @@ class Flows {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
     final user = repo.findUser(userId);
-    if (user == null) return;
+    if (user == null || !_isActive(user)) return;
     final cycle = _currentCycle(ctx);
     if (cycle == null) return;
 
@@ -290,6 +314,61 @@ class Flows {
     final stats = repo.attendanceStats(userId);
     sb.writeln('\n<b>Attendance</b>: ${stats.total} sessions total '
         '(${stats.ocbc} OCBC · ${stats.pasirRis} PR).');
+
+    await ctx.reply(sb.toString(), parseMode: ParseMode.html);
+  }
+
+  // ---------------------------------------------------- /check-status
+
+  /// The `check` tier's only command: print this week's allocation.
+  Future<void> _onCheckStatus(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+    final user = repo.findUser(userId);
+    if (user == null) return;
+    final tier = MemberTier.of(user, isConsole: config.isConsole(userId));
+    if (tier != MemberTier.check) {
+      await ctx.reply('Only checkers can view the weekly allocation.');
+      return;
+    }
+
+    final now = config.toLocal(Config.nowUtc());
+    final cycle = repo.ensureCurrentCycle(now);
+    final sat1 =
+        WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
+    final sb = StringBuffer()
+      ..writeln('📋 <b>This week\'s allocation</b>');
+
+    final allocations = repo.allocationsForCycle(cycle.id);
+    if (cycle.status != CycleStatus.allocated || allocations.isEmpty) {
+      sb.writeln('\nAllocation for this cycle is not published yet.\n'
+          'Sessions run ${_dateLabel(sat1)} and the week after.');
+      await ctx.reply(sb.toString(), parseMode: ParseMode.html);
+      return;
+    }
+
+    final bySession = <int, List<String>>{};
+    for (final (u, s) in allocations) {
+      bySession.putIfAbsent(s.id, () => []).add(u.name);
+    }
+
+    // "This week": during the first weekend's week (or before) show weekend 0;
+    // during the second weekend's week show weekend 1.
+    final week = WeekMath.isoWeek(now);
+    final wi = week >= cycle.blockWeek + 1 ? 1 : 0;
+
+    final sessions = repo
+        .sessionsForCycle(cycle.id)
+        .where((s) => s.weekendIndex == wi)
+        .toList()
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    sb.writeln();
+    for (final s in sessions) {
+      final names = bySession[s.id];
+      sb.writeln('• ${service.sessionLabel(s)}');
+      sb.writeln('   ${names == null || names.isEmpty ? '—' : names.join(', ')}');
+    }
 
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
@@ -476,6 +555,16 @@ class Flows {
     final h12 = hour % 12 == 0 ? 12 : hour % 12;
     return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]} '
         'at $h12:00$ampm';
+  }
+
+  /// "Sat 15 Aug" — short weekday + date.
+  static String _dateLabel(DateTime d) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
   }
 
   // ------------------------------------------------------------- helpers

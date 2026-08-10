@@ -255,6 +255,58 @@ void main() {
     expect(repo.findUser(7)!.isAdmin, false);
   });
 
+  test('setTier promotes to admin and demotes elsewhere', () {
+    addUser(7);
+    expect(repo.findUser(7)!.memberTier, 'member');
+    repo.setTier(7, 'admin');
+    final admin = repo.findUser(7)!;
+    expect(admin.isAdmin, true);
+    expect(admin.memberTier, 'member'); // admin is derived, not stored
+    repo.setTier(7, 'check');
+    final check = repo.findUser(7)!;
+    expect(check.isAdmin, false);
+    expect(check.memberTier, 'check');
+    expect(check.memberTier, 'check'); // stored tier survives round-trip
+    repo.setTier(7, 'old');
+    final old = repo.findUser(7)!;
+    expect(old.isAdmin, false);
+    expect(old.memberTier, 'old');
+    repo.setTier(7, 'member');
+    expect(repo.findUser(7)!.memberTier, 'member');
+  });
+
+  test('activeUsers excludes check and old but keeps admins', () {
+    addUser(1);
+    addUser(2);
+    repo.updateAdmin(2, true); // admin
+    addUser(3);
+    repo.setTier(3, 'check');
+    addUser(4);
+    repo.setTier(4, 'old');
+
+    final names = repo.activeUsers().map((u) => u.id).toSet();
+    expect(names, {1, 2});
+  });
+
+  test('hold state persists across calls', () {
+    expect(repo.isHeld(), false);
+    repo.setHeld(true);
+    expect(repo.isHeld(), true);
+    repo.setHeld(false);
+    expect(repo.isHeld(), false);
+  });
+
+  test('nonResponders excludes check and old users', () {
+    addUser(1);
+    addUser(2);
+    repo.setTier(2, 'check');
+    addUser(3);
+    repo.setTier(3, 'old');
+    final cycle = repo.ensureCurrentCycle(DateTime(2026, 8, 10));
+    final pending = repo.nonResponders(cycle.id);
+    expect(pending.map((u) => u.id), [1]);
+  });
+
   test('message log dedupes per user, kind and day', () {
     addUser(1);
     addUser(2);

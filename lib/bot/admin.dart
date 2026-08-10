@@ -43,9 +43,6 @@ class Admin {
     commandBoth(bot, 'setexp',
         _guard((ctx) => _pickUser(ctx, 'setexp')),
         label: 'set-exp');
-    commandBoth(bot, 'setgroup',
-        _guard((ctx) => _pickUser(ctx, 'setgroup')),
-        label: 'set-group');
     commandBoth(bot, 'broadcast', _guard(_broadcast), label: 'announce');
 
     // Callback middleware: handles admin prefixes, continues otherwise.
@@ -54,7 +51,7 @@ class Admin {
       if (data == null) return next();
       final head = data.split('|').first;
       const mine = {
-        'att_sess', 'att_toggle', 'setexp', 'setgroup', 'setval',
+        'att_sess', 'att_toggle', 'setexp', 'setval',
         'mpick', 'bcast', 'adduser', 'prompt', 'remind', 'cancel',
       };
       if (mine.contains(head)) {
@@ -194,8 +191,10 @@ class Admin {
 
   Future<void> _status(Context ctx) async {
     final cycle = _cycle(ctx);
-    final users = repo.allUsers();
-    final avail = repo.allAvailability(cycle.id);
+    final users = repo.activeUsers();
+    final activeIds = {for (final u in users) u.id};
+    final avail =
+        repo.allAvailability(cycle.id).where((a) => activeIds.contains(a.userId));
     final responders = avail.where((a) => a.available).length;
     final nonResponders = repo.nonResponders(cycle.id);
     final allocations = repo.allocationsForCycle(cycle.id);
@@ -229,9 +228,10 @@ class Admin {
   Future<void> _users(Context ctx) async {
     final users = repo.allUsers();
     final lines = users.map((u) {
+      final tier = MemberTier.of(u, isConsole: config.isConsole(u.id));
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
-      return '• <b>${u.name}</b> (id ${u.id}, $exp, group ${u.group}, '
-          'ocbc×${u.ocbcStreak})';
+      return '• <b>${u.name}</b> (id ${u.id}, $tier, group ${u.group}, '
+          '$exp, ocbc×${u.ocbcStreak})';
     });
     await ctx.reply(
       '<b>Registered users (${users.length})</b>\n${lines.join('\n')}',
@@ -277,7 +277,7 @@ class Admin {
   }
 
   Future<void> _askPicker(Context ctx, int page) async {
-    final members = repo.allUsers();
+    final members = repo.activeUsers();
     if (members.isEmpty) {
       await ctx.reply('No members yet. Add some with /adduser.');
       return;
@@ -381,7 +381,7 @@ class Admin {
     );
   }
 
-  // ----------------------------------------------------- /setexp /setgroup
+  // ----------------------------------------------------------- /setexp
 
   Future<void> _pickUser(Context ctx, String kind) async {
     final args = ctx.args;
@@ -390,10 +390,8 @@ class Admin {
       return;
     }
     final value = args.first.toLowerCase();
-    if (!_isValidValue(kind, value)) {
-      await ctx.reply(kind == 'setexp'
-          ? 'Usage: /setexp experienced|newbie'
-          : 'Usage: /setgroup A|B');
+    if (kind != 'setexp' || !_isValidValue(kind, value)) {
+      await ctx.reply('Usage: /setexp experienced|newbie');
       return;
     }
     await _pickUserFor(ctx, kind, value);
@@ -406,7 +404,7 @@ class Admin {
     return value == 'a' || value == 'b';
   }
 
-  /// Arg-less /setexp or /setgroup: pick the value first, then the member.
+  /// Arg-less /setexp: pick the value first, then the member.
   Future<void> _pickValue(Context ctx, String kind) async {
     final choices = kind == 'setexp'
         ? [('Experienced', 'experienced'), ('Newbie', 'newbie')]
@@ -423,7 +421,7 @@ class Admin {
   }
 
   Future<void> _pickUserFor(Context ctx, String kind, String value) async {
-    final users = repo.allUsers();
+    final users = repo.activeUsers();
     if (users.isEmpty) {
       await ctx.reply('No registered users yet.');
       return;
@@ -506,7 +504,7 @@ class Admin {
 
   Future<void> _doBroadcast(Context ctx, String text) async {
     var sent = 0;
-    for (final user in repo.allUsers()) {
+    for (final user in repo.activeUsers()) {
       try {
         await bot.api.sendMessage(ChatID(user.id), text);
         sent++;
@@ -534,13 +532,12 @@ class Admin {
           await _toggleAttendance(ctx, sid, uid);
         }
       case 'setexp':
-      case 'setgroup':
         final uid = int.tryParse(parts[2]);
         if (uid != null) await _applySet(ctx, parts[0], parts[1], uid);
       case 'setval':
         final kind = parts.length > 1 ? parts[1] : '';
         final value = parts.length > 2 ? parts[2] : '';
-        if (kind == 'setexp' || kind == 'setgroup') {
+        if (kind == 'setexp') {
           await ctx.answerCallbackQuery();
           await _pickUserFor(ctx, kind, value);
         }
@@ -598,7 +595,7 @@ class Admin {
     if (action == 'ask') {
       if (target == 'prev' || target == 'next') {
         // Re-render the picker at the new page.
-        final members = repo.allUsers();
+        final members = repo.activeUsers();
         await ctx.editMessageText(
           '🤔 Send the availability picker to which member?',
           replyMarkup: Pickers.memberPicker(

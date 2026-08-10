@@ -2,6 +2,8 @@ import 'package:televerse/telegram.dart' as tg
     show KeyboardButton, StyleType;
 import 'package:televerse/televerse.dart';
 
+import '../core/models.dart';
+
 /// Style colors for reply-keyboard buttons, matching Telegram's button
 /// `style` values: green (member), blue (admin), red (console).
 enum RoleColor {
@@ -54,6 +56,15 @@ class RoleKeyboard {
     GridButton('my-status', '/mystatus', RoleColor.member),
   ];
 
+  /// The `check` tier's single button: they are not members and only report
+  /// on the current week's allocation.
+  static const List<GridButton> checkButtons = [
+    GridButton('check-status', '/check-status', RoleColor.member),
+  ];
+
+  /// The `old` tier has no buttons at all — they are no longer members.
+  static const List<GridButton> oldButtons = [];
+
   static const List<GridButton> adminButtons = [
     GridButton('add-user', '/adduser', RoleColor.admin),
     GridButton('status', '/status', RoleColor.admin),
@@ -63,31 +74,36 @@ class RoleKeyboard {
     GridButton('ask', '/ask', RoleColor.admin),
     GridButton('mark-attend', '/confirm', RoleColor.admin),
     GridButton('set-exp', '/setexp', RoleColor.admin),
-    GridButton('set-group', '/setgroup', RoleColor.admin),
     ...memberButtons,
   ];
 
+  /// The console keeps exactly two extra buttons: hold and unhold. Everything
+  /// else the console used to do lives in the desktop console app now.
   static const List<GridButton> consoleButtons = [
-    GridButton('add-admin', '/addadmin', RoleColor.console),
-    GridButton('set-date', '/setdate', RoleColor.console),
-    GridButton('reset-date', '/resetdate', RoleColor.console),
-    GridButton('demote', '/demote', RoleColor.console),
-    GridButton('sync-calendar', '/sync-calendar', RoleColor.console),
+    GridButton('hold', '/hold', RoleColor.console),
+    GridButton('unhold', '/unhold', RoleColor.console),
     ...adminButtons,
   ];
 
-  /// The full button list for [role].
+  /// The full button list for [role] ('console' | 'admin' | 'check' |
+  /// 'member' | 'old').
   static List<GridButton> gridButtons(String role) => switch (role) {
         'console' => consoleButtons,
         'admin' => adminButtons,
+        'check' => checkButtons,
+        'old' => oldButtons,
         _ => memberButtons,
       };
 
-  /// The grid a user should see by default (highest role wins).
-  static String roleFor({required bool isConsole, required bool isAdmin}) {
+  /// The grid a user should see by default (highest tier wins).
+  static String roleFor({
+    required bool isConsole,
+    required bool isAdmin,
+    String tier = MemberTier.member,
+  }) {
     if (isConsole) return 'console';
     if (isAdmin) return 'admin';
-    return 'member';
+    return MemberTier.order.contains(tier) ? tier : MemberTier.member;
   }
 
   /// Builds the persistent, resized reply keyboard for [role] with up to

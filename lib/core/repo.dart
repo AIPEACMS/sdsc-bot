@@ -39,17 +39,28 @@ class Repo {
   List<User> allUsers() =>
       raw.select('SELECT * FROM users ORDER BY name').map(User.fromRow).toList();
 
+  /// Users who take part in availability, allocation and messaging: members,
+  /// admins and the console. Excludes the `check` and `old` tiers.
+  List<User> activeUsers() => raw
+      .select(
+        "SELECT * FROM users WHERE member_tier NOT IN ('check', 'old') "
+        'ORDER BY name',
+      )
+      .map(User.fromRow)
+      .toList();
+
   User upsertUser(User user) {
     raw.execute(
       '''
-INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   experience = excluded.experience,
   group_id = excluded.group_id,
   is_admin = excluded.is_admin,
-  ocbc_streak = excluded.ocbc_streak
+  ocbc_streak = excluded.ocbc_streak,
+  member_tier = excluded.member_tier
 ''',
       [
         user.id,
@@ -58,6 +69,7 @@ ON CONFLICT(id) DO UPDATE SET
         user.group,
         user.isAdmin ? 1 : 0,
         user.ocbcStreak,
+        user.memberTier,
       ],
     );
     return findUser(user.id)!;
@@ -92,6 +104,39 @@ ON CONFLICT(id) DO UPDATE SET
     raw.execute(
       'UPDATE users SET is_admin = ? WHERE id = ?',
       [isAdmin ? 1 : 0, id],
+    );
+  }
+
+  /// Sets a user's tier to one of 'admin', 'check', 'member' or 'old'.
+  /// Promotion to admin sets is_admin; every other tier clears it. The
+  /// console tier itself is never stored — it is derived from the console id.
+  void setTier(int id, String tier) {
+    final isAdmin = tier == MemberTier.admin ? 1 : 0;
+    final stored =
+        (tier == MemberTier.admin || tier == MemberTier.member)
+            ? MemberTier.member
+            : tier;
+    raw.execute(
+      'UPDATE users SET member_tier = ?, is_admin = ? WHERE id = ?',
+      [stored, isAdmin, id],
+    );
+  }
+
+  // ------------------------------------------------------------------- holds
+
+  /// Whether the bot is held (all outgoing messages suppressed).
+  bool isHeld() {
+    final rows = raw.select(
+      "SELECT value FROM settings WHERE key = 'hold'",
+    );
+    return rows.isNotEmpty && rows.first['value'] == '1';
+  }
+
+  void setHeld(bool held) {
+    raw.execute(
+      "INSERT INTO settings (key, value) VALUES ('hold', ?) "
+      "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      [held ? '1' : '0'],
     );
   }
 
@@ -430,6 +475,7 @@ ON CONFLICT(cycle_id, user_id) DO UPDATE SET
 SELECT u.* FROM users u
 LEFT JOIN availability a ON a.user_id = u.id AND a.cycle_id = ?
 WHERE a.user_id IS NULL
+  AND u.member_tier NOT IN ('check', 'old')
 ORDER BY u.name
 ''',
       [cycleId],

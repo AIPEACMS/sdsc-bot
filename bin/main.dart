@@ -6,9 +6,11 @@ import 'package:televerse/televerse.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 
 import 'package:sdsc_bot/bot/admin.dart';
+import 'package:sdsc_bot/bot/admin_api.dart';
 import 'package:sdsc_bot/bot/calendar_sync.dart';
 import 'package:sdsc_bot/bot/console.dart';
 import 'package:sdsc_bot/bot/flows.dart';
+import 'package:sdsc_bot/bot/hold.dart';
 import 'package:sdsc_bot/bot/scheduler.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
@@ -21,6 +23,11 @@ Future<void> main() async {
   final state = BotState();
 
   final bot = Bot<Context>(config.botToken);
+
+  // Block & drop gate: while held, all outgoing per-chat messages are
+  // suppressed at the API layer. Persisted in the DB, loaded on start.
+  final holdGate = HoldGate(repo.isHeld());
+  bot.api.use(HoldTransformer(holdGate));
 
   final service = CycleService(
     repo: repo,
@@ -56,6 +63,7 @@ Future<void> main() async {
     config: config,
     state: state,
     calendarSync: calendarSync,
+    holdGate: holdGate,
   );
 
   final scheduler = Scheduler(
@@ -73,6 +81,19 @@ Future<void> main() async {
     );
   }
 
+  AdminApi? adminApi;
+  final apiToken = config.adminApiToken ?? config.calendarIpcToken;
+  if (apiToken != null) {
+    adminApi = AdminApi(
+      repo: repo,
+      config: config,
+      calendarSync: calendarSync,
+      holdGate: holdGate,
+      token: apiToken,
+      port: config.adminApiPort,
+    );
+  }
+
   flows.register();
   admin.register();
   console.register();
@@ -87,8 +108,7 @@ Future<void> main() async {
   flows.onSyncCalendarText = console.onSyncCalendarText;
 
   bot.onError((error) {
-    // ignore: avoid_print
-    print('bot error: ${error.error}');
+    processLog('bot error: ${error.error}');
   });
 
   final stopCompleter = Completer<void>();
@@ -103,16 +123,20 @@ Future<void> main() async {
 
   scheduler.start();
   if (ipcServer != null) await ipcServer.start();
-  // ignore: avoid_print
-  print('SDSC bot starting (long polling)...');
+  if (adminApi != null) await adminApi.start();
+  processLog('SDSC bot starting (long polling)...');
 
   await bot.start();
   await stopCompleter.future;
 
   await ipcServer?.stop();
+  await adminApi?.stop();
   scheduler.stop();
   database.close();
-  // ignore: avoid_print
-  print('SDSC bot stopped.');
+  processLog('SDSC bot stopped.');
   exit(0);
 }
+
+/// Prints to stdout and keeps a copy in the in-memory log ring for the admin
+/// API `/logs` endpoint.
+void processLog(String line) => LogRing.log(line);
