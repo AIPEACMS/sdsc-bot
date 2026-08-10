@@ -6,6 +6,7 @@ import 'package:televerse/televerse.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 
 import 'package:sdsc_bot/bot/admin.dart';
+import 'package:sdsc_bot/bot/calendar_sync.dart';
 import 'package:sdsc_bot/bot/console.dart';
 import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/scheduler.dart';
@@ -47,10 +48,13 @@ Future<void> main() async {
     service: service,
   );
 
+  final calendarSync = CalendarSync(repo: repo, config: config);
+
   final console = Console(
     bot: bot,
     repo: repo,
     config: config,
+    calendarSync: calendarSync,
   );
 
   final scheduler = Scheduler(
@@ -58,6 +62,15 @@ Future<void> main() async {
     config: config,
     service: service,
   );
+
+  CalendarIpcServer? ipcServer;
+  if (config.calendarIpcToken != null) {
+    ipcServer = CalendarIpcServer(
+      sync: calendarSync,
+      token: config.calendarIpcToken!,
+      port: config.calendarIpcPort,
+    );
+  }
 
   flows.register();
   admin.register();
@@ -83,12 +96,14 @@ Future<void> main() async {
   });
 
   scheduler.start();
+  if (ipcServer != null) await ipcServer.start();
   // ignore: avoid_print
   print('SDSC bot starting (long polling)...');
 
   await bot.start();
   await stopCompleter.future;
 
+  await ipcServer?.stop();
   scheduler.stop();
   database.close();
   // ignore: avoid_print

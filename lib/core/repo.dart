@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
+import 'calendar.dart';
 import 'config.dart';
 import 'db.dart';
 import 'models.dart';
@@ -525,6 +526,55 @@ WHERE user_id = ? AND confirmed_at >= ?
       [_fmt(monday)],
     );
     return rows.isEmpty ? null : Holiday.fromRow(rows.first);
+  }
+
+  // ------------------------------------------------------------ calendar
+
+  /// Stores the raw calendar YAML for [academicYear]. The parsed weeks drive
+  /// the derived holidays below; the YAML is kept so a re-sync is idempotent.
+  void saveCalendarYaml(String academicYear, String yaml) {
+    raw.execute(
+      '''
+INSERT INTO calendar_years (academic_year, yaml, updated_at)
+VALUES (?, ?, ?)
+ON CONFLICT(academic_year) DO UPDATE SET
+  yaml = excluded.yaml,
+  updated_at = excluded.updated_at
+''',
+      [academicYear, yaml, _fmt(Config.nowUtc())],
+    );
+  }
+
+  /// Deletes all holiday rows derived from calendars (week_start >= [from]).
+  void clearDerivedHolidays(DateTime from) {
+    raw.execute('DELETE FROM holidays WHERE week_start >= ?', [_fmt(from)]);
+  }
+
+  /// Maps calendar week types to bot holiday kinds.
+  ///
+  /// - recess weeks → `middle` break (msg5A)
+  /// - the gap between semester 1 and 2 → `winter` break (msg5B winter)
+  /// - weeks after the last semester (special term / summer) → `summer`
+  static HolidayKind? kindForWeek(CalendarWeek w, CalendarYear year) {
+    if (w.type == 'recess') return HolidayKind.middle;
+    final s1 = year.semester('semester_1');
+    final s2 = year.semester('semester_2');
+    // Winter: the block between S1's last week and S2's first week.
+    if (s1 != null && s2 != null) {
+      final s1End = s1.lastEnd;
+      final s2Start = s2.firstStart;
+      if (s1End != null && s2Start != null && w.start.isAfter(s1End) &&
+          w.start.isBefore(s2Start)) {
+        return HolidayKind.winter;
+      }
+    }
+    // Summer: after the last semester's final week.
+    final lastSemEnd =
+        s2?.lastEnd ?? s1?.lastEnd;
+    if (lastSemEnd != null && w.start.isAfter(lastSemEnd)) {
+      return HolidayKind.summer;
+    }
+    return null;
   }
 
   static String _fmt(DateTime d) =>

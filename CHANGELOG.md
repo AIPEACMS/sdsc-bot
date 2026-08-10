@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Academic-calendar integration**: the bot ingests the NTU academic
+  calendar YAML (from the `parse-ntu-calander` tool) and derives break
+  weeks automatically — recess weeks become mid-term breaks, the S1→S2 gap
+  becomes the winter break, and post-semester weeks become the summer break.
+- **Calendar IPC endpoint**: the bot exposes a token-authenticated loopback
+  TCP listener; a cron script pushes the year's calendar YAML into the
+  running process without a restart.
+- **`calendar-sync.sh`**: yearly (Aug 1) side-script that fetches the
+  calendar YAML from the parse repo and pushes it via IPC; fails silently
+  if the year isn't published yet.
+- **`/sync-calendar`** (console): manually apply a calendar YAML.
+
+### Removed
+
+- Manual admin holiday commands (`/holidayset`, `/holidayclear` and their
+  grid buttons) — breaks now come from the academic calendar.
+
 ## [0.5.0] - 2026-08-10
 
 ### Added

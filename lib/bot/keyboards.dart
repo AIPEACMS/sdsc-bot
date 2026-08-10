@@ -65,8 +65,6 @@ class RoleKeyboard {
     GridButton('confirm', '/confirm', RoleColor.admin),
     GridButton('set-exp', '/setexp', RoleColor.admin),
     GridButton('set-group', '/setgroup', RoleColor.admin),
-    GridButton('set-holiday', '/holidayset', RoleColor.admin),
-    GridButton('clear-holiday', '/holidayclear', RoleColor.admin),
     GridButton('announce', '/broadcast', RoleColor.admin),
     ...memberButtons,
   ];
