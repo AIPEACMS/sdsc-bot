@@ -5,6 +5,18 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.7.1] - 2026-08-10
+
+### Fixed
+
+- **`/start` reply failing with HTTP 400 for the console**: the console
+  section mentioned `/sync-calendar <yaml>`, and the literal angle brackets
+  were parsed as an HTML tag, so Telegram rejected the whole reply (grid
+  included) and nothing appeared on screen. The placeholder now uses square
+  brackets (`[yaml]`), matching the older `<telegram_id>` fix.
+
+## [Unreleased]
+
 ## [0.7.0] - 2026-08-10
 
 ### Changed
@@ -22,8 +34,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
     Cancel button) instead of demanding it inline.
   - `sync-calendar` → asks you to paste the calendar YAML as the next
     message (with a Cancel button).
-
-## [Unreleased]
 
 ## [0.6.0] - 2026-08-10
 

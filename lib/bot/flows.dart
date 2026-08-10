@@ -112,7 +112,7 @@ class Flows {
         ..writeln('/setdate YYYY-MM-DD — debug: pretend it is that date')
         ..writeln('/resetdate — stop pretending')
         ..writeln('/demote — step down as admin (you stay console)')
-        ..writeln('/sync-calendar <yaml> — apply a calendar YAML');
+        ..writeln('/sync-calendar [yaml] — apply a calendar YAML');
     }
 
     if (isAdmin) {
