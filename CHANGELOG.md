@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-10
+
 ### Added
 
 - **Reply-keyboard command grids**: a persistent button grid above the
