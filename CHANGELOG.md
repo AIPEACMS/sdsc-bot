@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-08-10
+
+### Fixed
+
+- **`/start` greeting failing with HTTP 400**: the help text used literal
+  angle brackets (`<telegram_id>`, `<YYYY-MM-DD>`) inside an HTML-parsed
+  message; Telegram rejected them as malformed tags and the whole reply
+  (including the command grid) never sent. Placeholders now use square
+  brackets.
+- **Availability timestamps stored as UTC instead of UTC+8**: the member's
+  pick was written with UTC wall-clock components labeled as local time.
+- **Attendance recency ignored the debug clock**: `/setdate` now also drives
+  the "attended in the past N days" prompt selection.
+- **Week/cycle math pinned to UTC+8** (Singapore): all week and availability
+  calculations consistently use the configured offset (default 8); tests
+  cover the UTC→Singapore day boundary.
+
 ## [0.3.1] - 2026-08-10
 
 ### Fixed

@@ -2,12 +2,13 @@ import 'dart:convert';
 
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
+import 'config.dart';
 import 'db.dart';
 import 'models.dart';
 import 'week.dart';
 
 /// Data access layer over SQLite. All dates are stored as ISO-8601 strings in
-/// the bot's local timezone.
+/// the bot's local timezone (UTC+8).
 class Repo {
   Repo(this._db);
 
@@ -468,8 +469,10 @@ VALUES (?, ?) ON CONFLICT DO NOTHING
   }
 
   bool hasAttendedInPastDays(int userId, int days) {
-    final since = DateTime.now()
-        .toUtc()
+    // attendance.confirmed_at is stored as UTC (SQLite CURRENT_TIMESTAMP),
+    // so compare against a UTC cutoff. Using the config clock keeps this
+    // consistent with /setdate debugging.
+    final since = Config.nowUtc()
         .subtract(Duration(days: days))
         .toIso8601String();
     final rows = raw.select(

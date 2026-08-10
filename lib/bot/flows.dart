@@ -89,13 +89,13 @@ class Flows {
         ..writeln('/prompt — send availability prompts now')
         ..writeln('/remind — remind non-responders now')
         ..writeln('/allocate — run allocation and send notices now')
-        ..writeln('/ask <telegram_id> — prompt one member')
+        ..writeln('/ask [telegram_id] — prompt one member')
         ..writeln('/confirm — mark attendance')
         ..writeln('/setexp experienced|newbie — change a member\'s experience')
         ..writeln('/setgroup A|B — change a member\'s group')
-        ..writeln('/holidayset <middle|winter|summer> <YYYY-MM-DD> — break')
-        ..writeln('/holidayclear <YYYY-MM-DD> — remove a break')
-        ..writeln('/broadcast <message> — message everyone');
+        ..writeln('/holidayset [middle|winter|summer] [YYYY-MM-DD] — break')
+        ..writeln('/holidayclear [YYYY-MM-DD] — remove a break')
+        ..writeln('/broadcast [message] — message everyone');
     }
 
     sb
@@ -281,7 +281,7 @@ class Flows {
       userId: userId,
       slots: notAvailable ? {} : picks,
       available: !notAvailable,
-      updatedAt: Config.nowUtc(),
+      updatedAt: config.toLocal(Config.nowUtc()),
     ));
     state.forgetAvailability(userId);
     state.availabilityMessages.remove(userId);
