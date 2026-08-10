@@ -10,7 +10,7 @@ class Messages {
   /// Initial availability prompt.
   String msg1(String group) {
     final contact = contactForGroup(group);
-    return 'Hi! Greetings from SDSC bot: It is time to indicate your '
+    return 'Hi! Greetings from the SDSC bot: It is time to indicate your '
         'availabity to attend SDSC for the next 2 weekends! <b>Indicate Now</b>\n\n'
         'If you cannot attend for the next 2 weekends, no worries! You can '
         'indicate that you are not available for the next 2 weeks, or drop a '
@@ -20,7 +20,7 @@ class Messages {
 
   /// Prompt variant for members who did not attend in the past 2 weeks.
   String msg1A(String group) {
-    return 'Hi! Greetings from SDSC bot: It is time to indicate your '
+    return 'Hi! Greetings from the SDSC bot: It is time to indicate your '
         'availabity to attend SDSC for the next 2 weekends! <b>Indicate Now</b> '
         'You did not attend for the past 2 weeks. I encourage you to attend '
         'more! Perhaps... Do you consider attending both weeks\' sessions, or '
@@ -30,7 +30,7 @@ class Messages {
   /// Reminder for members who have not responded.
   String msg2(String group) {
     final contact = contactForGroup(group);
-    return 'Hi! Greetings from SDSC bot: you havent indicate your '
+    return 'Hi! Greetings from the SDSC bot: you havent indicate your '
         'availability to attend SDSC for the next 2 weekends! May I ask are '
         'you available? <b>Indicate Now</b>\n\n'
         'If you cannot attend for the next 2 weekends, no worries! You can '

@@ -15,7 +15,7 @@ void main() {
       adminIds: {1},
       dbPath: '${tmp.path}/test.db',
       groupAContact: 'TBD',
-      groupBContact: 'TBD @tbd',
+      groupBContact: 'TBD',
       ocbcCapacity: 2,
       prCapacity: 20,
       slotTimes: {

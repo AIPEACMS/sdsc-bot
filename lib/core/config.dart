@@ -67,7 +67,7 @@ class Config {
           .toSet(),
       dbPath: env('SDSC_DB', 'sdsc.db'),
       groupAContact: env('GROUP_A_CONTACT', 'TBD'),
-      groupBContact: env('GROUP_B_CONTACT', 'TBD @tbd'),
+      groupBContact: env('GROUP_B_CONTACT', 'TBD'),
       ocbcCapacity: envInt('OCBC_CAPACITY', 6),
       prCapacity: envInt('PR_CAPACITY', 20),
       slotTimes: {

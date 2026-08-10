@@ -1,5 +1,5 @@
 name: sdsc_bot
-description: SDSC Telegram bot for volunteer availability and allocation.
+description: Telegram bot for volunteer availability and allocation.
 version: 0.1.0
 publish_to: none
 
