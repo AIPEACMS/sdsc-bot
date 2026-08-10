@@ -63,6 +63,10 @@ Future<void> main() async {
   admin.register();
   console.register();
 
+  // The /broadcast wizard asks the admin to type the message; the text lands
+  // in Flows' text middleware, which hands it back to Admin for confirmation.
+  flows.onBroadcastText = admin.onBroadcastText;
+
   bot.onError((error) {
     // ignore: avoid_print
     print('bot error: ${error.error}');

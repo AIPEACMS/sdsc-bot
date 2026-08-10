@@ -7,6 +7,7 @@ import '../core/config.dart';
 import '../core/messages.dart';
 import '../core/week.dart';
 import 'command_both.dart';
+import 'pickers.dart';
 import 'service.dart';
 import 'state.dart';
 
@@ -54,7 +55,22 @@ class Admin {
     commandBoth(bot, 'holidayclear', _guard(_holidayClear),
         label: 'clear-holiday');
     commandBoth(bot, 'broadcast', _guard(_broadcast), label: 'announce');
-    bot.on(bot.filters.callbackQuery, _onAdminCallback);
+
+    // Callback middleware: handles admin prefixes, continues otherwise.
+    bot.use((ctx, next) async {
+      final data = ctx.callbackQuery?.data;
+      if (data == null) return next();
+      final head = data.split('|').first;
+      const mine = {
+        'att_sess', 'att_toggle', 'setexp', 'setgroup',
+        'mpick', 'bcast', 'cancel',
+      };
+      if (mine.contains(head)) {
+        await _onAdminCallback(ctx);
+        return;
+      }
+      await next();
+    });
   }
 
   bool _isAdmin(Context ctx) {
@@ -176,7 +192,7 @@ class Admin {
   Future<void> _ask(Context ctx) async {
     final args = ctx.args;
     if (args.isEmpty) {
-      await ctx.reply('Usage: /ask <telegram_id>');
+      await _askPicker(ctx, 0);
       return;
     }
     final id = int.tryParse(args.first);
@@ -187,6 +203,31 @@ class Admin {
     }
     final cycle = _cycle(ctx);
     await service.showAvailability(user, cycle, service.promptFor(user, cycle));
+  }
+
+  Future<void> _askPicker(Context ctx, int page) async {
+    final members = repo.allUsers();
+    if (members.isEmpty) {
+      await ctx.reply('No members yet. Add some with /adduser.');
+      return;
+    }
+    await ctx.reply(
+      '🤔 Send the availability picker to which member?',
+      replyMarkup: Pickers.memberPicker(
+        action: 'ask',
+        members: members,
+        page: page,
+      ),
+    );
+  }
+
+  Future<void> _askPick(Context ctx, int memberId) async {
+    await ctx.answerCallbackQuery();
+    final user = repo.findUser(memberId);
+    if (user == null) return;
+    final cycle = _cycle(ctx);
+    await service.showAvailability(user, cycle, service.promptFor(user, cycle));
+    await ctx.editMessageText('✅ Availability picker sent to ${user.name}.');
   }
 
   // ----------------------------------------------------------- /confirm
@@ -379,12 +420,40 @@ class Admin {
 
   // ----------------------------------------------------------- broadcast
 
+  /// /broadcast with a message runs immediately; without one, starts the
+  /// ask-to-type wizard (grid button press) then confirms before sending.
   Future<void> _broadcast(Context ctx) async {
     final text = ctx.argsString;
     if (text == null || text.trim().isEmpty) {
-      await ctx.reply('Usage: /broadcast <message>');
+      final userId = ctx.from!.id;
+      state.pendingArg[userId] = PendingArg('broadcast');
+      await ctx.reply(
+        '📢 Send me the message to broadcast to all members, or /cancel.',
+        replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
+      );
       return;
     }
+    await _confirmBroadcast(ctx, text.trim());
+  }
+
+  /// Entry point for the wizard: the user typed the broadcast text; show the
+  /// confirm dialog.
+  Future<void> onBroadcastText(
+      Context ctx, int userId, String text) async {
+    _pendingBroadcast[userId] = text;
+    await _confirmBroadcast(ctx, text.trim());
+  }
+
+  Future<void> _confirmBroadcast(Context ctx, String text) async {
+    final preview = text.length > 200 ? '${text.substring(0, 200)}…' : text;
+    await ctx.reply(
+      '📢 Send this to all members?\n\n<i>$preview</i>',
+      parseMode: ParseMode.html,
+      replyMarkup: Pickers.confirm('bcast'),
+    );
+  }
+
+  Future<void> _doBroadcast(Context ctx, String text) async {
     var sent = 0;
     for (final user in repo.allUsers()) {
       try {
@@ -417,7 +486,52 @@ class Admin {
       case 'setgroup':
         final uid = int.tryParse(parts[2]);
         if (uid != null) await _applySet(ctx, parts[0], parts[1], uid);
+      case 'mpick':
+        await _onMemberPick(ctx, parts);
+      case 'bcast':
+        final yes = parts.length > 1 && parts[1] == 'yes';
+        await ctx.answerCallbackQuery();
+        await ctx.editMessageText(
+          yes ? 'Sending…' : 'Cancelled — nothing was sent.',
+        );
+        if (yes) {
+          final text = _pendingBroadcast.remove(ctx.from!.id);
+          if (text != null) await _doBroadcast(ctx, text);
+        }
+      case 'cancel':
+        await ctx.answerCallbackQuery();
+        state.pendingArg.remove(ctx.from!.id);
+        _pendingBroadcast.remove(ctx.from!.id);
+        await ctx.editMessageText('Cancelled.');
     }
+  }
+
+  /// The broadcast message awaiting confirmation, per admin.
+  final Map<int, String> _pendingBroadcast = {};
+
+  Future<void> _onMemberPick(Context ctx, List<String> parts) async {
+    await ctx.answerCallbackQuery();
+    final (action, page, target) = Pickers.parsePick(parts);
+    if (action != 'ask') return;
+    if (target == 'cancel') {
+      await ctx.editMessageText('Cancelled.');
+      return;
+    }
+    if (target == 'prev' || target == 'next') {
+      // Re-render the picker at the new page.
+      final members = repo.allUsers();
+      await ctx.editMessageText(
+        '🤔 Send the availability picker to which member?',
+        replyMarkup: Pickers.memberPicker(
+          action: 'ask',
+          members: members,
+          page: target == 'prev' ? page - 1 : page + 1,
+        ),
+      );
+      return;
+    }
+    final memberId = int.tryParse(target);
+    if (memberId != null) await _askPick(ctx, memberId);
   }
 
   static String _day(DateTime d) {
