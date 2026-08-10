@@ -28,6 +28,7 @@ class Admin {
   });
 
   void register() {
+    bot.command('adduser', _guard(_addUser));
     bot.command('status', _guard(_status));
     bot.command('users', _guard(_users));
     bot.command('prompt', _guard((ctx) => service.sendPrompts(_cycle(ctx))));
@@ -46,7 +47,8 @@ class Admin {
   bool _isAdmin(Context ctx) {
     final userId = ctx.from?.id;
     if (userId == null) return false;
-    if (config.adminIds.contains(userId)) return true;
+    // The console has admin rights but is not an admin per se.
+    if (config.isConsole(userId)) return true;
     return repo.findUser(userId)?.isAdmin ?? false;
   }
 
@@ -61,8 +63,41 @@ class Admin {
   }
 
   Cycle _cycle(Context ctx) {
-    final now = config.toLocal(DateTime.now().toUtc());
+    final now = config.toLocal(Config.nowUtc());
     return repo.ensureCurrentCycle(now);
+  }
+
+  // ----------------------------------------------------------- /adduser
+
+  Future<void> _addUser(Context ctx) async {
+    final args = ctx.args;
+    if (args.isEmpty) {
+      await ctx.reply('Usage: /adduser @handle');
+      return;
+    }
+    final handle = args.first.replaceFirst('@', '');
+    final userId = repo.userIdByUsername(handle);
+    if (userId == null) {
+      await ctx.reply(
+        'I have never seen @$handle message this bot. '
+        'Ask them to press /start once, then try again.',
+      );
+      return;
+    }
+    if (repo.findUser(userId) != null) {
+      await ctx.reply('@$handle is already a member.');
+      return;
+    }
+    final user = User(
+      id: userId,
+      name: '@$handle',
+      experience: Experience.newbie,
+      group: 'A',
+    );
+    repo.upsertUser(user);
+    await ctx.reply(
+      '✅ @$handle added. They can now use /start to see their commands.',
+    );
   }
 
   // ----------------------------------------------------------- /status

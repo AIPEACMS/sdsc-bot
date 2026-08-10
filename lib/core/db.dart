@@ -87,6 +87,19 @@ CREATE TABLE IF NOT EXISTS holidays (
   week_start TEXT NOT NULL UNIQUE,
   kind TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS seen_users (
+  id INTEGER PRIMARY KEY,
+  username TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS sent_messages (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  kind TEXT NOT NULL,
+  day TEXT NOT NULL,
+  UNIQUE(user_id, kind, day)
+);
 ''');
   }
 

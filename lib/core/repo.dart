@@ -86,6 +86,61 @@ ON CONFLICT(id) DO UPDATE SET
     );
   }
 
+  void updateAdmin(int id, bool isAdmin) {
+    raw.execute(
+      'UPDATE users SET is_admin = ? WHERE id = ?',
+      [isAdmin ? 1 : 0, id],
+    );
+  }
+
+  // ----------------------------------------------------------- seen users
+
+  /// Records a (telegram id, username) pair observed in an incoming update.
+  /// This is the only way the bot learns a user's handle, because the
+  /// Telegram API cannot resolve @handle to an id on its own.
+  void upsertSeenUser(int id, String username) {
+    raw.execute(
+      '''
+INSERT INTO seen_users (id, username) VALUES (?, ?)
+ON CONFLICT(id) DO UPDATE SET username = excluded.username
+''',
+      [id, username],
+    );
+  }
+
+  /// Resolves a @handle (with or without the leading @) to a telegram id,
+  /// or null if the bot has never seen that username.
+  int? userIdByUsername(String handle) {
+    final normalized = handle.replaceFirst('@', '').toLowerCase();
+    final rows = raw.select(
+      'SELECT id FROM seen_users WHERE lower(username) = ?',
+      [normalized],
+    );
+    return rows.isEmpty ? null : rows.first['id'] as int;
+  }
+
+  // --------------------------------------------------------- message log
+
+  /// Whether [kind] of message was already sent to [user] on the local date
+  /// of [day]. Used to never send the same message to the same user twice in
+  /// one day.
+  bool messageSentOnDay(int userId, String kind, DateTime day) {
+    final rows = raw.select(
+      'SELECT COUNT(*) AS c FROM sent_messages '
+      'WHERE user_id = ? AND kind = ? AND day = ?',
+      [userId, kind, _dayKey(day)],
+    );
+    return (rows.first['c'] as int) > 0;
+  }
+
+  void markMessageSent(int userId, String kind, DateTime day) {
+    raw.execute(
+      'INSERT OR IGNORE INTO sent_messages (user_id, kind, day) '
+      'VALUES (?, ?, ?)',
+      [userId, kind, _dayKey(day)],
+    );
+  }
+
   // ---------------------------------------------------------------- cycles
 
   Cycle? cycleByBlock(int year, int week) {
@@ -432,6 +487,11 @@ WHERE user_id = ? AND confirmed_at >= ?
 
   static String _fmt(DateTime d) =>
       DateTime(d.year, d.month, d.day, d.hour, d.minute).toIso8601String();
+
+  static String _dayKey(DateTime d) =>
+      '${d.year.toString().padLeft(4, '0')}-'
+      '${d.month.toString().padLeft(2, '0')}-'
+      '${d.day.toString().padLeft(2, '0')}';
 
   static DateTime _parseTime(DateTime day, String hhmm) {
     final parts = hhmm.split(':');

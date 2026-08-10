@@ -49,9 +49,13 @@ class CycleService {
 
   Future<void> sendPrompts(Cycle cycle) async {
     var failures = 0;
+    final today = config.toLocal(Config.nowUtc());
     for (final user in repo.allUsers()) {
       try {
+        // Never send the same prompt to the same user twice in one day.
+        if (repo.messageSentOnDay(user.id, 'prompt', today)) continue;
         await showAvailability(user, cycle, promptFor(user, cycle));
+        repo.markMessageSent(user.id, 'prompt', today);
       } catch (_) {
         failures++; // member may have blocked the bot
       }
@@ -63,9 +67,12 @@ class CycleService {
 
   Future<void> sendReminders(Cycle cycle) async {
     var failures = 0;
+    final today = config.toLocal(Config.nowUtc());
     for (final user in repo.nonResponders(cycle.id)) {
       try {
+        if (repo.messageSentOnDay(user.id, 'reminder', today)) continue;
         await showAvailability(user, cycle, messages.msg2(user.group));
+        repo.markMessageSent(user.id, 'reminder', today);
       } catch (_) {
         failures++;
       }
@@ -112,6 +119,7 @@ class CycleService {
     repo.markAllocated(cycle.id);
 
     var failures = 0;
+    final today = config.toLocal(Config.nowUtc());
     for (final (userId, sessionId) in result) {
       final session = sessionsById[sessionId];
       final user = users[userId];
@@ -120,10 +128,12 @@ class CycleService {
       final time =
           '${_fmt(session.start)} to ${_fmt(session.end)}';
       try {
+        if (repo.messageSentOnDay(user.id, 'allocation', today)) continue;
         await bot.api.sendMessage(
           ChatID(userId),
           messages.msg4(user.group, label, time),
         );
+        repo.markMessageSent(user.id, 'allocation', today);
       } catch (_) {
         failures++;
       }

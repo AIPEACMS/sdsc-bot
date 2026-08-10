@@ -22,7 +22,7 @@ class Scheduler {
     required this.service,
   });
 
-  void start({Duration interval = const Duration(minutes: 5)}) {
+  void start({Duration interval = const Duration(hours: 12)}) {
     unawaited(_tick());
     _timer = Timer.periodic(interval, (_) => _tick());
   }
@@ -34,7 +34,7 @@ class Scheduler {
 
   Future<void> _tick() async {
     try {
-      final now = config.toLocal(DateTime.now().toUtc());
+      final now = config.toLocal(Config.nowUtc());
       final cycle = repo.ensureCurrentCycle(now);
 
       if (cycle.status == CycleStatus.open && !cycle.promptSent) {

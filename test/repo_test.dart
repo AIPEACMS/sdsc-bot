@@ -12,7 +12,6 @@ void main() {
     tmp = Directory.systemTemp.createTempSync('sdsc_test_');
     db = Database.open(Config(
       botToken: 'test',
-      adminIds: {1},
       dbPath: '${tmp.path}/test.db',
       groupAContact: 'TBD',
       groupBContact: 'TBD',
@@ -172,5 +171,36 @@ void main() {
     expect(holiday, isNotNull);
     expect(holiday!.kind, HolidayKind.winter);
     expect(repo.holidayOn(DateTime(2026, 8, 10)), isNull);
+  });
+
+  test('seen users resolve handles to ids', () {
+    repo.upsertSeenUser(111, 'alice');
+    expect(repo.userIdByUsername('@Alice'), 111);
+    expect(repo.userIdByUsername('alice'), 111);
+    expect(repo.userIdByUsername('bob'), isNull);
+  });
+
+  test('updateAdmin toggles the admin flag', () {
+    addUser(7);
+    expect(repo.findUser(7)!.isAdmin, false);
+    repo.updateAdmin(7, true);
+    expect(repo.findUser(7)!.isAdmin, true);
+    repo.updateAdmin(7, false);
+    expect(repo.findUser(7)!.isAdmin, false);
+  });
+
+  test('message log dedupes per user, kind and day', () {
+    addUser(1);
+    addUser(2);
+    final day = DateTime(2026, 8, 10);
+    expect(repo.messageSentOnDay(1, 'prompt', day), false);
+    repo.markMessageSent(1, 'prompt', day);
+    expect(repo.messageSentOnDay(1, 'prompt', day), true);
+    // Different kind or different day is not deduped.
+    expect(repo.messageSentOnDay(1, 'reminder', day), false);
+    expect(repo.messageSentOnDay(1, 'prompt', day.add(const Duration(days: 1))),
+        false);
+    // Different user is not deduped.
+    expect(repo.messageSentOnDay(2, 'prompt', day), false);
   });
 }

@@ -8,7 +8,8 @@ import '../core/messages.dart';
 import 'service.dart';
 import 'state.dart';
 
-/// Registration flow, availability picking, and member-facing commands.
+/// Member-facing commands: gated /start, availability picking, and the
+/// seen-user bookkeeping that lets admins add members by handle.
 class Flows {
   final Bot bot;
   final Repo repo;
@@ -38,24 +39,52 @@ class Flows {
 
   Future<void> _onStart(Context ctx) async {
     final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+
     final user = repo.findUser(userId);
-    if (user != null) {
-      final exp = user.experience == Experience.experienced
-          ? 'experienced'
-          : 'new member';
-      await ctx.reply(
-        'You are registered as <b>${user.name}</b> ($exp, group ${user.group}).\n'
-        'Use /reindicate to update your availability for the current cycle,\n'
-        'or /holiday to opt out of an upcoming break.',
-        parseMode: ParseMode.html,
-      );
-      return;
+    // A user that no admin has added yet gets silence: no backend traffic,
+    // no hint that the bot exists.
+    if (user == null) return;
+
+    final isConsole = config.isConsole(userId);
+    final isAdmin = user.isAdmin || isConsole;
+
+    final sb = StringBuffer()
+      ..writeln('👋 <b>${user.name}</b>, here is what you can do:');
+
+    if (isConsole) {
+      sb
+        ..writeln('\n<b>Console</b>')
+        ..writeln('/addadmin @handle — make a user an admin')
+        ..writeln('/setdate YYYY-MM-DD — debug: pretend it is that date')
+        ..writeln('/resetdate — stop pretending')
+        ..writeln('/demote — step down as admin (you stay console)');
     }
-    state.registrations[userId] = RegistrationState(stage: RegStage.name);
-    await ctx.reply(
-      'Welcome to the SDSC bot! Let\'s get you registered.\n'
-      'What is your name?',
-    );
+
+    if (isAdmin) {
+      sb
+        ..writeln('\n<b>Admin</b>')
+        ..writeln('/adduser @handle — add a member (they can then use /start)')
+        ..writeln('/status — cycle state and responders')
+        ..writeln('/users — registered members')
+        ..writeln('/prompt — send availability prompts now')
+        ..writeln('/remind — remind non-responders now')
+        ..writeln('/allocate — run allocation and send notices now')
+        ..writeln('/ask <telegram_id> — prompt one member')
+        ..writeln('/confirm — mark attendance')
+        ..writeln('/setexp experienced|newbie — change a member\'s experience')
+        ..writeln('/setgroup A|B — change a member\'s group')
+        ..writeln('/holidayset <middle|winter|summer> <YYYY-MM-DD> — break')
+        ..writeln('/holidayclear <YYYY-MM-DD> — remove a break')
+        ..writeln('/broadcast <message> — message everyone');
+    }
+
+    sb
+      ..writeln('\n<b>Member</b>')
+      ..writeln('/reindicate — update your availability')
+      ..writeln('/holiday — opt out of an upcoming break');
+
+    await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
 
   // ----------------------------------------------------- /reindicate
@@ -64,7 +93,7 @@ class Flows {
     final userId = ctx.from!.id;
     final user = repo.findUser(userId);
     if (user == null) {
-      await ctx.reply('You are not registered yet. Send /start first.');
+      // Silent for unadded users, same as /start.
       return;
     }
     final cycle = _currentCycle(ctx);
@@ -85,26 +114,9 @@ class Flows {
   // ------------------------------------------------------------ text
 
   Future<void> _onText(Context ctx) async {
-    if (ctx.hasCommand) return;
     final userId = ctx.from!.id;
-    final reg = state.registrations[userId];
-    if (reg == null) return;
-    final name = ctx.text?.trim() ?? '';
-    if (name.isEmpty) return;
-
-    if (reg.stage == RegStage.name) {
-      reg.name = name;
-      reg.stage = RegStage.experience;
-      await ctx.reply(
-        'Nice to meet you, <b>$name</b>!\nHow would you describe your '
-        'experience volunteering with SDSC?',
-        parseMode: ParseMode.html,
-        replyMarkup: InlineKeyboard()
-            .text('Experienced', 'exp|experienced')
-            .row()
-            .text('New / less experienced', 'exp|newbie'),
-      );
-    }
+    _recordSeen(ctx, userId);
+    if (ctx.hasCommand) return;
   }
 
   // ---------------------------------------------------------- callback
@@ -114,12 +126,9 @@ class Flows {
     if (data.isEmpty) return;
     final parts = data.split('|');
     final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
 
     switch (parts[0]) {
-      case 'exp':
-        await _selectExperience(ctx, userId, parts[1]);
-      case 'grp':
-        await _selectGroup(ctx, userId, parts[1]);
       case 'slot':
         await _toggleSlot(ctx, userId, parts);
       case 'done':
@@ -127,49 +136,6 @@ class Flows {
       case 'no':
         await _saveAvailability(ctx, userId, parts[1], true);
     }
-  }
-
-  Future<void> _selectExperience(Context ctx, int userId, String exp) async {
-    final reg = state.registrations[userId];
-    if (reg == null) {
-      await ctx.answerCallbackQuery();
-      return;
-    }
-    reg.experience = exp;
-    reg.stage = RegStage.group;
-    await ctx.answerCallbackQuery();
-    await ctx.editMessageText(
-      'Thanks! Finally, which group are you in? (This decides who to contact '
-      'with questions.)',
-      replyMarkup: InlineKeyboard()
-          .text('Group A', 'grp|A')
-          .row()
-          .text('Group B', 'grp|B'),
-    );
-  }
-
-  Future<void> _selectGroup(Context ctx, int userId, String group) async {
-    await ctx.answerCallbackQuery();
-    final reg = state.registrations.remove(userId);
-    if (reg == null) return;
-
-    final user = User(
-      id: userId,
-      name: reg.name,
-      experience: reg.experience == 'experienced'
-          ? Experience.experienced
-          : Experience.newbie,
-      group: group,
-      isAdmin: config.adminIds.contains(userId),
-    );
-    repo.upsertUser(user);
-    await ctx.editMessageText('You are registered! ✅');
-    await ctx.reply(
-      'You are all set, <b>${user.name}</b>!\n'
-      'You will be prompted before each 2-week cycle to indicate your '
-      'availability. Use /reindicate anytime to update it.',
-      parseMode: ParseMode.html,
-    );
   }
 
   Future<void> _toggleSlot(Context ctx, int userId, List<String> parts) async {
@@ -222,7 +188,7 @@ class Flows {
       userId: userId,
       slots: notAvailable ? {} : picks,
       available: !notAvailable,
-      updatedAt: DateTime.now(),
+      updatedAt: Config.nowUtc(),
     ));
     state.forgetAvailability(userId);
     state.availabilityMessages.remove(userId);
@@ -243,7 +209,19 @@ class Flows {
   // ------------------------------------------------------------- helpers
 
   Cycle? _currentCycle(Context ctx) {
-    final now = config.toLocal(DateTime.now().toUtc());
+    final now = config.toLocal(Config.nowUtc());
     return repo.ensureCurrentCycle(now);
+  }
+
+  /// Remembers (id, username) from any update so admins can add members by
+  /// handle later. Never replies, never errors.
+  void _recordSeen(Context ctx, int userId) {
+    final username = ctx.from?.username;
+    if (username == null || username.isEmpty) return;
+    try {
+      repo.upsertSeenUser(userId, username);
+    } catch (_) {
+      // bookkeeping failure should not break the flow
+    }
   }
 }

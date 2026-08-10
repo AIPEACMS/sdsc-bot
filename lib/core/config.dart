@@ -3,8 +3,12 @@ import 'dart:io';
 /// Runtime configuration. Reads from environment with sensible defaults.
 class Config {
   final String botToken;
-  final Set<int> adminIds;
   final String dbPath;
+
+  /// The console user's Telegram id. The console is the first user: they have
+  /// admin rights + debug rights, but are not themselves an admin — they can
+  /// step down from admin later. Hard-coded on purpose.
+  static const int consoleId = 0; // TODO: replace with the first user's id
 
   final String groupAContact;
   final String groupBContact;
@@ -26,7 +30,6 @@ class Config {
 
   const Config({
     required this.botToken,
-    required this.adminIds,
     required this.dbPath,
     required this.groupAContact,
     required this.groupBContact,
@@ -40,6 +43,19 @@ class Config {
     required this.bailHour,
     required this.timezoneOffsetHours,
   });
+
+  /// Debug override for "now" (UTC). Set by the console via /setdate; lets
+  /// the console test whether prompts/reminders/allocations would fire.
+  static DateTime? _debugNowUtc;
+
+  static void setDebugNow(DateTime? utc) => _debugNowUtc = utc;
+
+  /// The clock the scheduler and flows use: real UTC now, or the debug
+  /// override when set.
+  static DateTime nowUtc() => _debugNowUtc ?? DateTime.now().toUtc();
+
+  /// True for the console user, who has admin rights + debug rights.
+  bool isConsole(int id) => id == consoleId;
 
   String contactForGroup(String group) =>
       group == 'A' ? groupAContact : groupBContact;
@@ -58,13 +74,6 @@ class Config {
 
     return Config(
       botToken: token,
-      adminIds: env('ADMIN_IDS', '')
-          .split(',')
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty)
-          .map(int.tryParse)
-          .whereType<int>()
-          .toSet(),
       dbPath: env('SDSC_DB', 'sdsc.db'),
       groupAContact: env('GROUP_A_CONTACT', 'TBD'),
       groupBContact: env('GROUP_B_CONTACT', 'TBD'),

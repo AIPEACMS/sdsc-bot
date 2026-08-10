@@ -10,48 +10,45 @@ class Messages {
   /// Initial availability prompt.
   String msg1(String group) {
     final contact = contactForGroup(group);
-    return 'Hi! Greetings from the SDSC bot: It is time to indicate your '
-        'availabity to attend SDSC for the next 2 weekends! <b>Indicate Now</b>\n\n'
-        'If you cannot attend for the next 2 weekends, no worries! You can '
-        'indicate that you are not available for the next 2 weeks, or drop a '
-        'message at $contact to tell us and there is no pressure! You can '
-        'always attend later sessions!';
+    return 'Hi! It is time to let us know your availability for the next 2 '
+        'weekends.\n\n'
+        'Tap the sessions you can attend and press <b>Done</b> when you '
+        'finish. If you cannot make it at all, press <b>Not available</b> '
+        'instead — no pressure at all.\n\n'
+        'Questions? Message $contact.';
   }
 
   /// Prompt variant for members who did not attend in the past 2 weeks.
   String msg1A(String group) {
-    return 'Hi! Greetings from the SDSC bot: It is time to indicate your '
-        'availabity to attend SDSC for the next 2 weekends! <b>Indicate Now</b> '
-        'You did not attend for the past 2 weeks. I encourage you to attend '
-        'more! Perhaps... Do you consider attending both weeks\' sessions, or '
-        'attending a full day session? If you are short in time,';
+    return 'Hi! It is time to let us know your availability for the next 2 '
+        'weekends.\n\n'
+        'We noticed you have not attended the past 2 weeks — it would be '
+        'great to see you again! Tap the sessions you can attend and press '
+        '<b>Done</b>. If you are short on time, even one session helps.';
   }
 
   /// Reminder for members who have not responded.
   String msg2(String group) {
     final contact = contactForGroup(group);
-    return 'Hi! Greetings from the SDSC bot: you havent indicate your '
-        'availability to attend SDSC for the next 2 weekends! May I ask are '
-        'you available? <b>Indicate Now</b>\n\n'
-        'If you cannot attend for the next 2 weekends, no worries! You can '
-        'indicate that you are not available for the next 2 weeks, or drop a '
-        'message at $contact to tell us and there is no pressure! You can '
-        'always attend later sessions!';
+    return 'Hi! Just a reminder: we have not heard from you yet about the '
+        'next 2 weekends.\n\n'
+        'Tap the sessions you can attend and press <b>Done</b>, or press '
+        '<b>Not available</b> if you cannot make it. Questions? Message '
+        '$contact.';
   }
 
   /// Confirmation echoing the chosen availability slots.
   String msg3(Iterable<Slot> slots) {
     final lines = slots.map((s) => '• ${s.toString()}').toList();
     final list = lines.isEmpty ? '(none)' : lines.join('\n');
-    return 'Thank you so much for indicating your availability! '
-        'To confirm: Your available time is\n$list\n'
-        'If you misclick, indicate again by sending: /reindicate';
+    return 'Thank you! Here is what you told us:\n$list\n\n'
+        'Changed your mind? Send /reindicate to update your availability.';
   }
 
   /// Confirmation when the member indicated they are not available.
   String msg6() {
-    return 'No worries! You have indicated that you are not available for '
-        'the next 2 weeks. You can always attend later sessions!';
+    return 'No worries — you are all set for the next 2 weeks. '
+        'We will prompt you again for the following cycle!';
   }
 
   /// Allocation notice. `session` is e.g. "OCBC @ Pasir Ris" placeholder —
@@ -59,30 +56,30 @@ class Messages {
   /// portion.
   String msg4(String group, String sessionLabel, String timeLabel) {
     final contact = contactForGroup(group);
-    return 'You are allocated to $sessionLabel from $timeLabel. '
-        'If you have a sudden change in schedule, you can drop a message to '
-        '$contact by Friday 12:00pm.';
+    return 'You have been allocated to <b>$sessionLabel</b>, $timeLabel.\n\n'
+        'If your plans suddenly change, message $contact by Friday 12:00pm.';
   }
 
   /// Holiday prompt — middle week break.
   String msg5A(String group) {
-    return 'Hi! It is the week of break: do you still like to attend for this '
-        'weeks session? I know you want to relax, so no pressure on this weeks '
-        'session, but we would absolutely shout out to you if you want to '
-        'attend! <b>Indicate Now</b>';
+    return 'Hi! It is the week of a break, but we still have a session on if '
+        'you would like to attend.\n\n'
+        'No pressure at all — tap the sessions you can attend and press '
+        '<b>Done</b>, or press <b>Not available</b> to rest this week.';
   }
 
   /// Holiday prompt — winter or summer break.
   String msg5B(String group, {required String season}) {
-    return 'Hi! It is the $season break: do you still like to attend for this '
-        'weeks session? We would absolutely shout out to you if you want to '
-        'attend! <b>Indicate Now</b>\nOr: if you want to stay with your family '
-        'for this $season break, simply type: /holiday';
+    return 'Hi! It is the $season break, but we still have a session on if '
+        'you would like to attend.\n\n'
+        'Tap the sessions you can attend and press <b>Done</b>, or press '
+        '<b>Not available</b> to rest this break. Spending it with family? '
+        'Simply send /holiday to opt out.';
   }
 
   /// Response to the /holiday opt-out command.
   String msg5Z() {
-    return 'Yes! Thank you for the past months volunteering! The SDSC '
-        'Team wish you a good holiday! See around in the next semester!';
+    return 'Thank you for volunteering with us! Enjoy your holiday — '
+        'we will see you next semester!';
   }
 }

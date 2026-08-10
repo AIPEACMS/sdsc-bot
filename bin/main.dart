@@ -6,6 +6,7 @@ import 'package:televerse/televerse.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 
 import 'package:sdsc_bot/bot/admin.dart';
+import 'package:sdsc_bot/bot/console.dart';
 import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/scheduler.dart';
 import 'package:sdsc_bot/bot/service.dart';
@@ -46,6 +47,12 @@ Future<void> main() async {
     service: service,
   );
 
+  final console = Console(
+    bot: bot,
+    repo: repo,
+    config: config,
+  );
+
   final scheduler = Scheduler(
     repo: repo,
     config: config,
@@ -54,6 +61,7 @@ Future<void> main() async {
 
   flows.register();
   admin.register();
+  console.register();
 
   bot.onError((error) {
     // ignore: avoid_print
