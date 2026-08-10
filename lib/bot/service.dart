@@ -7,6 +7,8 @@ import '../core/config.dart';
 import '../core/messages.dart';
 import '../core/allocate.dart';
 import '../core/week.dart';
+import 'hold.dart';
+import '../core/log.dart';
 import 'state.dart';
 
 /// High-level operations that drive a cycle: prompting, reminding, allocating
@@ -65,7 +67,7 @@ class CycleService {
   Future<void> sendPrompts(Cycle cycle) async {
     var failures = 0;
     final today = config.toLocal(Config.nowUtc());
-    for (final user in repo.allUsers()) {
+    for (final user in repo.activeUsers()) {
       try {
         // Never send the same prompt to the same user twice in one day.
         if (repo.messageSentOnDay(user.id, 'prompt', today)) continue;
@@ -78,8 +80,7 @@ class CycleService {
       }
     }
     repo.markPromptSent(cycle.id);
-    // ignore: avoid_print
-    if (failures > 0) print('prompt: $failures members unreachable');
+        if (failures > 0) LogRing.log('prompt: $failures members unreachable');
   }
 
   Future<void> sendReminders(Cycle cycle) async {
@@ -99,8 +100,7 @@ class CycleService {
       }
     }
     repo.markReminderSent(cycle.id);
-    // ignore: avoid_print
-    if (failures > 0) print('remind: $failures members unreachable');
+        if (failures > 0) LogRing.log('remind: $failures members unreachable');
   }
 
   /// The week (Monday) of the holiday covering this cycle's sessions, if any.
@@ -128,9 +128,14 @@ class CycleService {
       tzOffsetHours: config.timezoneOffsetHours,
     );
     final sessions = repo.sessionsForCycle(cycle.id);
-    final availability = repo.allAvailability(cycle.id);
-    final allUsers = repo.allUsers();
-    final users = {for (final u in allUsers) u.id: u};
+    // Only active users can be allocated; check/old users have no availability
+    // and stale availability rows must not make them candidates.
+    final activeUsers = repo.activeUsers();
+    final activeIds = {for (final u in activeUsers) u.id};
+    final availability = repo.allAvailability(cycle.id)
+        .where((a) => activeIds.contains(a.userId))
+        .toList();
+    final users = {for (final u in activeUsers) u.id: u};
 
     final result = Allocator(
       ocbcCapacity: config.ocbcCapacity,
@@ -167,17 +172,20 @@ class CycleService {
           '${_fmt(session.start)} to ${_fmt(session.end)}';
       try {
         if (repo.messageSentOnDay(user.id, 'allocation', today)) continue;
-        await bot.api.sendMessage(
-          ChatID(userId),
-          messages.msg4(user.group, label, time),
-        );
+        try {
+          await bot.api.sendMessage(
+            ChatID(userId),
+            messages.msg4(user.group, label, time),
+          );
+        } on HeldException {
+          // held: drop, still marked as sent
+        }
         repo.markMessageSent(user.id, 'allocation', today);
       } catch (_) {
         failures++;
       }
     }
-    // ignore: avoid_print
-    if (failures > 0) print('allocate: $failures msg4 sends failed');
+        if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
   }
 
   /// Sends (or edits an existing) availability keyboard message to [user].
@@ -204,18 +212,25 @@ class CycleService {
           replyMarkup: keyboard,
         );
         return;
+      } on HeldException {
+        return; // held: block & drop, treated as delivered
       } catch (_) {
         state.availabilityMessages.remove(user.id);
       }
     }
 
-    final msg = await bot.api.sendMessage(
-      ChatID(user.id),
-      '$text\n\n${_hint()}',
-      parseMode: ParseMode.html,
-      replyMarkup: keyboard,
-    );
-    state.availabilityMessages[user.id] = (user.id, msg.messageId);
+    try {
+      final msg = await bot.api.sendMessage(
+        ChatID(user.id),
+        '$text\n\n${_hint()}',
+        parseMode: ParseMode.html,
+        replyMarkup: keyboard,
+      );
+      state.availabilityMessages[user.id] = (user.id, msg.messageId);
+    } on HeldException {
+      // held: block & drop, treated as delivered so the (prompt/reminder)
+      // flags still advance and nothing is replayed on unhold.
+    }
   }
 
   String sessionLabel(Session s) {

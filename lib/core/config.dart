@@ -37,6 +37,14 @@ class Config {
   /// Port for the loopback calendar-sync IPC listener. Default 8737.
   final int calendarIpcPort;
 
+  /// Token that the desktop console app must present to the HTTP admin API
+  /// (`Authorization: Bearer <token>`). Read from `ADMIN_API_TOKEN`; falls
+  /// back to [calendarIpcToken] when unset. Null disables the admin API.
+  final String? adminApiToken;
+
+  /// Port for the HTTP admin API. Default 8738.
+  final int adminApiPort;
+
   const Config({
     required this.botToken,
     required this.dbPath,
@@ -54,6 +62,8 @@ class Config {
     required this.timezoneOffsetHours,
     this.calendarIpcToken,
     this.calendarIpcPort = 8737,
+    this.adminApiToken,
+    this.adminApiPort = 8738,
   });
 
   /// Debug override for "now" (UTC). Set by the console via /setdate; lets
@@ -119,6 +129,8 @@ class Config {
       timezoneOffsetHours: envInt('TZ_OFFSET', 8),
       calendarIpcToken: env('CALENDAR_IPC_TOKEN'),
       calendarIpcPort: envInt('CALENDAR_IPC_PORT', 8737),
+      adminApiToken: env('ADMIN_API_TOKEN'),
+      adminApiPort: envInt('ADMIN_API_PORT', 8738),
     );
   }
 

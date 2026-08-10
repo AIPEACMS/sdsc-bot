@@ -117,7 +117,21 @@ CREATE TABLE IF NOT EXISTS holiday_optouts (
   week_start TEXT NOT NULL,
   PRIMARY KEY (user_id, week_start)
 );
+
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
 ''');
+
+    // Column migrations for databases created before this field existed.
+    try {
+      db.execute(
+        "ALTER TABLE users ADD COLUMN member_tier TEXT NOT NULL DEFAULT 'member'",
+      );
+    } catch (_) {
+      // column already present
+    }
   }
 
   void close() => _db.close();

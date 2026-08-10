@@ -6,6 +6,7 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import 'calendar_sync.dart';
 import 'command_both.dart';
+import 'hold.dart';
 import 'pickers.dart';
 import 'state.dart';
 
@@ -18,6 +19,7 @@ class Console {
   final Config config;
   final BotState state;
   final CalendarSync? calendarSync;
+  final HoldGate holdGate;
 
   Console({
     required this.bot,
@@ -25,6 +27,7 @@ class Console {
     required this.config,
     required this.state,
     this.calendarSync,
+    required this.holdGate,
   });
 
   void register() {
@@ -34,6 +37,20 @@ class Console {
     commandBoth(bot, 'demote', _guard(_demote), label: 'demote');
     commandBoth(bot, 'sync-calendar', _guard(_syncCalendar),
         label: 'sync-calendar');
+    commandBoth(bot, 'hold', _guard(_holdConfirm), label: 'hold');
+    commandBoth(bot, 'unhold', _guard(_unholdConfirm), label: 'unhold');
+
+    // Hold/unhold callbacks, console only.
+    bot.use((ctx, next) async {
+      final data = ctx.callbackQuery?.data;
+      if (data == null) return next();
+      final head = data.split('|').first;
+      if (head == 'hold' || head == 'unhold') {
+        if (_isConsole(ctx)) await _onHoldCallback(ctx);
+        return;
+      }
+      await next();
+    });
   }
 
   bool _isConsole(Context ctx) {
@@ -205,6 +222,60 @@ class Console {
       );
     } catch (e) {
       await ctx.reply('❌ Sync failed: $e');
+    }
+  }
+
+  // -------------------------------------------------------- /hold /unhold
+
+  /// Console-only: pause all outgoing messages (block & drop). The bot keeps
+  /// running — prompts, reminders and replies are suppressed; the console app
+  /// (admin API, logs) stays reachable. Nothing is queued or replayed.
+  Future<void> _holdConfirm(Context ctx) async {
+    await ctx.reply(
+      '🔇 <b>Hold the bot?</b>\n\n'
+      'While held, the bot sends nothing — prompts, reminders, allocations '
+      'and replies. It keeps running, and the console app stays reachable.',
+      parseMode: ParseMode.html,
+      replyMarkup: Pickers.confirm('hold'),
+    );
+  }
+
+  Future<void> _unholdConfirm(Context ctx) async {
+    await ctx.reply(
+      '▶️ <b>Unhold the bot?</b>\n\n'
+      'It will start sending again. Anything dropped while held is gone — '
+      'nothing is replayed.',
+      parseMode: ParseMode.html,
+      replyMarkup: Pickers.confirm('unhold'),
+    );
+  }
+
+  Future<void> _onHoldCallback(Context ctx) async {
+    await ctx.answerCallbackQuery();
+    final parts = (ctx.callbackQuery?.data ?? '').split('|');
+    final yes = parts.length > 1 && parts[1] == 'yes';
+    final isHold = parts.first == 'hold';
+    if (!yes) {
+      await ctx.editMessageText('Cancelled — nothing changed.');
+      return;
+    }
+    if (isHold) {
+      // Engage the gate only after the confirmation message goes out, or the
+      // confirmation itself is dropped.
+      await ctx.editMessageText(
+        '🔇 <b>Bot held.</b> No messages will be sent.',
+        parseMode: ParseMode.html,
+      );
+      repo.setHeld(true);
+      holdGate.held = true;
+    } else {
+      // Release the gate before replying, or the reply is dropped too.
+      repo.setHeld(false);
+      holdGate.held = false;
+      await ctx.editMessageText(
+        '✅ <b>Bot unheld.</b> It can send again.',
+        parseMode: ParseMode.html,
+      );
     }
   }
 

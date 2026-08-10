@@ -8,6 +8,31 @@ enum HolidayKind { middle, winter, summer }
 
 enum CycleStatus { open, closed, allocated }
 
+/// Member tiers, in display/sort order: console > admin > check > member > old.
+/// `console` and `admin` are derived (console id + is_admin); `check`, `member`
+/// and `old` are stored in [User.memberTier].
+class MemberTier {
+  static const String console = 'console';
+  static const String admin = 'admin';
+  static const String check = 'check';
+  static const String member = 'member';
+  static const String old = 'old';
+
+  /// Display/sort order: first defined = top.
+  static const List<String> order = [console, admin, check, member, old];
+
+  /// The tier of [user], given whether their id is the console.
+  static String of(User user, {required bool isConsole}) {
+    if (isConsole) return console;
+    if (user.isAdmin) return admin;
+    return user.memberTier;
+  }
+
+  /// True when the user takes part in availability/allocation/messaging.
+  static bool isActive(String tier) =>
+      tier != check && tier != old;
+}
+
 class User {
   final int id;
   final String name;
@@ -17,6 +42,9 @@ class User {
   final int ocbcStreak; // consecutive OCBC allocations
   final DateTime? registeredAt;
 
+  /// Stored tier: 'member' | 'check' | 'old'. 'console'/'admin' are derived.
+  final String memberTier;
+
   const User({
     required this.id,
     required this.name,
@@ -25,6 +53,7 @@ class User {
     this.isAdmin = false,
     this.ocbcStreak = 0,
     this.registeredAt,
+    this.memberTier = MemberTier.member,
   });
 
   User copyWith({
@@ -33,6 +62,7 @@ class User {
     String? group,
     bool? isAdmin,
     int? ocbcStreak,
+    String? memberTier,
   }) {
     return User(
       id: id,
@@ -42,6 +72,7 @@ class User {
       isAdmin: isAdmin ?? this.isAdmin,
       ocbcStreak: ocbcStreak ?? this.ocbcStreak,
       registeredAt: registeredAt,
+      memberTier: memberTier ?? this.memberTier,
     );
   }
 
@@ -57,6 +88,7 @@ class User {
         registeredAt: row['created_at'] == null
             ? null
             : DateTime.tryParse(row['created_at'] as String),
+        memberTier: (row['member_tier'] as String?) ?? MemberTier.member,
       );
 }
 
