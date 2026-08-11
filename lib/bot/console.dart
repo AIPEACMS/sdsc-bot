@@ -102,9 +102,9 @@ class Console {
           id: userId,
           name: '@$handle',
           experience: Experience.newbie,
-          group: 'A',
-          isAdmin: true,
+          group: '',
         ));
+        repo.updateAdmin(userId, true); // gets their own group
       } else {
         repo.updateAdmin(userId, true);
       }

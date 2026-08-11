@@ -144,9 +144,9 @@ class Admin {
       id: memberId,
       name: '@$username',
       experience: Experience.newbie,
-      group: 'A',
-      isAdmin: isAdmin,
+      group: '',
     ));
+    if (isAdmin) repo.updateAdmin(memberId, true); // gets their own group
     await ctx.editMessageText(
       isAdmin
           ? '✅ @$username promoted to admin.'
@@ -171,9 +171,9 @@ class Admin {
         id: userId,
         name: '@$handle',
         experience: Experience.newbie,
-        group: 'A',
-        isAdmin: isAdmin,
+        group: '',
       ));
+      if (isAdmin) repo.updateAdmin(userId, true); // gets their own group
       return isAdmin
           ? '✅ @$handle is now an admin.'
           : '✅ @$handle added. They can now use /start to see their commands.';
@@ -230,7 +230,8 @@ class Admin {
     final lines = users.map((u) {
       final tier = MemberTier.of(u, isConsole: config.isConsole(u.id));
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
-      return '• <b>${u.name}</b> (id ${u.id}, $tier, group ${u.group}, '
+      return '• <b>${u.name}</b> (id ${u.id}, $tier, '
+          'group ${u.group.isEmpty ? 'none' : u.group}, '
           '$exp, ocbc×${u.ocbcStreak})';
     });
     await ctx.reply(
@@ -462,7 +463,8 @@ class Admin {
         ? 'experienced'
         : 'newbie';
     await ctx.editMessageText(
-      '✅ <b>${updated.name}</b> → $exp, group ${updated.group}',
+      '✅ <b>${updated.name}</b> → $exp, '
+          'group ${updated.group.isEmpty ? 'none' : updated.group}',
       parseMode: ParseMode.html,
     );
   }
