@@ -20,7 +20,7 @@ class BotState {
   final Map<int, Set<Slot>> availabilityPicks = {};
 
   /// Inline-keyboard message ids for availability selection per user, so a
-  /// new /reindicate or prompt replaces the old keyboard instead of stacking.
+  /// new /repick or prompt replaces the old keyboard instead of stacking.
   final Map<int, (int chatId, int messageId)> availabilityMessages = {};
 
   /// The console's grid preview: which role's grid is currently shown

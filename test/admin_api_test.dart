@@ -472,4 +472,218 @@ void main() {
       client.close(force: true);
     }
   });
+
+  // ------------------------------------------------------------ groups
+
+  test('GET /api/users reports every group of a user', () async {
+    // Id 1 is the console id in this test config (makeConfig).
+    repo.upsertUser(User(
+      id: 1,
+      name: '@root',
+      experience: Experience.experienced,
+      group: 'A',
+      isAdmin: true,
+    ));
+    repo.upsertUser(User(
+      id: 101,
+      name: '@alice',
+      experience: Experience.newbie,
+      group: 'A',
+      isAdmin: true,
+    ));
+    repo.upsertUser(User(
+      id: 2,
+      name: '@bob',
+      experience: Experience.newbie,
+      group: 'B',
+    ));
+    repo.setTier(2, 'check');
+    repo.upsertUser(User(
+      id: 3,
+      name: '@carol',
+      experience: Experience.newbie,
+      group: 'A',
+    ));
+    repo.setTier(3, 'old');
+    repo.upsertUser(User(
+      id: 4,
+      name: '@dave',
+      experience: Experience.newbie,
+      group: 'B',
+    ));
+
+    final (status, body) = await call('GET', '/api/users');
+    expect(status, 200);
+    final users =
+        ((body as Map<String, dynamic>)['users'] as List)
+            .cast<Map<String, dynamic>>();
+
+    String? groupOf(int id) {
+      final u = users.firstWhere((u) => u['id'] == id);
+      return (u['groups'] as List).cast<String>().join(' | ');
+    }
+
+    expect(groupOf(1), 'console | admin');
+    expect(groupOf(101), 'admin');
+    expect(groupOf(2), 'check');
+    expect(groupOf(3), 'old');
+    expect(groupOf(4), 'member');
+  });
+
+  // ------------------------------------------------------- user admin
+
+  test('POST /api/users/{id}/admin grants and strips admin, keeping the tier',
+      () async {
+    repo.upsertUser(User(
+      id: 7,
+      name: '@carol',
+      experience: Experience.newbie,
+      group: 'A',
+    ));
+    repo.setTier(7, 'check'); // check, not admin
+    expect(repo.findUser(7)!.memberTier, 'check');
+
+    final (status, body) = await call('POST', '/api/users/7/admin',
+        body: {'admin': true});
+    expect(status, 200);
+    expect((body as Map<String, dynamic>)['admin'], true);
+    expect(repo.findUser(7)!.isAdmin, true);
+    expect(repo.findUser(7)!.memberTier, 'check'); // tier untouched
+
+    await call('POST', '/api/users/7/admin', body: {'admin': false});
+    expect(repo.findUser(7)!.isAdmin, false);
+    expect(repo.findUser(7)!.memberTier, 'check');
+
+    // The console's own admin flag cannot be toggled via the API.
+    repo.upsertUser(User(
+      id: 1,
+      name: '@root',
+      experience: Experience.experienced,
+      group: 'A',
+      isAdmin: true,
+    ));
+    final (consoleStatus, _) = await call('POST', '/api/users/1/admin',
+        body: {'admin': true});
+    expect(consoleStatus, 400);
+  });
+
+  test('POST /api/users/{id}/exp changes experience', () async {
+    repo.upsertUser(User(
+      id: 7,
+      name: '@carol',
+      experience: Experience.newbie,
+      group: 'A',
+    ));
+    final (status, body) = await call('POST', '/api/users/7/exp',
+        body: {'exp': 'experienced'});
+    expect(status, 200);
+    expect((body as Map<String, dynamic>)['exp'], 'experienced');
+    expect(repo.findUser(7)!.experience, Experience.experienced);
+
+    final (badStatus, _) = await call('POST', '/api/users/7/exp',
+        body: {'exp': 'senior'});
+    expect(badStatus, 400);
+    final (missingStatus, _) = await call('POST', '/api/users/999/exp',
+        body: {'exp': 'newbie'});
+    expect(missingStatus, 404);
+  });
+
+  test('POST /api/users registers or queues a member by handle', () async {
+    // Unseen, unqueued handle → queued for first contact.
+    final (q, _) =
+        await call('POST', '/api/users', body: {'handle': '@newbie'});
+    expect(q, 200);
+    expect(repo.isPendingUser('newbie'), true);
+
+    // A seen user is registered immediately as a plain member.
+    repo.upsertSeenUser(202, 'alice');
+    final (s, _) =
+        await call('POST', '/api/users', body: {'handle': '@alice'});
+    expect(s, 200);
+    expect(repo.findUser(202), isNotNull);
+    expect(repo.findUser(202)!.isAdmin, false);
+
+    // Already a member → reported, no duplicate.
+    final (d, dBody) =
+        await call('POST', '/api/users', body: {'handle': '@alice'});
+    expect(d, 200);
+    expect((dBody as Map<String, dynamic>)['message'],
+        contains('already a member'));
+
+    // Garbage input is rejected.
+    final (bad, _) =
+        await call('POST', '/api/users', body: {'handle': 'two words'});
+    expect(bad, 400);
+  });
+
+  // ------------------------------------------------------ cycle ops
+
+  test('cycle ops require a wired service', () async {
+    final (p, pBody) = await call('POST', '/api/prompt');
+    expect(p, 400);
+    expect((pBody as Map<String, dynamic>)['error'], contains('not wired'));
+
+    final (r, _) = await call('POST', '/api/remind');
+    expect(r, 400);
+    final (a, _) = await call('POST', '/api/allocate');
+    expect(a, 400);
+    final (ask, _) = await call('POST', '/api/ask');
+    expect(ask, 400);
+    final (b, _) = await call('POST', '/api/broadcast');
+    expect(b, 400);
+  });
+
+  // ------------------------------------------------------- attendance
+
+  test('attendance lists sessions and toggles per member', () async {
+    repo.upsertUser(User(
+      id: 101,
+      name: '@alice',
+      experience: Experience.experienced,
+      group: 'A',
+    ));
+    repo.upsertUser(User(
+      id: 102,
+      name: '@bob',
+      experience: Experience.newbie,
+      group: 'B',
+    ));
+    final now = api.config.toLocal(Config.nowUtc());
+    final cycle = repo.ensureCurrentCycle(now);
+    repo.ensureSessionsForCycle(
+      cycle,
+      api.config.slotTimes,
+      tzOffsetHours: api.config.timezoneOffsetHours,
+    );
+    final sessions = repo.sessionsForCycle(cycle.id);
+    expect(sessions, isNotEmpty);
+    final sessionId = sessions.first.id;
+    repo.replaceAllocations(cycle.id, [(101, sessionId), (102, sessionId)]);
+
+    final (status, body) = await call('GET', '/api/attendance');
+    expect(status, 200);
+    final s = ((body as Map<String, dynamic>)['sessions'] as List)
+        .cast<Map<String, dynamic>>()
+        .firstWhere((s) => s['id'] == sessionId);
+    expect(s['label'], isNotEmpty);
+    final members = (s['members'] as List).cast<Map<String, dynamic>>();
+    expect(members, hasLength(2));
+    expect(members.every((m) => m['attended'] == false), isTrue);
+
+    final (t1, t1Body) = await call('POST', '/api/attendance',
+        body: {'sessionId': sessionId, 'userId': 101});
+    expect(t1, 200);
+    expect((t1Body as Map<String, dynamic>)['attended'], true);
+    expect(repo.attendanceForSession(sessionId), hasLength(1));
+
+    final (t2, t2Body) = await call('POST', '/api/attendance',
+        body: {'sessionId': sessionId, 'userId': 101});
+    expect(t2, 200);
+    expect((t2Body as Map<String, dynamic>)['attended'], false);
+    expect(repo.attendanceForSession(sessionId), isEmpty);
+
+    final (bad, _) = await call('POST', '/api/attendance',
+        body: {'sessionId': sessionId});
+    expect(bad, 400);
+  });
 }

@@ -63,6 +63,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-08-12
+
+### Added
+
+- **Admin API now drives the whole cycle**, so the desktop console's new
+  Tools screen can run the operations the admin commands could:
+  `POST /api/prompt`, `/api/remind`, `/api/allocate` run the cycle op now;
+  `POST /api/ask` sends the availability picker to one member;
+  `POST /api/broadcast` sends a message to every member;
+  `GET`/`POST /api/attendance` list sessions with allocated members and
+  toggle each member's attendance.
+- **User management via the API**: `POST /api/users` adds a member by
+  @handle (registered now or queued for first contact),
+  `POST /api/users/{id}/admin` grants or strips the admin flag without
+  touching the member tier, `POST /api/users/{id}/exp` sets experience.
+- **`/api/users` now reports every group** a user belongs to (`groups`),
+  most significant first — the console user is reported as
+  `console | admin` instead of a single collapsed tier.
+
+### Changed
+
+- **`/reindicate` is now `/repick`** — the command and every mention were
+  renamed to match the grid button.
+- **`/holiday` command removed** — holiday opt-out now happens via the
+  "Skip me this holiday" button on the prompt.
+- **`/start` message cleaned up**: the member section matches the grid
+  (`/repick`, `/mystatus`), and no removed commands are advertised.
+
 ## [1.0.1] - 2026-08-11
 
 ### Fixed

@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:televerse/televerse.dart';
+
 import '../core/config.dart';
 import '../core/log.dart';
 import '../core/models.dart';
@@ -9,6 +11,7 @@ import 'calendar_sync.dart';
 import 'hold.dart';
 import 'key_auth.dart';
 import 'server_identity.dart';
+import 'service.dart';
 
 /// HTTP admin API for the desktop console app. Every request must authenticate
 /// with a registered console key (Ed25519 signature) or, as a manual
@@ -29,11 +32,19 @@ import 'server_identity.dart';
 /// Endpoints:
 ///   GET   /api/server-info              -> public key + fingerprint
 ///   GET   /api/state                    -> held flag, debug clock, cycle
-///   GET   /api/users                    -> every user with tier + attendance
+///   GET   /api/users                    -> every user with tier + groups + attendance
+///   POST  /api/users                    -> { "handle": "@name" } (register-or-queue)
 ///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|old" }
+///   POST  /api/users/{id}/admin         -> { "admin": true|false } (keeps member tier)
+///   POST  /api/users/{id}/exp           -> { "exp": "experienced|newbie" }
 ///   POST  /api/hold                     -> { "held": true|false }
 ///   POST  /api/date                     -> { "date": "YYYY-MM-DD HH:MM" } | { "reset": true }
 ///   POST  /api/sync-calendar            -> { "yaml": "..." }
+///   POST  /api/prompt | /api/remind | /api/allocate -> run the cycle op now
+///   POST  /api/ask                      -> { "userId": `id` } (send picker to one member)
+///   POST  /api/broadcast                -> { "text": "..." } (to all members)
+///   GET   /api/attendance               -> sessions + allocated members + attended flags
+///   POST  /api/attendance               -> { "sessionId": `id`, "userId": `id` } (toggle)
 ///   GET   /api/logs                     -> { "lines": [...] }
 ///   POST  /api/log-retention            -> { "days": 14 }
 class AdminApi {
@@ -44,6 +55,11 @@ class AdminApi {
   final String? token;
   final int port;
   final ServerIdentity identity;
+
+  /// Wired from main.dart with the real [CycleService]. The cycle-driving
+  /// endpoints (prompt/remind/allocate/ask/broadcast) require it; everything
+  /// else works without it (and does in tests).
+  final CycleService? service;
   final NonceGuard _nonces = NonceGuard();
 
   HttpServer? _server;
@@ -55,6 +71,7 @@ class AdminApi {
     required this.holdGate,
     required this.token,
     required this.port,
+    this.service,
   }) : identity = ServerIdentity(repo);
 
   /// The actual bound port (differs from [port] when 0 = ephemeral).
@@ -173,15 +190,22 @@ class AdminApi {
         if (method == 'GET' && segs.length == 2) {
           return (200, {'ok': true, 'users': _usersJson()});
         }
-        if (method == 'POST' &&
-            segs.length == 4 &&
-            segs[3] == 'tier' &&
-            segs[2].isNotEmpty) {
+        if (method == 'POST' && segs.length == 2) {
+          return _addUser(bodyText);
+        }
+        if (method == 'POST' && segs.length == 4 && segs[3].isNotEmpty) {
           final id = int.tryParse(segs[2]);
           if (id == null) {
             return (400, {'ok': false, 'error': 'bad user id'});
           }
-          return _setTier(id, bodyText);
+          switch (segs[3]) {
+            case 'tier':
+              return _setTier(id, bodyText);
+            case 'admin':
+              return _setUserAdmin(id, bodyText);
+            case 'exp':
+              return _setUserExp(id, bodyText);
+          }
         }
       case 'hold':
         if (method == 'POST') return _setHold(bodyText);
@@ -189,6 +213,19 @@ class AdminApi {
         if (method == 'POST') return _setDate(bodyText);
       case 'sync-calendar':
         if (method == 'POST') return _syncCalendar(bodyText);
+      case 'prompt':
+        if (method == 'POST') return _runCycleOp('prompt');
+      case 'remind':
+        if (method == 'POST') return _runCycleOp('remind');
+      case 'allocate':
+        if (method == 'POST') return _runCycleOp('allocate');
+      case 'ask':
+        if (method == 'POST') return _ask(bodyText);
+      case 'broadcast':
+        if (method == 'POST') return _broadcast(bodyText);
+      case 'attendance':
+        if (method == 'GET') return (200, _attendanceBody());
+        if (method == 'POST') return _toggleAttendance(bodyText);
       case 'logs':
         if (method == 'GET') {
           return (200, {'ok': true, 'lines': LogRing.snapshot});
@@ -250,6 +287,20 @@ class AdminApi {
     };
   }
 
+  /// The user's full set of groups, most significant first: console >
+  /// admin > check/member/old. 'member' is implied by admin/console and is
+  /// only listed when it is the only group.
+  static List<String> _groupsOf(User u, {required bool isConsole}) {
+    final groups = <String>[];
+    if (isConsole) groups.add(MemberTier.console);
+    if (u.isAdmin) groups.add(MemberTier.admin);
+    if (u.memberTier == MemberTier.check || u.memberTier == MemberTier.old) {
+      groups.add(u.memberTier);
+    }
+    if (groups.isEmpty) groups.add(MemberTier.member);
+    return groups;
+  }
+
   List<Map<String, Object?>> _usersJson() {
     return [
       for (final u in repo.allUsers())
@@ -257,6 +308,7 @@ class AdminApi {
           'id': u.id,
           'name': u.name,
           'tier': MemberTier.of(u, isConsole: config.isConsole(u.id)),
+          'groups': _groupsOf(u, isConsole: config.isConsole(u.id)),
           'group': u.group,
           'experience': u.experience.name,
           'ocbcStreak': u.ocbcStreak,
@@ -288,6 +340,234 @@ class AdminApi {
       'user': updated.name,
       'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
     });
+  }
+
+  /// Toggles the admin flag only — the member tier (check/member/old) is
+  /// left untouched, unlike [setTier] which clears admin on any non-admin
+  /// tier. The console's own admin flag cannot be touched this way.
+  Future<(int, Object)> _setUserAdmin(int id, String bodyText) async {
+    final user = repo.findUser(id);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    if (config.isConsole(id)) {
+      return (400, {'ok': false, 'error': 'cannot change console tier'});
+    }
+    final body = _jsonBody(bodyText);
+    final admin = body['admin'];
+    if (admin is! bool) {
+      return (400, {'ok': false, 'error': 'expected {"admin": bool}'});
+    }
+    repo.updateAdmin(id, admin);
+    final updated = repo.findUser(id)!;
+    LogRing.log('admin API: ${updated.name} ${admin ? 'granted' : 'stripped'} admin');
+    return (200, {
+      'ok': true,
+      'admin': admin,
+      'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
+    });
+  }
+
+  Future<(int, Object)> _setUserExp(int id, String bodyText) async {
+    final user = repo.findUser(id);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    final body = _jsonBody(bodyText);
+    final exp = (body['exp'] as String?) ?? '';
+    if (exp != 'experienced' && exp != 'newbie') {
+      return (400, {'ok': false, 'error': 'expected {"exp": "experienced"|"newbie"}'});
+    }
+    repo.updateExperience(
+        id, exp == 'experienced' ? Experience.experienced : Experience.newbie);
+    LogRing.log('admin API: ${user.name} exp → $exp');
+    return (200, {'ok': true, 'exp': exp});
+  }
+
+  /// Registers (or queues) a member by @handle, mirroring the /adduser
+  /// outcome: already-registered → already member; pending → already queued;
+  /// seen before → registered now; unseen → queued for first contact.
+  Future<(int, Object)> _addUser(String bodyText) async {
+    final body = _jsonBody(bodyText);
+    final handle =
+        (body['handle'] as String?)?.trim().replaceFirst('@', '') ?? '';
+    if (handle.isEmpty || handle.contains(' ')) {
+      return (400, {'ok': false, 'error': 'expected {"handle": "@username"}'});
+    }
+    final userId = repo.userIdByUsername(handle);
+    if (userId != null && repo.findUser(userId) != null) {
+      return (200, {'ok': true, 'message': '@$handle is already a member.'});
+    }
+    if (repo.isPendingUser(handle)) {
+      return (200, {
+        'ok': true,
+        'message': '@$handle is already queued — they will be registered the '
+            'first time they message the bot.',
+      });
+    }
+    if (userId != null) {
+      repo.upsertUser(User(
+        id: userId,
+        name: '@$handle',
+        experience: Experience.newbie,
+        group: 'A',
+      ));
+      return (200, {
+        'ok': true,
+        'message': '@$handle added. They can now use /start to see their '
+            'commands.',
+      });
+    }
+    repo.addPendingUser(handle, isAdmin: false);
+    return (200, {
+      'ok': true,
+      'message': '@$handle queued — no need for them to message first. The '
+          'moment they message this bot, they are registered automatically.',
+    });
+  }
+
+  /// Runs a cycle-driving operation (prompt / remind / allocate). Requires
+  /// the wired [service]; the ops themselves follow the same code path as
+  /// the admin bot commands.
+  Future<(int, Object)> _runCycleOp(String op) async {
+    final service = this.service;
+    if (service == null) {
+      return (400, {'ok': false, 'error': 'cycle service not wired'});
+    }
+    final now = config.toLocal(Config.nowUtc());
+    final cycle = repo.ensureCurrentCycle(now);
+    switch (op) {
+      case 'prompt':
+        await service.sendPrompts(cycle);
+        LogRing.log('admin API: prompts sent');
+        return (200, {'ok': true, 'op': op});
+      case 'remind':
+        await service.sendReminders(cycle);
+        LogRing.log('admin API: reminders sent');
+        return (200, {'ok': true, 'op': op});
+      case 'allocate':
+        await service.allocate(cycle);
+        LogRing.log('admin API: allocation run');
+        return (200, {'ok': true, 'op': op});
+    }
+    return (400, {'ok': false, 'error': 'unknown op'});
+  }
+
+  /// Sends the availability picker to one member, like the admin /ask.
+  Future<(int, Object)> _ask(String bodyText) async {
+    final service = this.service;
+    if (service == null) {
+      return (400, {'ok': false, 'error': 'cycle service not wired'});
+    }
+    final body = _jsonBody(bodyText);
+    final id = (body['userId'] as num?)?.toInt();
+    if (id == null) {
+      return (400, {'ok': false, 'error': 'expected {"userId": <id>}'});
+    }
+    final user = repo.findUser(id);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    final now = config.toLocal(Config.nowUtc());
+    final cycle = repo.ensureCurrentCycle(now);
+    final text = service.promptFor(user, cycle) ??
+        service.messages.msg1(user.group);
+    await service.showAvailability(user, cycle, text);
+    LogRing.log('admin API: ask ${user.name}');
+    return (200, {'ok': true, 'asked': user.name});
+  }
+
+  /// Sends [text] to every active member, like the admin /broadcast.
+  Future<(int, Object)> _broadcast(String bodyText) async {
+    final service = this.service;
+    if (service == null) {
+      return (400, {'ok': false, 'error': 'cycle service not wired'});
+    }
+    final body = _jsonBody(bodyText);
+    final text = (body['text'] as String?)?.trim() ?? '';
+    if (text.isEmpty) {
+      return (400, {'ok': false, 'error': 'expected {"text": "..."}'});
+    }
+    var sent = 0;
+    for (final user in repo.activeUsers()) {
+      try {
+        await service.bot.api.sendMessage(ChatID(user.id), text);
+        sent++;
+      } catch (_) {
+        // member may have blocked the bot
+      }
+    }
+    LogRing.log('admin API: broadcast sent to $sent members');
+    return (200, {'ok': true, 'sent': sent});
+  }
+
+  /// Current cycle's sessions with their allocated members and attended
+  /// flags, for the console's attendance screen.
+  Map<String, Object?> _attendanceBody() {
+    final now = config.toLocal(Config.nowUtc());
+    final cycle = repo.ensureCurrentCycle(now);
+    final allocations = repo.allocationsForCycle(cycle.id);
+    final bySession = <int, List<User>>{};
+    for (final (u, s) in allocations) {
+      bySession.putIfAbsent(s.id, () => []).add(u);
+    }
+    return {
+      'ok': true,
+      'cycleStatus': cycle.status.name,
+      'sessions': [
+        for (final s in repo.sessionsForCycle(cycle.id))
+          {
+            'id': s.id,
+            'label': _sessionLabel(s),
+            'members': [
+              for (final u in bySession[s.id] ?? const <User>[])
+                {
+                  'id': u.id,
+                  'name': u.name,
+                  'attended': repo
+                      .attendanceForSession(s.id)
+                      .any((a) => a.userId == u.id),
+                },
+            ],
+          },
+      ],
+    };
+  }
+
+  /// Toggles one member's attendance for one session; returns the new state.
+  Future<(int, Object)> _toggleAttendance(String bodyText) async {
+    final body = _jsonBody(bodyText);
+    final sessionId = (body['sessionId'] as num?)?.toInt();
+    final userId = (body['userId'] as num?)?.toInt();
+    if (sessionId == null || userId == null) {
+      return (400, {
+        'ok': false,
+        'error': 'expected {"sessionId": <id>, "userId": <id>}',
+      });
+    }
+    final session = repo.sessionById(sessionId);
+    if (session == null) return (404, {'ok': false, 'error': 'no such session'});
+    final user = repo.findUser(userId);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    final already = repo
+        .attendanceForSession(sessionId)
+        .any((a) => a.userId == userId);
+    if (already) {
+      repo.raw.execute(
+        'DELETE FROM attendance WHERE user_id = ? AND session_id = ?',
+        [userId, sessionId],
+      );
+    } else {
+      repo.confirmAttendance(userId, sessionId);
+    }
+    LogRing.log('admin API: attendance ${already ? 'unmarked' : 'marked'} '
+        '${user.name}');
+    return (200, {'ok': true, 'attended': !already});
+  }
+
+  static String _sessionLabel(Session s) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final loc = s.location == Location.ocbc ? 'OCBC' : 'Pasir Ris';
+    final day = s.day == 'sat' ? 'Saturday' : 'Sunday';
+    final slot = s.slot == 'am' ? 'AM' : 'PM';
+    return '$loc · $day ${s.start.day} ${months[s.start.month - 1]} $slot';
   }
 
   Future<(int, Object)> _setHold(String bodyText) async {

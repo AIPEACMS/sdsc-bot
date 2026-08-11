@@ -32,8 +32,7 @@ class Flows {
 
   void register() {
     commandBoth(bot, 'start', _onStart, label: 'start');
-    commandBoth(bot, 'reindicate', _onReindicate, label: 're-pick');
-    commandBoth(bot, 'holiday', _onHoliday, label: 'holiday');
+    commandBoth(bot, 'repick', _onRepick, label: 're-pick');
     commandBoth(bot, 'mystatus', _onMyStatus, label: 'my-status');
     commandBoth(bot, 'check-status', _onCheckStatus, label: 'check-status');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
@@ -156,9 +155,8 @@ class Flows {
 
     sb
       ..writeln('\n<b>Member</b>')
-      ..writeln('/reindicate — update your availability')
+      ..writeln('/repick — update your availability')
       ..writeln('/mystatus — your picks, allocation and attendance')
-      ..writeln('/holiday — opt out of an upcoming break')
       ..writeln('\nUse the buttons above the keyboard to jump to a command. '
           'Type /grid to switch which grid you see (console only).');
 
@@ -233,9 +231,9 @@ class Flows {
     );
   }
 
-  // ----------------------------------------------------- /reindicate
+  // ------------------------------------------------------------ /repick
 
-  Future<void> _onReindicate(Context ctx) async {
+  Future<void> _onRepick(Context ctx) async {
     final userId = ctx.from!.id;
     final user = repo.findUser(userId);
     if (user == null || !_isActive(user)) {
@@ -255,25 +253,6 @@ class Flows {
   bool _isActive(User user) {
     final tier = MemberTier.of(user, isConsole: config.isConsole(user.id));
     return MemberTier.isActive(tier);
-  }
-
-  // -------------------------------------------------------- /holiday
-
-  /// Opts the member out of the current cycle's holiday (if any) so they are
-  /// not prompted again during it.
-  Future<void> _onHoliday(Context ctx) async {
-    final userId = ctx.from!.id;
-    final user = repo.findUser(userId);
-    if (user == null || !_isActive(user)) return;
-    final cycle = _currentCycle(ctx);
-    if (cycle == null) return;
-    final week = _holidayWeekOf(cycle);
-    if (week == null) {
-      await ctx.reply('There is no holiday right now.');
-      return;
-    }
-    repo.setHolidayOptout(userId, week);
-    await ctx.reply(messages.msg5Z());
   }
 
   // ------------------------------------------------------- /mystatus
@@ -370,15 +349,6 @@ class Flows {
     }
 
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
-  }
-
-  /// The Monday of the holiday covering this cycle's sessions, if any.
-  DateTime? _holidayWeekOf(Cycle cycle) {
-    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
-    final weekend2 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
-    return repo.holidayOn(weekend1)?.weekStart ??
-        repo.holidayOn(weekend2)?.weekStart;
   }
 
   // ------------------------------------------------------------ text
