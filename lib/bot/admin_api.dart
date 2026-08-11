@@ -7,11 +7,12 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import 'calendar_sync.dart';
 import 'hold.dart';
+import 'key_auth.dart';
 
-/// HTTP admin API for the desktop console app. Every request must present the
-/// configured bearer token (`Authorization: Bearer <token>`). Bound to all
-/// interfaces so the app can reach it over the tailnet; the token is the
-/// only gate.
+/// HTTP admin API for the desktop console app. Every request must authenticate
+/// with a registered console key (Ed25519 signature) or, as a manual
+/// fallback, the configured bearer token. Bound to all interfaces so the app
+/// can reach it over the tailnet; authentication is the only gate.
 ///
 /// Endpoints:
 ///   GET   /api/state                     -> held flag, debug clock, cycle
@@ -26,8 +27,9 @@ class AdminApi {
   final Config config;
   final CalendarSync calendarSync;
   final HoldGate holdGate;
-  final String token;
+  final String? token;
   final int port;
+  final NonceGuard _nonces = NonceGuard();
 
   HttpServer? _server;
 
@@ -54,19 +56,64 @@ class AdminApi {
     _server = null;
   }
 
-  bool _authorized(HttpRequest req) {
-    final raw = req.headers.value(HttpHeaders.authorizationHeader);
-    if (raw == null || !raw.startsWith('Bearer ')) return false;
-    return raw.substring('Bearer '.length) == token;
+  /// Returns true if the request is allowed: a known key signed it, or the
+  /// bearer token matches (when configured). The message signed by the app is
+  /// rebuilt here from the live request so nothing can be swapped.
+  Future<bool> _authorized(
+    HttpRequest req, {
+    required String method,
+    required String path,
+    required List<int> bodyBytes,
+  }) async {
+    final bearer = req.headers.value(HttpHeaders.authorizationHeader);
+    if (bearer != null && token != null && bearer == 'Bearer $token') {
+      return true;
+    }
+
+    final pubB64 = req.headers.value('X-SDSC-Pub');
+    final tsRaw = req.headers.value('X-SDSC-Ts');
+    final nonce = req.headers.value('X-SDSC-Nonce');
+    final sigB64 = req.headers.value('X-SDSC-Sig');
+    if (pubB64 == null || tsRaw == null || nonce == null || sigB64 == null) {
+      return false;
+    }
+
+    if (!repo.hasConsoleKey(pubB64)) return false;
+
+    final ts = int.tryParse(tsRaw);
+    if (ts == null) return false;
+
+    // Reject stale or clock-skewed timestamps, and replay of a nonce.
+    final skew = DateTime.now().millisecondsSinceEpoch - ts;
+    if (skew.abs() > 5 * 60 * 1000) return false;
+    if (_nonces.contains(nonce)) return false;
+    _nonces.remember(nonce, ts);
+
+    final message = KeyAuth.message(
+      method: method,
+      path: path,
+      ts: tsRaw,
+      nonce: nonce,
+      bodyHash: KeyAuth.bodyHash(bodyBytes),
+    );
+    return KeyAuth.verifySignature(
+      pubkeyB64: pubB64,
+      signatureB64: sigB64,
+      message: utf8.encode(message),
+    );
   }
 
   Future<void> _handle(HttpRequest req) async {
     HttpResponse res;
     try {
-      if (!_authorized(req)) {
+      final bodyBytes = await _readBody(req);
+      final method = req.method.toUpperCase();
+      final path = req.uri.path;
+      if (!await _authorized(req,
+          method: method, path: path, bodyBytes: bodyBytes)) {
         res = _json(req, 401, {'ok': false, 'error': 'unauthorized'});
       } else {
-        res = await _route(req);
+        res = await _route(req, utf8.decode(bodyBytes));
       }
     } catch (e) {
       res = _json(req, 500, {'ok': false, 'error': 'internal: $e'});
@@ -74,7 +121,15 @@ class AdminApi {
     await res.close();
   }
 
-  Future<HttpResponse> _route(HttpRequest req) async {
+  static Future<List<int>> _readBody(HttpRequest req) async {
+    final bytes = <int>[];
+    await for (final chunk in req) {
+      bytes.addAll(chunk);
+    }
+    return bytes;
+  }
+
+  Future<HttpResponse> _route(HttpRequest req, String bodyText) async {
     final segs = req.uri.pathSegments;
     if (segs.length < 2 || segs[0] != 'api') {
       return _json(req, 404, {'ok': false, 'error': 'not found'});
@@ -97,14 +152,14 @@ class AdminApi {
           if (id == null) {
             return _json(req, 400, {'ok': false, 'error': 'bad user id'});
           }
-          return _setTier(req, id);
+          return _setTier(req, id, bodyText);
         }
       case 'hold':
-        if (method == 'POST') return _setHold(req);
+        if (method == 'POST') return _setHold(req, bodyText);
       case 'date':
-        if (method == 'POST') return _setDate(req);
+        if (method == 'POST') return _setDate(req, bodyText);
       case 'sync-calendar':
-        if (method == 'POST') return _syncCalendar(req);
+        if (method == 'POST') return _syncCalendar(req, bodyText);
       case 'logs':
         if (method == 'GET') {
           return _json(req, 200, {'ok': true, 'lines': LogRing.snapshot});
@@ -154,13 +209,14 @@ class AdminApi {
     ];
   }
 
-  Future<HttpResponse> _setTier(HttpRequest req, int id) async {
+  Future<HttpResponse> _setTier(
+      HttpRequest req, int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return _json(req, 404, {'ok': false, 'error': 'no such user'});
     if (config.isConsole(id)) {
       return _json(req, 400, {'ok': false, 'error': 'cannot change console tier'});
     }
-    final body = await _body(req);
+    final body = _jsonBody(bodyText);
     final tier = (body['tier'] as String?) ?? '';
     if (!MemberTier.order.contains(tier) || tier == MemberTier.console) {
       return _json(req, 400, {'ok': false, 'error': 'bad tier'});
@@ -175,8 +231,8 @@ class AdminApi {
     });
   }
 
-  Future<HttpResponse> _setHold(HttpRequest req) async {
-    final body = await _body(req);
+  Future<HttpResponse> _setHold(HttpRequest req, String bodyText) async {
+    final body = _jsonBody(bodyText);
     final held = body['held'];
     if (held is! bool) {
       return _json(req, 400, {'ok': false, 'error': 'expected {"held": bool}'});
@@ -187,8 +243,8 @@ class AdminApi {
     return _json(req, 200, {'ok': true, 'held': held});
   }
 
-  Future<HttpResponse> _setDate(HttpRequest req) async {
-    final body = await _body(req);
+  Future<HttpResponse> _setDate(HttpRequest req, String bodyText) async {
+    final body = _jsonBody(bodyText);
     if (body['reset'] == true) {
       Config.setDebugNow(null);
       LogRing.log('admin API: reset-date');
@@ -205,8 +261,8 @@ class AdminApi {
     return _json(req, 200, {'ok': true, 'date': raw});
   }
 
-  Future<HttpResponse> _syncCalendar(HttpRequest req) async {
-    final body = await _body(req);
+  Future<HttpResponse> _syncCalendar(HttpRequest req, String bodyText) async {
+    final body = _jsonBody(bodyText);
     final yaml = (body['yaml'] as String?) ?? '';
     if (yaml.trim().isEmpty) {
       return _json(req, 400,
@@ -247,8 +303,7 @@ class AdminApi {
         .toUtc();
   }
 
-  static Future<Map<String, dynamic>> _body(HttpRequest req) async {
-    final text = await utf8.decoder.bind(req).join();
+  static Map<String, dynamic> _jsonBody(String text) {
     if (text.trim().isEmpty) return {};
     return jsonDecode(text) as Map<String, dynamic>;
   }

@@ -82,8 +82,8 @@ Future<void> main() async {
   }
 
   AdminApi? adminApi;
-  final apiToken = config.adminApiToken ?? config.calendarIpcToken;
-  if (apiToken != null) {
+  final apiToken = config.adminApiToken;
+  if (apiToken != null || repo.listConsoleKeys().isNotEmpty) {
     adminApi = AdminApi(
       repo: repo,
       config: config,

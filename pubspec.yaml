@@ -1,6 +1,6 @@
 name: sdsc_bot
 description: Telegram bot for volunteer availability and allocation.
-version: 1.0.1
+version: 1.1.0
 publish_to: none
 
 environment:
@@ -10,6 +10,8 @@ dependencies:
   televerse: ^3.6.0
   sqlite3: ^3.5.1
   yaml: ^3.1.3
+  cryptography: ^2.9.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   lints: ^6.0.0

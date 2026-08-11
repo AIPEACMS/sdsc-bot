@@ -1,19 +1,48 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 import 'package:sdsc_bot/bot/calendar_sync.dart';
 import 'package:sdsc_bot/bot/admin_api.dart';
 import 'package:sdsc_bot/bot/hold.dart';
+import 'package:sdsc_bot/bot/key_auth.dart';
+
+/// Deterministic 32-byte ed25519 seed for the test console key.
+final List<int> _seed = List<int>.generate(32, (i) => i + 13);
 
 void main() {
   late Directory tmp;
   late Database db;
   late Repo repo;
   late AdminApi api;
+  final rand = Random();
 
   const token = 'secret-token';
+
+  Future<(String pub, String sig)> signKey(
+    String method,
+    String path,
+    String bodyHash, {
+    String? ts,
+    String? nonce,
+  }) async {
+    final t = ts ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final n = nonce ?? '${rand.nextInt(1 << 32)}-${rand.nextInt(1 << 32)}';
+    final message = KeyAuth.message(
+      method: method,
+      path: path,
+      ts: t,
+      nonce: n,
+      bodyHash: bodyHash,
+    );
+    final (pub, sig) = await KeyAuth.signWithSeed(
+      seed: _seed,
+      message: utf8.encode(message),
+    );
+    return (pub, sig);
+  }
 
   Config makeConfig() => Config(
         botToken: 'test',
@@ -50,6 +79,13 @@ void main() {
       port: 0,
     );
     await api.start();
+
+    // Register the test console key so signed requests authenticate.
+    final (pub, _) = await KeyAuth.signWithSeed(
+      seed: _seed,
+      message: utf8.encode('seed'),
+    );
+    repo.addConsoleKey(pub, name: 'test');
   });
 
   tearDown(() async {
@@ -71,6 +107,44 @@ void main() {
       if (authorized) {
         req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       }
+      if (body != null) {
+        req.headers.contentType = ContentType.json;
+        req.write(jsonEncode(body));
+      }
+      final res = await req.close();
+      final text = await res.transform(utf8.decoder).join();
+      final decoded = text.isEmpty ? <String, dynamic>{} : jsonDecode(text);
+      return (res.statusCode, decoded);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  /// Sends a request signed with the test console key. [body] is covered by
+  /// the signature via its sha256, so send the EXACT bytes you intend.
+  Future<(int, Object?)> signedCall(
+    String method,
+    String path, {
+    Object? body,
+    String? ts,
+    String? nonce,
+  }) async {
+    final tsNow = ts ?? DateTime.now().millisecondsSinceEpoch.toString();
+    final nonceNow =
+        nonce ?? '${rand.nextInt(1 << 32)}-${rand.nextInt(1 << 32)}';
+    final bodyBytes =
+        body == null ? utf8.encode('') : utf8.encode(jsonEncode(body));
+    final (pub, sig) = await signKey(method, path, KeyAuth.bodyHash(bodyBytes),
+        ts: tsNow, nonce: nonceNow);
+
+    final client = HttpClient();
+    try {
+      final req = await client.openUrl(method, Uri.parse(
+          'http://127.0.0.1:${api.boundPort}$path'));
+      req.headers.set('X-SDSC-Pub', pub);
+      req.headers.set('X-SDSC-Ts', tsNow);
+      req.headers.set('X-SDSC-Nonce', nonceNow);
+      req.headers.set('X-SDSC-Sig', sig);
       if (body != null) {
         req.headers.contentType = ContentType.json;
         req.write(jsonEncode(body));
@@ -199,5 +273,104 @@ void main() {
     final missingMap = missing as Map<String, dynamic>;
     expect(missingStatus, 404);
     expect(missingMap['error'], contains('no such user'));
+  });
+
+  // ---------------------------------------------------------- key auth
+
+  test('a registered console key authenticates signed requests', () async {
+    final (status, body) = await signedCall('GET', '/api/users');
+    final bodyMap = body as Map<String, dynamic>;
+    expect(status, 200);
+    expect(bodyMap['ok'], true);
+  });
+
+  test('an unregistered key is rejected even with a valid signature', () async {
+    final key = repo.listConsoleKeys().single.pubkey;
+    repo.removeConsoleKey(key);
+    final (status, _) = await signedCall('GET', '/api/users');
+    expect(status, 401);
+  });
+
+  test('a signed request with a tampered body is rejected', () async {
+    // Sign for body {"held":true} but actually send
+    // {"held":false}: the sha256 in the signature no longer matches.
+    final bodyBytes = utf8.encode(jsonEncode({'held': true}));
+    final bodyHash = KeyAuth.bodyHash(bodyBytes);
+    final ts = DateTime.now().millisecondsSinceEpoch.toString();
+    final nonce = 'tamper-${rand.nextInt(1 << 32)}';
+    final (pub, sig) = await signKey('POST', '/api/hold', bodyHash,
+        ts: ts, nonce: nonce);
+
+    final client = HttpClient();
+    try {
+      final req = await client.postUrl(
+          Uri.parse('http://127.0.0.1:${api.boundPort}/api/hold'));
+      req.headers.set('X-SDSC-Pub', pub);
+      req.headers.set('X-SDSC-Ts', ts);
+      req.headers.set('X-SDSC-Nonce', nonce);
+      req.headers.set('X-SDSC-Sig', sig);
+      req.headers.contentType = ContentType.json;
+      req.write(jsonEncode({'held': false}));
+      final res = await req.close();
+      expect(res.statusCode, 401);
+      await res.drain<void>();
+    } finally {
+      client.close(force: true);
+    }
+  });
+
+  test('replaying the same signed request (nonce) is rejected', () async {
+    final ts = DateTime.now().millisecondsSinceEpoch.toString();
+    final nonce = 'replay-${rand.nextInt(1 << 32)}';
+    final first = await signedCall('GET', '/api/state', ts: ts, nonce: nonce);
+    expect(first.$1, 200);
+    final second = await signedCall('GET', '/api/state', ts: ts, nonce: nonce);
+    expect(second.$1, 401);
+  });
+
+  test('a stale timestamp is rejected', () async {
+    final stale =
+        (DateTime.now().millisecondsSinceEpoch - 10 * 60 * 1000).toString();
+    final (status, _) = await signedCall('GET', '/api/state', ts: stale);
+    expect(status, 401);
+  });
+
+  test('a signature bound to another path is rejected', () async {
+    // Sign the message for /api/state but hit /api/users.
+    final bodyHash = KeyAuth.bodyHash(utf8.encode(''));
+    final ts = DateTime.now().millisecondsSinceEpoch.toString();
+    final nonce = 'path-${rand.nextInt(1 << 32)}';
+    final (pub, sig) = await signKey('GET', '/api/state', bodyHash,
+        ts: ts, nonce: nonce);
+
+    final client = HttpClient();
+    try {
+      final req = await client
+          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}/api/users'));
+      req.headers.set('X-SDSC-Pub', pub);
+      req.headers.set('X-SDSC-Ts', ts);
+      req.headers.set('X-SDSC-Nonce', nonce);
+      req.headers.set('X-SDSC-Sig', sig);
+      final res = await req.close();
+      expect(res.statusCode, 401);
+      await res.drain<void>();
+    } finally {
+      client.close(force: true);
+    }
+  });
+
+  test('the calendar IPC token never authorizes the admin API', () async {
+    final client = HttpClient();
+    try {
+      final req = await client
+          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}/api/state'));
+      req.headers.set(
+          HttpHeaders.authorizationHeader, 'Bearer calendar-cron-token');
+      final res = await req.close();
+      expect(res.statusCode, 401);
+      await res.drain<void>();
+    } finally {
+      client.close(force: true);
+    }
   });
 }
