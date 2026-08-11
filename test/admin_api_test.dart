@@ -554,7 +554,8 @@ void main() {
     expect(repo.findUser(7)!.isAdmin, false);
     expect(repo.findUser(7)!.memberTier, 'check');
 
-    // The console's own admin flag cannot be toggled via the API.
+    // The console can also toggle their own admin flag (stepping down as
+    // admin while staying the console).
     repo.upsertUser(User(
       id: 1,
       name: '@root',
@@ -563,8 +564,39 @@ void main() {
       isAdmin: true,
     ));
     final (consoleStatus, _) = await call('POST', '/api/users/1/admin',
-        body: {'admin': true});
-    expect(consoleStatus, 400);
+        body: {'admin': false});
+    expect(consoleStatus, 200);
+    expect(repo.findUser(1)!.isAdmin, false);
+  });
+
+  test('the console can demote themselves to old (no prompts, no allocation)',
+      () async {
+    // Id 1 is the console id in this test config.
+    repo.upsertUser(User(
+      id: 1,
+      name: '@root',
+      experience: Experience.experienced,
+      group: 'A',
+      isAdmin: true,
+    ));
+    final (status, body) =
+        await call('POST', '/api/users/1/tier', body: {'tier': 'old'});
+    expect(status, 200);
+    final u = repo.findUser(1)!;
+    expect(u.memberTier, 'old');
+    expect(u.isAdmin, false);
+    // Dropped from the prompt/allocation pool.
+    expect(repo.activeUsers().any((x) => x.id == 1), isFalse);
+    // Still reported as the console, with the old-mem group visible.
+    final (_, usersBody) = await call('GET', '/api/users');
+    final users = ((usersBody as Map<String, dynamic>)['users'] as List)
+        .cast<Map<String, dynamic>>();
+    final root = users.firstWhere((u) => u['id'] == 1);
+    expect((root['groups'] as List).cast<String>(), ['console', 'old']);
+
+    // They can promote themselves back to an active member.
+    await call('POST', '/api/users/1/tier', body: {'tier': 'member'});
+    expect(repo.activeUsers().any((x) => x.id == 1), isTrue);
   });
 
   test('POST /api/users/{id}/exp changes experience', () async {
@@ -666,6 +698,8 @@ void main() {
         .cast<Map<String, dynamic>>()
         .firstWhere((s) => s['id'] == sessionId);
     expect(s['label'], isNotEmpty);
+    expect(s['location'], isNotEmpty);
+    expect((s['weekendIndex'] as num?)?.toInt(), inInclusiveRange(0, 1));
     final members = (s['members'] as List).cast<Map<String, dynamic>>();
     expect(members, hasLength(2));
     expect(members.every((m) => m['attended'] == false), isTrue);

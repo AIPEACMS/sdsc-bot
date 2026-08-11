@@ -63,6 +63,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-08-12
+
+### Added
+
+- **The console user can demote themselves.** The tier API no longer blocks
+  the console id, so the operator can retire as a member (tier `old`, admin
+  cleared) while staying the console: no weekly prompts, no allocation, and
+  the user shows as `console | old`. Promoting back is a tier change away.
+- **The attendance endpoint reports each session's location and weekend**
+  (`location`, `weekendIndex`), so the console can split the sheet into
+  Pasir Ris / OCBC and cluster it by week.
+
+### Changed
+
+- **`/start` for a retired console** (tier `old`) lists only the console
+  commands plus a note that they will not be prompted or allocated — the
+  admin and member command lists are hidden until they re-promote.
+
 ## [1.4.0] - 2026-08-12
 
 ### Added

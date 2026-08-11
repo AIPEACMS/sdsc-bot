@@ -126,7 +126,10 @@ class Flows {
       return;
     }
 
-    final isAdmin = user.isAdmin || isConsole;
+    // The console can step down as a member (tier 'old') while keeping the
+    // console role: no prompts, no allocation, but backend control stays.
+    final retired = user.memberTier == MemberTier.old;
+    final isAdmin = (user.isAdmin || isConsole) && !retired;
 
     final sb = StringBuffer()
       ..writeln('👋 <b>${user.name}</b>, here is what you can do:');
@@ -138,6 +141,11 @@ class Flows {
         ..writeln('/unhold — resume sending')
         ..writeln('\n<i>Set-date, reset-date, sync-calendar and account '
             'management now live in the desktop console app.</i>');
+    }
+
+    if (retired) {
+      sb.writeln('\n<i>You are not an active member — you will not be '
+          'prompted or allocated.</i>');
     }
 
     if (isAdmin) {
@@ -153,12 +161,14 @@ class Flows {
         ..writeln('/setexp experienced|newbie — change a member\'s experience');
     }
 
-    sb
-      ..writeln('\n<b>Member</b>')
-      ..writeln('/repick — update your availability')
-      ..writeln('/mystatus — your picks, allocation and attendance')
-      ..writeln('\nUse the buttons above the keyboard to jump to a command. '
-          'Type /grid to switch which grid you see (console only).');
+    if (!retired) {
+      sb
+        ..writeln('\n<b>Member</b>')
+        ..writeln('/repick — update your availability')
+        ..writeln('/mystatus — your picks, allocation and attendance')
+        ..writeln('\nUse the buttons above the keyboard to jump to a command. '
+            'Type /grid to switch which grid you see (console only).');
+    }
 
     await ctx.reply(
       sb.toString(),
