@@ -324,9 +324,6 @@ class AdminApi {
   Future<(int, Object)> _setTier(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    if (config.isConsole(id)) {
-      return (400, {'ok': false, 'error': 'cannot change console tier'});
-    }
     final body = _jsonBody(bodyText);
     final tier = (body['tier'] as String?) ?? '';
     if (!MemberTier.order.contains(tier) || tier == MemberTier.console) {
@@ -344,13 +341,11 @@ class AdminApi {
 
   /// Toggles the admin flag only — the member tier (check/member/old) is
   /// left untouched, unlike [setTier] which clears admin on any non-admin
-  /// tier. The console's own admin flag cannot be touched this way.
+  /// tier. The console may also use this (e.g. stepping down as admin while
+  /// remaining the console).
   Future<(int, Object)> _setUserAdmin(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    if (config.isConsole(id)) {
-      return (400, {'ok': false, 'error': 'cannot change console tier'});
-    }
     final body = _jsonBody(bodyText);
     final admin = body['admin'];
     if (admin is! bool) {
@@ -513,6 +508,8 @@ class AdminApi {
           {
             'id': s.id,
             'label': _sessionLabel(s),
+            'location': s.location.name,
+            'weekendIndex': s.weekendIndex,
             'members': [
               for (final u in bySession[s.id] ?? const <User>[])
                 {
