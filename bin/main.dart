@@ -81,9 +81,11 @@ Future<void> main() async {
     );
   }
 
-  AdminApi? adminApi;
+    AdminApi? adminApi;
+  // Always listen: with zero registered keys the API 401s every request, but
+  // it must be up for the very first console key to be usable after /addkey.
   final apiToken = config.adminApiToken;
-  if (apiToken != null || repo.listConsoleKeys().isNotEmpty) {
+  if (config.adminApiPort > 0) {
     adminApi = AdminApi(
       repo: repo,
       config: config,

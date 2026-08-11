@@ -5,6 +5,25 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.2.0] - 2026-08-11
+
+### Added
+
+- **The admin API now has its own identity.** The bot generates an Ed25519
+  keypair on first use (persisted in the DB) and signs every API response.
+  `GET /api/server-info` exposes the public key and fingerprint so the console
+  app can pin it on first connect after out-of-band verification. A fake
+  backend can no longer pose as the bot even if it registers the console's
+  public key — every response must be signed by the pinned server identity.
+
+## [1.1.1] - 2026-08-11
+
+### Fixed
+
+- Admin API would not start on a fresh database with no console keys
+  registered yet, so the very first key could never authenticate. The API now
+  always listens; with no keys it rejects every request.
+
 ## [1.1.0] - 2026-08-11
 
 ### Changed

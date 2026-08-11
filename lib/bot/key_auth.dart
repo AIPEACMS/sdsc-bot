@@ -55,6 +55,35 @@ class KeyAuth {
     );
   }
 
+  /// Derives just the base64 public key from a 32-byte ed25519 seed.
+  static Future<String> pubkeyFromSeed(List<int> seed) async {
+    final keyPair = await Ed25519().newKeyPairFromSeed(seed);
+    final publicKey = await keyPair.extractPublicKey();
+    return base64Encode(publicKey.bytes);
+  }
+
+  /// An operator-verifiable fingerprint for a base64 ed25519 public key:
+  /// lowercase hex sha256 of the raw 32 bytes. The same function lives in the
+  /// console app so both sides display identical fingerprints.
+  static String fingerprint(String pubkeyB64) {
+    final digest = sha256.convert(base64Decode(pubkeyB64));
+    return digest.toString();
+  }
+
+  /// Builds the exact signed-message string for a server response. Distinct
+  /// from the request format (prefix `resp:`) so a captured request signature
+  /// can never verify as a response. `$nonce` is the request nonce being
+  /// answered, binding the signature to the specific exchange.
+  static String serverMessage({
+    required String method,
+    required String path,
+    required String ts,
+    required String nonce,
+    required String bodyHash,
+  }) {
+    return 'resp:$method\n$path\n$ts\n$nonce\n$bodyHash';
+  }
+
   /// Hex sha256 of [bytes] (lowercase), the body-hash of the signed message.
   static String bodyHash(List<int> bytes) {
     final digest = sha256.convert(bytes);
