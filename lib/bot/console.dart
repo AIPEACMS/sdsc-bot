@@ -2,6 +2,7 @@ import 'package:televerse/televerse.dart';
 import 'package:televerse/telegram.dart' hide Location, User;
 
 import '../core/config.dart';
+import '../core/log.dart';
 import '../core/models.dart';
 import '../core/repo.dart';
 import 'calendar_sync.dart';
@@ -39,6 +40,9 @@ class Console {
         label: 'sync-calendar');
     commandBoth(bot, 'hold', _guard(_holdConfirm), label: 'hold');
     commandBoth(bot, 'unhold', _guard(_unholdConfirm), label: 'unhold');
+    commandBoth(bot, 'addkey', _guard(_addKey), label: 'add-key');
+    commandBoth(bot, 'keys', _guard(_keys), label: 'keys');
+    commandBoth(bot, 'rmkey', _guard(_rmKey), label: 'rm-key');
 
     // Hold/unhold callbacks, console only.
     bot.use((ctx, next) async {
@@ -284,5 +288,87 @@ class Console {
     final m = d.minute.toString().padLeft(2, '0');
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
         '${d.day.toString().padLeft(2, '0')} $h:$m';
+  }
+
+  // ------------------------------------------- /addkey /keys /rmkey
+
+  /// Registers the desktop console app's Ed25519 public key so it can talk to
+  /// the admin API. The app generates a keypair on first run and displays its
+  /// public key; the operator pastes it here. This is the only async-auth
+  /// bootstrap — the Telegram console chat is the trusted channel.
+  Future<void> _addKey(Context ctx) async {
+    final args = ctx.args;
+    if (args.isEmpty) {
+      await ctx.reply(
+        '🔑 Send the console app\'s public key to register it:\n'
+        '<code>/addkey &lt;base64 public key&gt; [name]</code>',
+        parseMode: ParseMode.html,
+      );
+      return;
+    }
+    final pubkey = args.first.trim();
+    final name = args.skip(1).join(' ');
+    if (pubkey.length < 16) {
+      await ctx.reply('That does not look like a valid public key.');
+      return;
+    }
+    if (repo.hasConsoleKey(pubkey)) {
+      await ctx.reply('That key is already registered.');
+      return;
+    }
+    repo.addConsoleKey(pubkey, name: name);
+    LogRing.log(
+        'console: registered console key ${pubkey.substring(0, 12)}…');
+    await ctx.reply(
+      '✅ Console key registered.\n'
+      'The desktop app can now control the bot with signed requests.',
+      parseMode: ParseMode.html,
+    );
+  }
+
+  Future<void> _keys(Context ctx) async {
+    final keys = repo.listConsoleKeys();
+    if (keys.isEmpty) {
+      await ctx.reply('No console keys registered yet.');
+      return;
+    }
+    final lines = [
+      for (final (i, k) in keys.indexed)
+        '${i + 1}. ${k.pubkey.substring(0, 16)}…'
+            '${k.name.isNotEmpty ? ' (${k.name})' : ''}',
+    ];
+    await ctx.reply(
+      '🔑 <b>Console keys (${keys.length})</b>\n${lines.join('\n')}',
+      parseMode: ParseMode.html,
+    );
+  }
+
+  Future<void> _rmKey(Context ctx) async {
+    final args = ctx.args;
+    if (args.isEmpty) {
+      await ctx.reply('Usage: /rmkey &lt;1|base64 public key&gt;');
+      return;
+    }
+    final keys = repo.listConsoleKeys();
+    final arg = args.first.trim();
+    String? target;
+    final index = int.tryParse(arg);
+    if (index != null && index >= 1 && index <= keys.length) {
+      target = keys[index - 1].pubkey;
+    } else {
+      for (final k in keys) {
+        if (k.pubkey == arg) {
+          target = k.pubkey;
+          break;
+        }
+      }
+    }
+    if (target == null) {
+      await ctx.reply('No matching key. Use /keys to list them.');
+      return;
+    }
+    repo.removeConsoleKey(target);
+    LogRing.log('console: removed console key ${target.substring(0, 12)}…');
+    await ctx.reply('✅ Key removed — the app can no longer sign in.');
   }
 }

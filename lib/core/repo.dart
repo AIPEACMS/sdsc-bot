@@ -8,6 +8,19 @@ import 'db.dart';
 import 'models.dart';
 import 'week.dart';
 
+/// A registered Ed25519 public key that the desktop console app uses to sign
+/// admin API requests. The value is the base64 of the raw 32-byte key.
+class ConsoleKey {
+  final String pubkey;
+  final String name;
+  final String createdAt;
+  const ConsoleKey({
+    required this.pubkey,
+    required this.name,
+    required this.createdAt,
+  });
+}
+
 /// Data access layer over SQLite. All dates are stored as ISO-8601 strings in
 /// the bot's local timezone (UTC+8).
 class Repo {
@@ -16,6 +29,42 @@ class Repo {
   final Database _db;
 
   sqlite.Database get raw => _db.raw;
+
+  // -------------------------------------------------------- console keys
+
+  List<ConsoleKey> listConsoleKeys() {
+    return [
+      for (final row
+          in raw.select('SELECT * FROM console_keys ORDER BY id'))
+        ConsoleKey(
+          pubkey: row['pubkey'] as String,
+          name: row['name'] as String,
+          createdAt: row['created_at'] as String,
+        ),
+    ];
+  }
+
+  bool hasConsoleKey(String pubkey) =>
+      raw.select(
+        'SELECT 1 FROM console_keys WHERE pubkey = ? LIMIT 1',
+        [pubkey],
+      ).isNotEmpty;
+
+  void addConsoleKey(String pubkey, {String name = ''}) {
+    raw.execute(
+      'INSERT OR IGNORE INTO console_keys (pubkey, name) VALUES (?, ?)',
+      [pubkey, name],
+    );
+  }
+
+  bool removeConsoleKey(String pubkey) {
+    if (!hasConsoleKey(pubkey)) return false;
+    raw.execute(
+      'DELETE FROM console_keys WHERE pubkey = ?',
+      [pubkey],
+    );
+    return true;
+  }
 
   // ---------------------------------------------------------------- users
 

@@ -32,14 +32,20 @@ class Config {
   /// Token that the calendar-sync cron must present to the bot's IPC
   /// endpoint. Read from `CALENDAR_IPC_TOKEN` (secret env file, never in the
   /// repo). Null disables the IPC listener.
+  ///
+  /// This token is scoped to the loopback calendar IPC only — it is never
+  /// accepted by the HTTP admin API. The two credentials are kept separate so
+  /// a leaked cron token cannot drive the console app.
   final String? calendarIpcToken;
 
   /// Port for the loopback calendar-sync IPC listener. Default 8737.
   final int calendarIpcPort;
 
-  /// Token that the desktop console app must present to the HTTP admin API
-  /// (`Authorization: Bearer <token>`). Read from `ADMIN_API_TOKEN`; falls
-  /// back to [calendarIpcToken] when unset. Null disables the admin API.
+  /// Optional shared secret that the console app may present to the HTTP
+  /// admin API as a manual fallback (`Authorization: Bearer <token>`). Read
+  /// from `ADMIN_API_TOKEN`. When unset, the admin API authenticates console
+  /// apps by their registered Ed25519 key instead. This never falls back to
+  /// [calendarIpcToken].
   final String? adminApiToken;
 
   /// Port for the HTTP admin API. Default 8738.

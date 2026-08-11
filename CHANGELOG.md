@@ -5,6 +5,20 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.1.0] - 2026-08-11
+
+### Changed
+
+- **Console app authentication is now asymmetric.** The desktop console app
+  generates an Ed25519 keypair on first run, the operator registers its public
+  key with the console-only `/addkey` command, and every admin-API request is
+  signed (timestamp + nonce + path + body hash). Registers with `/keys`,
+  revokes with `/rmkey`.
+- **The calendar-sync cron token never authorizes the admin API.** The two
+  credentials are now fully separate — the loopback IPC token is scoped to
+  the calendar sync only. The optional admin `ADMIN_API_TOKEN` remains as a
+  manual bearer fallback.
+
 ## [Unreleased]
 
 ## [1.0.1] - 2026-08-11
