@@ -530,6 +530,27 @@ void main() {
     expect(groupOf(4), 'member');
   });
 
+  test('a console who stepped down as admin shows console | member',
+      () async {
+    repo.upsertUser(User(
+      id: 1,
+      name: '@root',
+      experience: Experience.experienced,
+      group: 'A',
+      isAdmin: true,
+    ));
+    // Console removes their own admin flag: still a member, not an admin.
+    await call('POST', '/api/users/1/admin', body: {'admin': false});
+    final (_, body) = await call('GET', '/api/users');
+    final users =
+        ((body as Map<String, dynamic>)['users'] as List)
+            .cast<Map<String, dynamic>>();
+    final root = users.firstWhere((u) => u['id'] == 1);
+    expect((root['groups'] as List).cast<String>(), ['console', 'member']);
+    // Still active: a retired-from-admin console is a normal member.
+    expect(repo.activeUsers().any((u) => u.id == 1), isTrue);
+  });
+
   // ------------------------------------------------------- user admin
 
   test('POST /api/users/{id}/admin grants and strips admin, keeping the tier',
@@ -700,6 +721,8 @@ void main() {
     expect(s['label'], isNotEmpty);
     expect(s['location'], isNotEmpty);
     expect((s['weekendIndex'] as num?)?.toInt(), inInclusiveRange(0, 1));
+    expect(['sat', 'sun'], contains(s['day']));
+    expect(['am', 'pm'], contains(s['slot']));
     final members = (s['members'] as List).cast<Map<String, dynamic>>();
     expect(members, hasLength(2));
     expect(members.every((m) => m['attended'] == false), isTrue);

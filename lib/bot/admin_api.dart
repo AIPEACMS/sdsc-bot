@@ -288,14 +288,17 @@ class AdminApi {
   }
 
   /// The user's full set of groups, most significant first: console >
-  /// admin > check/member/old. 'member' is implied by admin/console and is
-  /// only listed when it is the only group.
+  /// admin > check/member/old. 'member' is implied by admin (admin is always
+  /// a member) but shown explicitly for a plain member — including a console
+  /// who stepped down as admin (console | member).
   static List<String> _groupsOf(User u, {required bool isConsole}) {
     final groups = <String>[];
     if (isConsole) groups.add(MemberTier.console);
     if (u.isAdmin) groups.add(MemberTier.admin);
     if (u.memberTier == MemberTier.check || u.memberTier == MemberTier.old) {
       groups.add(u.memberTier);
+    } else if (u.memberTier == MemberTier.member && !u.isAdmin) {
+      groups.add(MemberTier.member);
     }
     if (groups.isEmpty) groups.add(MemberTier.member);
     return groups;
@@ -510,6 +513,8 @@ class AdminApi {
             'label': _sessionLabel(s),
             'location': s.location.name,
             'weekendIndex': s.weekendIndex,
+            'day': s.day,
+            'slot': s.slot,
             'members': [
               for (final u in bySession[s.id] ?? const <User>[])
                 {
