@@ -52,7 +52,7 @@ class RoleKeyboard {
 
   static const List<GridButton> memberButtons = [
     GridButton('start', '/start', RoleColor.member),
-    GridButton('re-pick', '/reindicate', RoleColor.member),
+    GridButton('re-pick', '/repick', RoleColor.member),
     GridButton('my-status', '/mystatus', RoleColor.member),
   ];
 

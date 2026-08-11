@@ -44,7 +44,7 @@ class Messages {
     final list = lines.isEmpty ? '(none)' : lines.join('\n');
     return 'Thank you! Here is what you told us:\n$list\n\n'
         'Allocation runs at $allocLabel sharp. '
-        'Changed your mind? Send /reindicate to update before then.';
+        'Changed your mind? Send /repick to update before then.';
   }
 
   /// Confirmation when the member indicated they are not available.
@@ -76,7 +76,7 @@ class Messages {
         'you would like to attend.\n\n'
         'Tap the sessions you can attend and press <b>Done</b>, or press '
         '<b>Not available</b> to rest this break. Spending it with family? '
-        'Simply send /holiday to opt out.';
+        'Tap <b>Skip me this holiday</b> on the prompt to opt out.';
   }
 
   /// Response to the /holiday opt-out command.

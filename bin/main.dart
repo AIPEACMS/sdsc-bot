@@ -116,6 +116,7 @@ Future<void> main() async {
       holdGate: holdGate,
       token: apiToken,
       port: config.adminApiPort,
+      service: service,
     );
   }
 
