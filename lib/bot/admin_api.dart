@@ -8,20 +8,33 @@ import '../core/repo.dart';
 import 'calendar_sync.dart';
 import 'hold.dart';
 import 'key_auth.dart';
+import 'server_identity.dart';
 
 /// HTTP admin API for the desktop console app. Every request must authenticate
 /// with a registered console key (Ed25519 signature) or, as a manual
 /// fallback, the configured bearer token. Bound to all interfaces so the app
 /// can reach it over the tailnet; authentication is the only gate.
 ///
+/// Mutual auth: every response is signed by the server's own Ed25519 identity
+/// ([ServerIdentity]), carried in these headers:
+///
+///   X-SDSC-Server-Pub:   base64 raw 32-byte public key
+///   X-SDSC-Server-Ts:    unix milliseconds
+///   X-SDSC-Server-Sig:   base64 ed25519 signature over `resp:$message`
+///
+/// The console pins the identity's fingerprint on first connect and ignores
+/// anything not signed by that key, so an impostor backend is detected even
+/// if it registers the console's public key.
+///
 /// Endpoints:
-///   GET   /api/state                     -> held flag, debug clock, cycle
-///   GET   /api/users                     -> every user with tier + attendance
-///   POST  /api/users/{id}/tier           -> { "tier": "admin|check|member|old" }
-///   POST  /api/hold                      -> { "held": true|false }
-///   POST  /api/date                      -> { "date": "YYYY-MM-DD HH:MM" } | { "reset": true }
-///   POST  /api/sync-calendar             -> { "yaml": "..." }
-///   GET   /api/logs                      -> { "lines": [...] }
+///   GET   /api/server-info              -> public key + fingerprint
+///   GET   /api/state                    -> held flag, debug clock, cycle
+///   GET   /api/users                    -> every user with tier + attendance
+///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|old" }
+///   POST  /api/hold                     -> { "held": true|false }
+///   POST  /api/date                     -> { "date": "YYYY-MM-DD HH:MM" } | { "reset": true }
+///   POST  /api/sync-calendar            -> { "yaml": "..." }
+///   GET   /api/logs                     -> { "lines": [...] }
 class AdminApi {
   final Repo repo;
   final Config config;
@@ -29,6 +42,7 @@ class AdminApi {
   final HoldGate holdGate;
   final String? token;
   final int port;
+  final ServerIdentity identity;
   final NonceGuard _nonces = NonceGuard();
 
   HttpServer? _server;
@@ -40,7 +54,7 @@ class AdminApi {
     required this.holdGate,
     required this.token,
     required this.port,
-  });
+  }) : identity = ServerIdentity(repo);
 
   /// The actual bound port (differs from [port] when 0 = ephemeral).
   int get boundPort => _server?.port ?? port;
@@ -49,6 +63,8 @@ class AdminApi {
     _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
     _server!.listen(_handle);
     LogRing.log('admin API listening on :$boundPort');
+    LogRing.log(
+        'admin API server fingerprint ${await identity.fingerprint()}');
   }
 
   Future<void> stop() async {
@@ -104,21 +120,33 @@ class AdminApi {
   }
 
   Future<void> _handle(HttpRequest req) async {
-    HttpResponse res;
     try {
       final bodyBytes = await _readBody(req);
       final method = req.method.toUpperCase();
       final path = req.uri.path;
+
+      // The server identity is public by design: the console must be able to
+      // discover the fingerprint to pin on its very first connect, before it
+      // holds any registration. Nothing is signed here — this is the anchor.
+      if (method == 'GET' && path == '/api/server-info') {
+        await _send(req, 200, {
+          'ok': true,
+          'pubkey': await identity.pubkeyB64(),
+          'fingerprint': await identity.fingerprint(),
+        });
+        return;
+      }
+
       if (!await _authorized(req,
           method: method, path: path, bodyBytes: bodyBytes)) {
-        res = _json(req, 401, {'ok': false, 'error': 'unauthorized'});
-      } else {
-        res = await _route(req, utf8.decode(bodyBytes));
+        await _send(req, 401, {'ok': false, 'error': 'unauthorized'});
+        return;
       }
+      final route = await _route(req, utf8.decode(bodyBytes));
+      await _send(req, route.$1, route.$2);
     } catch (e) {
-      res = _json(req, 500, {'ok': false, 'error': 'internal: $e'});
+      await _send(req, 500, {'ok': false, 'error': 'internal: $e'});
     }
-    await res.close();
   }
 
   static Future<List<int>> _readBody(HttpRequest req) async {
@@ -129,20 +157,20 @@ class AdminApi {
     return bytes;
   }
 
-  Future<HttpResponse> _route(HttpRequest req, String bodyText) async {
+  Future<(int, Object)> _route(HttpRequest req, String bodyText) async {
     final segs = req.uri.pathSegments;
     if (segs.length < 2 || segs[0] != 'api') {
-      return _json(req, 404, {'ok': false, 'error': 'not found'});
+      return (404, {'ok': false, 'error': 'not found'});
     }
     final kind = segs[1];
     final method = req.method.toUpperCase();
 
     switch (kind) {
       case 'state':
-        if (method == 'GET') return _json(req, 200, _stateBody());
+        if (method == 'GET') return (200, _stateBody());
       case 'users':
         if (method == 'GET' && segs.length == 2) {
-          return _json(req, 200, {'ok': true, 'users': _usersJson()});
+          return (200, {'ok': true, 'users': _usersJson()});
         }
         if (method == 'POST' &&
             segs.length == 4 &&
@@ -150,22 +178,50 @@ class AdminApi {
             segs[2].isNotEmpty) {
           final id = int.tryParse(segs[2]);
           if (id == null) {
-            return _json(req, 400, {'ok': false, 'error': 'bad user id'});
+            return (400, {'ok': false, 'error': 'bad user id'});
           }
-          return _setTier(req, id, bodyText);
+          return _setTier(id, bodyText);
         }
       case 'hold':
-        if (method == 'POST') return _setHold(req, bodyText);
+        if (method == 'POST') return _setHold(bodyText);
       case 'date':
-        if (method == 'POST') return _setDate(req, bodyText);
+        if (method == 'POST') return _setDate(bodyText);
       case 'sync-calendar':
-        if (method == 'POST') return _syncCalendar(req, bodyText);
+        if (method == 'POST') return _syncCalendar(bodyText);
       case 'logs':
         if (method == 'GET') {
-          return _json(req, 200, {'ok': true, 'lines': LogRing.snapshot});
+          return (200, {'ok': true, 'lines': LogRing.snapshot});
         }
     }
-    return _json(req, 404, {'ok': false, 'error': 'not found'});
+    return (404, {'ok': false, 'error': 'not found'});
+  }
+
+  /// Signs the JSON body with the server identity and writes it with the
+  /// signature headers. The request nonce is echoed into the signed message
+  /// so the response is cryptographically bound to the exact exchange.
+  Future<void> _send(HttpRequest req, int status, Object body) async {
+    final bodyJson = jsonEncode(body);
+    final bodyBytes = utf8.encode(bodyJson);
+
+    final nonce = req.headers.value('X-SDSC-Nonce') ?? '';
+    final ts = DateTime.now().millisecondsSinceEpoch.toString();
+    final message = KeyAuth.serverMessage(
+      method: req.method.toUpperCase(),
+      path: req.uri.path,
+      ts: ts,
+      nonce: nonce,
+      bodyHash: KeyAuth.bodyHash(bodyBytes),
+    );
+    final signature = await identity.sign(utf8.encode(message));
+
+    final res = req.response;
+    res.statusCode = status;
+    res.headers.contentType = ContentType.json;
+    res.headers.set('X-SDSC-Server-Pub', await identity.pubkeyB64());
+    res.headers.set('X-SDSC-Server-Ts', ts);
+    res.headers.set('X-SDSC-Server-Sig', signature);
+    res.write(bodyJson);
+    await res.close();
   }
 
   Map<String, Object?> _stateBody() {
@@ -209,78 +265,75 @@ class AdminApi {
     ];
   }
 
-  Future<HttpResponse> _setTier(
-      HttpRequest req, int id, String bodyText) async {
+  Future<(int, Object)> _setTier(int id, String bodyText) async {
     final user = repo.findUser(id);
-    if (user == null) return _json(req, 404, {'ok': false, 'error': 'no such user'});
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
     if (config.isConsole(id)) {
-      return _json(req, 400, {'ok': false, 'error': 'cannot change console tier'});
+      return (400, {'ok': false, 'error': 'cannot change console tier'});
     }
     final body = _jsonBody(bodyText);
     final tier = (body['tier'] as String?) ?? '';
     if (!MemberTier.order.contains(tier) || tier == MemberTier.console) {
-      return _json(req, 400, {'ok': false, 'error': 'bad tier'});
+      return (400, {'ok': false, 'error': 'bad tier'});
     }
     repo.setTier(id, tier);
     final updated = repo.findUser(id)!;
     LogRing.log('admin API: ${user.name} ${user.isAdmin ? 'admin' : ''} → tier $tier');
-    return _json(req, 200, {
+    return (200, {
       'ok': true,
       'user': updated.name,
       'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
     });
   }
 
-  Future<HttpResponse> _setHold(HttpRequest req, String bodyText) async {
+  Future<(int, Object)> _setHold(String bodyText) async {
     final body = _jsonBody(bodyText);
     final held = body['held'];
     if (held is! bool) {
-      return _json(req, 400, {'ok': false, 'error': 'expected {"held": bool}'});
+      return (400, {'ok': false, 'error': 'expected {"held": bool}'});
     }
     repo.setHeld(held);
     holdGate.held = held;
     LogRing.log('admin API: ${held ? 'hold' : 'unhold'}');
-    return _json(req, 200, {'ok': true, 'held': held});
+    return (200, {'ok': true, 'held': held});
   }
 
-  Future<HttpResponse> _setDate(HttpRequest req, String bodyText) async {
+  Future<(int, Object)> _setDate(String bodyText) async {
     final body = _jsonBody(bodyText);
     if (body['reset'] == true) {
       Config.setDebugNow(null);
       LogRing.log('admin API: reset-date');
-      return _json(req, 200, {'ok': true, 'held': false, 'reset': true});
+      return (200, {'ok': true, 'held': false, 'reset': true});
     }
     final raw = (body['date'] as String?) ?? '';
     final parsed = _parseDate(raw);
     if (parsed == null) {
-      return _json(req, 400,
-          {'ok': false, 'error': 'expected {"date": "YYYY-MM-DD [HH:MM]"}'});
+      return (400, {'ok': false, 'error': 'expected {"date": "YYYY-MM-DD [HH:MM]"}'});
     }
     Config.setDebugNow(parsed);
     LogRing.log('admin API: set-date to $raw');
-    return _json(req, 200, {'ok': true, 'date': raw});
+    return (200, {'ok': true, 'date': raw});
   }
 
-  Future<HttpResponse> _syncCalendar(HttpRequest req, String bodyText) async {
+  Future<(int, Object)> _syncCalendar(String bodyText) async {
     final body = _jsonBody(bodyText);
     final yaml = (body['yaml'] as String?) ?? '';
     if (yaml.trim().isEmpty) {
-      return _json(req, 400,
-          {'ok': false, 'error': 'expected {"yaml": "..."}'});
+      return (400, {'ok': false, 'error': 'expected {"yaml": "..."}'});
     }
     try {
       final result = calendarSync.apply(yaml);
       LogRing.log(
           'admin API: sync-calendar ${result.academicYear} '
           '(${result.weeks} weeks, ${result.holidays} holidays)');
-      return _json(req, 200, {
+      return (200, {
         'ok': true,
         'academicYear': result.academicYear,
         'weeks': result.weeks,
         'holidays': result.holidays,
       });
     } catch (e) {
-      return _json(req, 400, {'ok': false, 'error': 'sync failed: $e'});
+      return (400, {'ok': false, 'error': 'sync failed: $e'});
     }
   }
 
@@ -306,13 +359,5 @@ class AdminApi {
   static Map<String, dynamic> _jsonBody(String text) {
     if (text.trim().isEmpty) return {};
     return jsonDecode(text) as Map<String, dynamic>;
-  }
-
-  static HttpResponse _json(HttpRequest req, int status, Object body) {
-    final res = req.response;
-    res.statusCode = status;
-    res.headers.contentType = ContentType.json;
-    res.write(jsonEncode(body));
-    return res;
   }
 }

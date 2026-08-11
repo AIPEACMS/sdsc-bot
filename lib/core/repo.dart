@@ -189,6 +189,22 @@ ON CONFLICT(id) DO UPDATE SET
     );
   }
 
+  String? getSetting(String key) {
+    final rows = raw.select(
+      'SELECT value FROM settings WHERE key = ?',
+      [key],
+    );
+    return rows.isEmpty ? null : rows.first['value'] as String;
+  }
+
+  void setSetting(String key, String value) {
+    raw.execute(
+      "INSERT INTO settings (key, value) VALUES (?, ?) "
+      "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      [key, value],
+    );
+  }
+
   // ----------------------------------------------------------- seen users
 
   /// Records a (telegram id, username) pair observed in an incoming update.

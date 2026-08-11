@@ -158,6 +158,74 @@ void main() {
     }
   }
 
+  /// GET with raw headers returned, so server-signature headers can be read.
+  Future<(int, Map<String, String>, String)> rawGet(String path) async {
+    final client = HttpClient();
+    try {
+      final req = await client
+          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}$path'));
+      final res = await req.close();
+      final text = await res.transform(utf8.decoder).join();
+      final headers = <String, String>{};
+      res.headers.forEach((name, values) => headers[name.toLowerCase()] =
+          values.isEmpty ? '' : values.first);
+      return (res.statusCode, headers, text);
+    } finally {
+      client.close(force: true);
+    }
+  }
+
+  test('GET /api/server-info exposes the server identity for pinning', () async {
+    final (status, headers, body) = await rawGet('/api/server-info');
+    expect(status, 200);
+    final json = jsonDecode(body) as Map<String, dynamic>;
+    expect(json['ok'], true);
+    expect(json['pubkey'], isNotEmpty);
+    expect(json['fingerprint'], KeyAuth.fingerprint(json['pubkey'] as String));
+    // Unauthenticated — reachable before any key is registered.
+    expect(headers['x-sdsc-server-pub'], json['pubkey']);
+    expect(headers['x-sdsc-server-sig'], isNotEmpty);
+  });
+
+  test('every response is signed by the server identity', () async {
+    final (_, _, infoBody) = await rawGet('/api/server-info');
+    final serverPub = (jsonDecode(infoBody) as Map<String, dynamic>)['pubkey']
+        as String;
+
+    final client = HttpClient();
+    try {
+      final req = await client
+          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}/api/state'));
+      req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      final res = await req.close();
+      final text = await res.transform(utf8.decoder).join();
+      final headers = <String, String>{};
+      res.headers.forEach((name, values) => headers[name.toLowerCase()] =
+          values.isEmpty ? '' : values.first);
+
+      expect(headers['x-sdsc-server-pub'], serverPub);
+      final ts = headers['x-sdsc-server-ts']!;
+      final sig = headers['x-sdsc-server-sig']!;
+      final message = KeyAuth.serverMessage(
+        method: 'GET',
+        path: '/api/state',
+        ts: ts,
+        nonce: '', // bearer-token request, no client nonce
+        bodyHash: KeyAuth.bodyHash(utf8.encode(text)),
+      );
+      expect(
+        await KeyAuth.verifySignature(
+          pubkeyB64: serverPub,
+          signatureB64: sig,
+          message: utf8.encode(message),
+        ),
+        isTrue,
+      );
+    } finally {
+      client.close(force: true);
+    }
+  });
+
   test('rejects requests without the bearer token', () async {
     final client = HttpClient();
     try {
