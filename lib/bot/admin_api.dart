@@ -37,6 +37,8 @@ import 'service.dart';
 ///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|old" }
 ///   POST  /api/users/{id}/admin         -> { "admin": true|false } (keeps member tier)
 ///   POST  /api/users/{id}/exp           -> { "exp": "experienced|newbie" }
+///   POST  /api/users/{id}/group         -> { "group": "" | "1" | "2" | ... } (member only)
+///   POST  /api/assign-groups            -> randomly assign ungrouped members to admin groups
 ///   POST  /api/hold                     -> { "held": true|false }
 ///   POST  /api/date                     -> { "date": "YYYY-MM-DD HH:MM" } | { "reset": true }
 ///   POST  /api/sync-calendar            -> { "yaml": "..." }
@@ -205,8 +207,12 @@ class AdminApi {
               return _setUserAdmin(id, bodyText);
             case 'exp':
               return _setUserExp(id, bodyText);
+            case 'group':
+              return _setUserGroup(id, bodyText);
           }
         }
+      case 'assign-groups':
+        if (method == 'POST') return _assignGroups();
       case 'hold':
         if (method == 'POST') return _setHold(bodyText);
       case 'date':
@@ -378,11 +384,46 @@ class AdminApi {
     return (200, {'ok': true, 'exp': exp});
   }
 
+  /// Manual group change for a member: move to another admin-led group, or
+  /// remove them from their group (`group: ""`). Blocked for admins — they
+  /// own their group and cannot be moved until demoted.
+  Future<(int, Object)> _setUserGroup(int id, String bodyText) async {
+    final user = repo.findUser(id);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    if (user.isAdmin) {
+      return (400, {'ok': false, 'error': 'admin owns their group — demote first'});
+    }
+    final body = _jsonBody(bodyText);
+    final group = (body['group'] as String?) ?? '';
+    if (group.isNotEmpty && group != user.group) {
+      final adminGroups = repo
+          .allUsers()
+          .where((u) => u.isAdmin && u.group.isNotEmpty)
+          .map((u) => u.group)
+          .toSet();
+      if (!adminGroups.contains(group)) {
+        return (400, {'ok': false, 'error': 'unknown group'});
+      }
+    }
+    repo.setGroup(id, group);
+    LogRing.log('admin API: ${user.name} group → ${group.isEmpty ? '(none)' : group}');
+    return (200, {'ok': true, 'group': group});
+  }
+
+  /// Randomly and evenly assigns members without a group to the admins'
+  /// groups (see [Repo.autoAssignGroups]).
+  Future<(int, Object)> _assignGroups() async {
+    final counts = repo.autoAssignGroups();
+    final total = counts.values.fold<int>(0, (a, b) => a + b);
+    LogRing.log('admin API: auto-assign groups → $total members '
+        'across ${counts.length} groups');
+    return (200, {'ok': true, 'assigned': total, 'groups': counts.length});
+  }
+
   /// Registers (or queues) a member by @handle, mirroring the /adduser
   /// outcome: already-registered → already member; pending → already queued;
   /// seen before → registered now; unseen → queued for first contact.
-  Future<(int, Object)> _addUser(String bodyText) async {
-    final body = _jsonBody(bodyText);
+  Future<(int, Object)> _addUser(String bodyText) async {    final body = _jsonBody(bodyText);
     final handle =
         (body['handle'] as String?)?.trim().replaceFirst('@', '') ?? '';
     if (handle.isEmpty || handle.contains(' ')) {

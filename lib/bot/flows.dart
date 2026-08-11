@@ -84,7 +84,7 @@ class Flows {
     var user = repo.findUser(userId);
     // The console is the first user and is admin by default. On their first
     // /start, register them so they get the console grid — nobody has to add
-    // them first.
+    // them first. They become the leader of the first group (1).
     if (user == null && config.isConsole(userId)) {
       final name = ctx.from?.username != null
           ? '@${ctx.from!.username}'
@@ -93,9 +93,9 @@ class Flows {
         id: userId,
         name: name,
         experience: Experience.newbie,
-        group: 'A',
-        isAdmin: true,
+        group: '',
       ));
+      repo.updateAdmin(userId, true);
       user = repo.findUser(userId);
     }
     // A user that no admin has added yet gets silence: no backend traffic,
@@ -581,9 +581,9 @@ class Flows {
         id: userId,
         name: '@$username',
         experience: Experience.newbie,
-        group: 'A',
-        isAdmin: isAdmin,
+        group: '',
       ));
+      if (isAdmin) repo.updateAdmin(userId, true); // gets their own group
     } else if (isAdmin) {
       repo.updateAdmin(userId, true);
     }

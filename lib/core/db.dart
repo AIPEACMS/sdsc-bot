@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY,
   name TEXT NOT NULL,
   experience TEXT NOT NULL DEFAULT 'newbie',
-  group_id TEXT NOT NULL DEFAULT 'A',
+  group_id TEXT NOT NULL DEFAULT '',
   is_admin INTEGER NOT NULL DEFAULT 0,
   ocbc_streak INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -139,6 +139,11 @@ CREATE TABLE IF NOT EXISTS console_keys (
     } catch (_) {
       // column already present
     }
+
+    // Groups are now numeric (1, 2, ...) and led by admins. One-time data
+    // migration from the legacy letter groups; idempotent.
+    db.execute("UPDATE users SET group_id = '1' WHERE group_id = 'A'");
+    db.execute("UPDATE users SET group_id = '2' WHERE group_id = 'B'");
   }
 
   void close() => _db.close();

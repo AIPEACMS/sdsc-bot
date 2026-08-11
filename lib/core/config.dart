@@ -85,8 +85,11 @@ class Config {
   /// True for the console user, who has admin rights + debug rights.
   bool isConsole(int id) => id == consoleId;
 
+  /// Group 1 → the group-A contact, every other group → the group-B contact
+  /// (the first two groups keep the original per-group contacts; additional
+  /// groups fall back to the second contact).
   String contactForGroup(String group) =>
-      group == 'A' ? groupAContact : groupBContact;
+      group == '1' ? groupAContact : groupBContact;
 
   factory Config.fromEnv() {
     String env(String key, [String fallback = '']) =>

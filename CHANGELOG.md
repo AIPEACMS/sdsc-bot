@@ -63,6 +63,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-08-12
+
+### Added
+
+- **Groups are now numeric (1, 2, …) and led by admins.** The legacy letter
+  groups are migrated automatically (A→1, B→2). Every admin leads their own
+  group: promoting a member to admin hands them the lowest free group number
+  (so a disbanded group is reclaimed, never skipped) and they leave their
+  previous group.
+- **Demoting an admin dissolves their group** — all its members, including
+  the demoted admin, become group-less until reassigned.
+- **Auto-assign groups** (`POST /api/assign-groups`): randomly and evenly
+  distributes members without a group across the admins' groups. Checkers
+  and former members are never assigned; admins are never assigned.
+- **Manual group change** (`POST /api/users/{id}/group`): move a member to
+  another admin-led group, or remove them from their group. Blocked for
+  admins — they own their group until demoted.
+- **New members start with no group** and are assigned later, automatically
+  or manually.
+
 ## [1.5.1] - 2026-08-12
 
 ### Fixed
