@@ -35,6 +35,7 @@ import 'server_identity.dart';
 ///   POST  /api/date                     -> { "date": "YYYY-MM-DD HH:MM" } | { "reset": true }
 ///   POST  /api/sync-calendar            -> { "yaml": "..." }
 ///   GET   /api/logs                     -> { "lines": [...] }
+///   POST  /api/log-retention            -> { "days": 14 }
 class AdminApi {
   final Repo repo;
   final Config config;
@@ -192,6 +193,8 @@ class AdminApi {
         if (method == 'GET') {
           return (200, {'ok': true, 'lines': LogRing.snapshot});
         }
+      case 'log-retention':
+        if (method == 'POST') return _setLogRetention(bodyText);
     }
     return (404, {'ok': false, 'error': 'not found'});
   }
@@ -233,6 +236,7 @@ class AdminApi {
       'debugNow': Config.nowUtc() != DateTime.now().toUtc()
           ? config.toLocal(Config.nowUtc()).toIso8601String()
           : null,
+      'logRetentionDays': LogRing.retentionDays,
       'cycle': {
         'id': cycle.id,
         'blockWeek': cycle.blockWeek,
@@ -335,6 +339,19 @@ class AdminApi {
     } catch (e) {
       return (400, {'ok': false, 'error': 'sync failed: $e'});
     }
+  }
+
+  Future<(int, Object)> _setLogRetention(String bodyText) async {
+    final body = _jsonBody(bodyText);
+    final days = body['days'];
+    if (days is! num || days <= 0) {
+      return (400, {'ok': false, 'error': 'expected {"days": <positive int>}'});
+    }
+    final wholeDays = days.toInt();
+    repo.setSetting('log_retention_days', '$wholeDays');
+    LogRing.setRetention(Duration(days: wholeDays));
+    LogRing.log('admin API: log retention set to $wholeDays days');
+    return (200, {'ok': true, 'days': wholeDays});
   }
 
   /// Parses "YYYY-MM-DD [HH:MM]" into the debug "now" instant (UTC, offset
