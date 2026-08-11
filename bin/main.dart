@@ -19,6 +19,16 @@ Future<void> main() async {
   final config = Config.fromEnv();
   final database = Database.open(config);
   final repo = Repo(database);
+
+  // Load the log retention window persisted by the console (default 14 days).
+  final retention = repo.getSetting('log_retention_days');
+  if (retention != null) {
+    final days = int.tryParse(retention);
+    if (days != null && days > 0) {
+      LogRing.setRetention(Duration(days: days));
+    }
+  }
+
   final messages = Messages(config.contactForGroup);
   final state = BotState();
 
@@ -28,6 +38,19 @@ Future<void> main() async {
   // suppressed at the API layer. Persisted in the DB, loaded on start.
   final holdGate = HoldGate(repo.isHeld());
   bot.api.use(HoldTransformer(holdGate));
+
+  // Incoming-message log: every message the bot receives lands in the log
+  // ring (and journal), so the console can see what arrived and when. The
+  // payload is truncated — a public key, handle or text, never secrets.
+  bot.use((ctx, next) async {
+    final text = ctx.message?.text;
+    if (text != null) {
+      final from = ctx.from?.id;
+      final shown = text.length <= 120 ? text : '${text.substring(0, 120)}…';
+      LogRing.log('msg $from: $shown');
+    }
+    return next();
+  });
 
   final service = CycleService(
     repo: repo,

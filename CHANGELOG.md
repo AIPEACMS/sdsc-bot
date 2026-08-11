@@ -5,6 +5,19 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.0] - 2026-08-11
+
+### Added
+
+- **Every incoming message is now logged.** The bot records each message it
+  receives (sender + text, truncated) into the log ring and journal, so the
+  console's Logs tab shows what actually arrived — no more invisible command
+  attempts.
+- **Time-based log retention.** The log ring keeps lines for a configurable
+  window (default 14 days) and prunes older ones, instead of an opaque line
+  cap. The window is set from the console via `POST /api/log-retention` and
+  persisted across restarts; `GET /api/state` reports the current value.
+
 ## [1.2.0] - 2026-08-11
 
 ### Added

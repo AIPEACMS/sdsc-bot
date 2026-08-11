@@ -324,6 +324,37 @@ void main() {
     expect(lines.length, greaterThan(0));
   });
 
+  test('POST /api/log-retention changes the retained window', () async {
+    final (_, state) = await call('GET', '/api/state');
+    final stateMap = state as Map<String, dynamic>;
+    expect(stateMap['logRetentionDays'], 14);
+
+    final (status, body) = await call('POST', '/api/log-retention',
+        body: {'days': 30});
+    final bodyMap = body as Map<String, dynamic>;
+    expect(status, 200);
+    expect(bodyMap['ok'], true);
+    expect(bodyMap['days'], 30);
+    expect(LogRing.retentionDays, 30);
+    expect(repo.getSetting('log_retention_days'), '30');
+
+    final (_, state2) = await call('GET', '/api/state');
+    final stateMap2 = state2 as Map<String, dynamic>;
+    expect(stateMap2['logRetentionDays'], 30);
+
+    // Reset for other tests.
+    await call('POST', '/api/log-retention', body: {'days': 14});
+    expect(LogRing.retentionDays, 14);
+  });
+
+  test('POST /api/log-retention rejects nonsense input', () async {
+    final (status, body) =
+        await call('POST', '/api/log-retention', body: {'days': -1});
+    final bodyMap = body as Map<String, dynamic>;
+    expect(status, 400);
+    expect(bodyMap['error'], contains('positive int'));
+  });
+
   test('bad tier and unknown user are rejected', () async {
     repo.upsertUser(User(
       id: 9,
