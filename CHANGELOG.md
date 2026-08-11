@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.3.1] - 2026-08-11
+
+### Fixed
+
+- **Typed slash commands were being swallowed.** The message bookkeeping
+  middleware short-circuited the chain for any command, so commands typed
+  directly (`/addkey`, and any admin/console slash command) never reached
+  their handlers. Grid buttons were unaffected (they send plain text). The
+  middleware now always continues the chain, so typed commands work again.
+
 ## [1.3.0] - 2026-08-11
 
 ### Added

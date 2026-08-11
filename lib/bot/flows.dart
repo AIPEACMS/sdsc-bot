@@ -56,7 +56,6 @@ class Flows {
           await _consumePendingArg(ctx, userId, pending.command, text);
           return;
         }
-        if (ctx.hasCommand) return;
       }
       await next();
     });
