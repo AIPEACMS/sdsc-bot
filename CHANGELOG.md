@@ -63,6 +63,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-08-12
+
+### Fixed
+
+- **A console who steps down as admin now shows as `console | member`**
+  instead of just `console` — the member group is reported explicitly for a
+  plain member (including the console), and stays hidden only while admin is
+  present (admin implies member).
+- **The attendance endpoint also reports each session's `day` and `slot`**
+  so the console can pair the Pasir Ris and OCBC sessions of the same slot
+  into a timetable.
+
 ## [1.5.0] - 2026-08-12
 
 ### Added
