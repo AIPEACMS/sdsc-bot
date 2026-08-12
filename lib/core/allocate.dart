@@ -36,12 +36,12 @@ class Allocator {
       return newStreaks[userId] ?? user.ocbcStreak;
     }
 
-    // Group sessions by (weekendIndex, day, slot) so both locations of a slot
-    // are allocated together and nobody is allocated to both locations of the
-    // same slot.
+    // Sessions are for a single weekend here, so group by (day, slot) so both
+    // locations of a slot are allocated together and nobody is allocated to
+    // both locations of the same slot.
     final bySlot = <String, List<Session>>{};
     for (final s in sessions) {
-      bySlot.putIfAbsent('${s.weekendIndex}:${s.day}:${s.slot}', () => []).add(s);
+      bySlot.putIfAbsent('${s.day}:${s.slot}', () => []).add(s);
     }
 
     Session? firstOf(List<Session> list, Location loc) {
@@ -51,90 +51,89 @@ class Allocator {
       return null;
     }
 
-    for (final weekendIndex in const [0, 1]) {
-      // A member gets at most one session per weekend, so people spread
-      // evenly across the two weekends instead of piling into one.
-      final taken = <int>{};
-      for (final day in Slot.allDays) {
-        for (final slot in Slot.allSlots) {
-          final key = '$weekendIndex:$day:$slot';
-          final slotSessions = bySlot[key];
-          if (slotSessions == null) continue;
+    final taken = <int>{};
+    for (final day in Slot.allDays) {
+      for (final slot in Slot.allSlots) {
+        final key = '$day:$slot';
+        final slotSessions = bySlot[key];
+        if (slotSessions == null) continue;
 
-          final ocbc = firstOf(slotSessions, Location.ocbc);
-          final pr = firstOf(slotSessions, Location.pasirRis);
-          if (ocbc == null && pr == null) continue;
+        final ocbc = firstOf(slotSessions, Location.ocbc);
+        final pr = firstOf(slotSessions, Location.pasirRis);
+        if (ocbc == null && pr == null) continue;
 
-          // Candidates = members who marked this exact session available and
-          // are not yet allocated this weekend.
-          List<User> candidatesFor(String loc) {
-            final locKey = '$key:$loc';
-            final out = <User>[];
-            for (final av in availability) {
-              if (!av.available) continue;
-              if (taken.contains(av.userId)) continue;
-              if (!av.slots.any((s) => s.encode() == locKey)) continue;
-              final user = users[av.userId];
-              if (user != null) out.add(user);
+        // Candidates = members who marked this exact session available and
+        // are not yet allocated this weekend.
+        List<User> candidatesFor(String loc) {
+          final locKey = '$key:$loc';
+          final out = <User>[];
+          for (final av in availability) {
+            if (!av.available) continue;
+            if (taken.contains(av.userId)) continue;
+            if (!av.slots.any((s) =>
+                '${s.day}:${s.slot}:${s.location}' == locKey)) {
+              continue;
             }
-            return out;
+            final user = users[av.userId];
+            if (user != null) out.add(user);
           }
+          return out;
+        }
 
-          final ocbcCandidates = candidatesFor('ocbc');
-          final prCandidates = candidatesFor('pasirRis');
+        final ocbcCandidates = candidatesFor('ocbc');
+        final prCandidates = candidatesFor('pasirRis');
 
-          // Sort: experienced first (prefer OCBC), then by OCBC streak
-          // ascending so we do not pile 3-in-a-row onto the same person.
-          final ocbcSorted = [...ocbcCandidates]
-            ..sort((a, b) {
-              final expCompare = _expRank(a).compareTo(_expRank(b));
-              if (expCompare != 0) return expCompare;
-              return streakOf(a.id).compareTo(streakOf(b.id));
-            });
+        // Sort: experienced first (prefer OCBC), then by OCBC streak
+        // ascending so we do not pile 3-in-a-row onto the same person.
+        final ocbcSorted = [...ocbcCandidates]
+          ..sort((a, b) {
+            final expCompare = _expRank(a).compareTo(_expRank(b));
+            if (expCompare != 0) return expCompare;
+            return streakOf(a.id).compareTo(streakOf(b.id));
+          });
 
-          var ocbcSeats = ocbcCapacity;
-          final ocbcTaken = <int>{};
+        var ocbcSeats = ocbcCapacity;
+        final ocbcTaken = <int>{};
 
-          // Pass 1: OCBC — prefer experienced, skip anyone already at streak 2.
+        // Pass 1: OCBC — prefer experienced, skip anyone already at streak 2.
+        for (final user in ocbcSorted) {
+          if (ocbcSeats == 0) break;
+          final streak = streakOf(user.id);
+          if (streak >= 2) continue; // would be 3 in a row
+          ocbcTaken.add(user.id);
+          ocbcSeats--;
+        }
+        // If OCBC still has seats, relax the streak rule rather than leaving
+        // capacity unfilled.
+        if (ocbcSeats > 0) {
           for (final user in ocbcSorted) {
             if (ocbcSeats == 0) break;
-            final streak = streakOf(user.id);
-            if (streak >= 2) continue; // would be 3 in a row
+            if (ocbcTaken.contains(user.id)) continue;
             ocbcTaken.add(user.id);
             ocbcSeats--;
           }
-          // If OCBC still has seats, relax the streak rule rather than leaving
-          // capacity unfilled.
-          if (ocbcSeats > 0) {
-            for (final user in ocbcSorted) {
-              if (ocbcSeats == 0) break;
-              if (ocbcTaken.contains(user.id)) continue;
-              ocbcTaken.add(user.id);
-              ocbcSeats--;
-            }
-          }
+        }
 
-          // Pass 2: PR — everyone who picked PR and is not already on OCBC.
-          // Capacity is a soft target: exceeding it is allowed rather than
-          // leaving a volunteer unallocated.
-          final prTaken = <int>{};
-          for (final user in prCandidates) {
-            if (!ocbcTaken.contains(user.id)) prTaken.add(user.id);
-          }
+        // Pass 2: PR — everyone who picked PR and is not already on OCBC.
+        // Capacity is a soft target: exceeding it is allowed rather than
+        // leaving a volunteer unallocated.
+        final prTaken = <int>{};
+        for (final user in prCandidates) {
+          if (!ocbcTaken.contains(user.id)) prTaken.add(user.id);
+        }
 
-          if (ocbc != null) {
-            for (final uid in ocbcTaken) {
-              result.add((uid, ocbc.id));
-              taken.add(uid);
-              newStreaks[uid] = streakOf(uid) + 1;
-            }
+        if (ocbc != null) {
+          for (final uid in ocbcTaken) {
+            result.add((uid, ocbc.id));
+            taken.add(uid);
+            newStreaks[uid] = streakOf(uid) + 1;
           }
-          if (pr != null) {
-            for (final uid in prTaken) {
-              result.add((uid, pr.id));
-              taken.add(uid);
-              newStreaks[uid] = 0;
-            }
+        }
+        if (pr != null) {
+          for (final uid in prTaken) {
+            result.add((uid, pr.id));
+            taken.add(uid);
+            newStreaks[uid] = 0;
           }
         }
       }

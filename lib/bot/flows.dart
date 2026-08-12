@@ -5,7 +5,6 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
-import '../core/week.dart';
 import 'command_both.dart';
 import 'keyboards.dart';
 import 'service.dart';
@@ -250,13 +249,9 @@ class Flows {
       // Silent for unadded and non-active (check/old) users.
       return;
     }
-    final cycle = _currentCycle(ctx);
-    if (cycle == null) {
-      await ctx.reply('No active availability window right now.');
-      return;
-    }
+    final window = _currentWindow(ctx);
     state.forgetAvailability(userId);
-    await service.showAvailability(user, cycle, messages.msg1(user.group));
+    await service.showAvailability(user, window, messages.msg1(user.group));
   }
 
   /// True for members/admins/console — anyone with availability duties.
@@ -274,29 +269,34 @@ class Flows {
     _recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     if (user == null || !_isActive(user)) return;
-    final cycle = _currentCycle(ctx);
-    if (cycle == null) return;
+    final w = _currentWindow(ctx);
 
     final sb = StringBuffer()..writeln('📋 <b>Your status</b>');
 
-    final avail = repo.getAvailability(cycle.id, userId);
-    if (avail != null && avail.available) {
-      final lines = avail.slots.map((s) => '• ${s.toString()}').join('\n');
-      sb.writeln('\n<b>Indicated</b> (this cycle):\n$lines');
+    final avail0 = repo.getAvailability(w.sat0, userId);
+    final avail1 = repo.getAvailability(w.sat1, userId);
+    final picks = <Slot>{};
+    if (avail0 != null && avail0.available) picks.addAll(avail0.slots);
+    if (avail1 != null && avail1.available) picks.addAll(avail1.slots);
+    if (picks.isNotEmpty) {
+      final lines = picks.map((s) => '• ${s.toString()}').join('\n');
+      sb.writeln('\n<b>Indicated</b> (this bundle):\n$lines');
     } else {
-      sb.writeln('\n<b>Indicated</b>: none yet for this cycle.');
+      sb.writeln('\n<b>Indicated</b>: none yet for this bundle.');
     }
 
-    final allocated = repo
-        .allocationsForCycle(cycle.id)
+    final allocated = [
+      ...repo.allocationsForWeekend(w.sat0),
+      ...repo.allocationsForWeekend(w.sat1),
+    ]
         .where((a) => a.$1.id == userId)
         .map((a) => '• ${service.sessionLabel(a.$2)}')
         .join('\n');
     if (allocated.isNotEmpty) {
       sb.writeln('\n<b>Allocated</b>:\n$allocated');
     } else {
-      sb.writeln('\n<b>Allocated</b>: not yet — allocation runs at '
-          '${_allocLabel(cycle.allocationDay)} sharp.');
+      sb.writeln('\n<b>Allocated</b>: not yet — this weekend locks Friday '
+          '18:00, next weekend the Friday after.');
     }
 
     final stats = repo.attendanceStats(userId);
@@ -308,7 +308,7 @@ class Flows {
 
   // ---------------------------------------------------- /check-status
 
-  /// The `check` tier's only command: print this week's allocation.
+  /// The `check` tier's only command: print the current weekend's allocation.
   Future<void> _onCheckStatus(Context ctx) async {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
@@ -321,16 +321,15 @@ class Flows {
     }
 
     final now = config.toLocal(Config.nowUtc());
-    final cycle = repo.ensureCurrentCycle(now);
-    final sat1 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
+    final w = RollingWindow.forDate(now);
     final sb = StringBuffer()
       ..writeln('📋 <b>This week\'s allocation</b>');
 
-    final allocations = repo.allocationsForCycle(cycle.id);
-    if (cycle.status != CycleStatus.allocated || allocations.isEmpty) {
-      sb.writeln('\nAllocation for this cycle is not published yet.\n'
-          'Sessions run ${_dateLabel(sat1)} and the week after.');
+    // "This week": weekend-0 during its week, weekend-1 once we roll over.
+    final sat = now.isBefore(w.sat1) ? w.sat0 : w.sat1;
+    final allocations = repo.allocationsForWeekend(sat);
+    if (allocations.isEmpty) {
+      sb.writeln('\nNo allocation published yet for ${_dateLabel(sat)}.');
       await ctx.reply(sb.toString(), parseMode: ParseMode.html);
       return;
     }
@@ -340,15 +339,7 @@ class Flows {
       bySession.putIfAbsent(s.id, () => []).add(u.name);
     }
 
-    // "This week": during the first weekend's week (or before) show weekend 0;
-    // during the second weekend's week show weekend 1.
-    final week = WeekMath.isoWeek(now);
-    final wi = week >= cycle.blockWeek + 1 ? 1 : 0;
-
-    final sessions = repo
-        .sessionsForCycle(cycle.id)
-        .where((s) => s.weekendIndex == wi)
-        .toList()
+    final sessions = repo.sessionsForWeekend(sat)
       ..sort((a, b) => a.start.compareTo(b.start));
 
     sb.writeln();
@@ -422,14 +413,11 @@ class Flows {
 
   Future<void> _optOutHoliday(Context ctx, int userId, List<String> parts) async {
     await ctx.answerCallbackQuery();
-    final cycleId = int.tryParse(parts[1]);
-    final cycle = cycleId == null ? null : repo.cycleById(cycleId);
-    if (cycle == null) return;
-    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
-    final weekend2 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
+    final sat0Raw = parts.length > 1 ? parts[1] : '';
+    final sat0 = DateTime.tryParse(sat0Raw);
+    if (sat0 == null) return;
     var opted = false;
-    for (final week in [weekend1, weekend2]) {
+    for (final week in [sat0, sat0.add(const Duration(days: 7))]) {
       final holiday = repo.holidayOn(week);
       if (holiday != null) {
         repo.setHolidayOptout(userId, holiday.weekStart);
@@ -439,25 +427,32 @@ class Flows {
     if (!opted) return;
     // They are out for this holiday: no longer a candidate for allocation.
     state.forgetAvailability(userId);
-    repo.setAvailability(Availability(
-      cycleId: cycle.id,
-      userId: userId,
-      slots: {},
-      available: false,
-      updatedAt: config.toLocal(Config.nowUtc()),
-    ));
+    final now = config.toLocal(Config.nowUtc());
+    for (final week in [sat0, sat0.add(const Duration(days: 7))]) {
+      repo.setAvailability(Availability(
+        weekendStart: week,
+        userId: userId,
+        bundleStart: sat0,
+        slots: {},
+        available: false,
+        updatedAt: now,
+      ));
+    }
     await ctx.editMessageText(messages.msg5Z());
   }
 
   Future<void> _toggleSlot(Context ctx, int userId, List<String> parts) async {
     await ctx.answerCallbackQuery();
     if (parts.length < 3) return;
-    final cycleId = int.tryParse(parts[1]);
+    final sat0 = DateTime.tryParse(parts[1]);
     final slot = Slot.parse(parts[2]);
-    final cycle = cycleId == null ? null : repo.cycleById(cycleId);
-    if (slot == null || cycle == null) return;
-    if (cycle.status == CycleStatus.allocated) {
-      await ctx.reply('Availability for this cycle is already closed.');
+    if (sat0 == null || slot == null) return;
+    final w = RollingWindow.fromSat0(sat0);
+    final sat = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
+    final now = config.toLocal(Config.nowUtc());
+    if (w.locked(sat, now)) {
+      await ctx.reply('That weekend\'s availability is already locked — '
+          'its Friday deadline passed.');
       return;
     }
 
@@ -469,9 +464,10 @@ class Flows {
       await ctx.editMessageText(
         text,
         replyMarkup: CycleService.buildKeyboard(
-          cycle,
+          w,
           picks,
-          holiday: CycleService.isHolidayCycle(repo, cycle),
+          now: now,
+          holiday: CycleService.isHolidayWindow(repo, w),
         ),
       );
     } catch (_) {
@@ -482,36 +478,46 @@ class Flows {
   Future<void> _saveAvailability(
     Context ctx,
     int userId,
-    String cycleIdRaw,
+    String sat0Raw,
     bool notAvailable,
   ) async {
     await ctx.answerCallbackQuery();
-    final cycleId = int.tryParse(cycleIdRaw);
-    final cycle = cycleId == null ? null : repo.cycleById(cycleId);
-    if (cycle == null) return;
-    if (cycle.status == CycleStatus.allocated) {
-      await ctx.reply('Availability for this cycle is already closed.');
-      return;
-    }
+    final sat0 = DateTime.tryParse(sat0Raw);
+    if (sat0 == null) return;
+    final w = RollingWindow.fromSat0(sat0);
+    final now = config.toLocal(Config.nowUtc());
 
     final user = repo.findUser(userId);
     if (user == null) return;
 
     final picks = state.picksFor(userId).toSet();
-    repo.setAvailability(Availability(
-      cycleId: cycle.id,
-      userId: userId,
-      slots: notAvailable ? {} : picks,
-      available: !notAvailable,
-      updatedAt: config.toLocal(Config.nowUtc()),
-    ));
+    // Save one row per weekend that is still open; locked weekends are left
+    // alone (their allocation has already run or is about to).
+    var saved = 0;
+    for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
+      if (w.locked(sat, now)) continue;
+      repo.setAvailability(Availability(
+        weekendStart: sat,
+        userId: userId,
+        bundleStart: sat0,
+        slots: notAvailable ? {} : picks.where((s) => s.weekendIndex == wi).toSet(),
+        available: !notAvailable,
+        updatedAt: now,
+      ));
+      saved++;
+    }
     state.forgetAvailability(userId);
     state.availabilityMessages.remove(userId);
+
+    if (saved == 0) {
+      await ctx.reply('Both weekends are already locked — nothing was saved.');
+      return;
+    }
 
     try {
       await ctx.editMessageText(
         notAvailable
-            ? 'You indicated <b>not available</b> for the next 2 weeks.'
+            ? 'You indicated <b>not available</b> for the open weekends.'
             : 'Availability saved.',
         parseMode: ParseMode.html,
       );
@@ -519,21 +525,7 @@ class Flows {
       // message may be gone; ignore
     }
     await ctx.reply(
-        notAvailable ? messages.msg6() : messages.msg3(picks, _allocLabel(cycle.allocationDay)));
-  }
-
-  /// "Fri 14 Aug at 7:00pm" — the sharp hour allocation runs.
-  static String _allocLabel(DateTime d) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    final hour = d.hour;
-    final ampm = hour >= 12 ? 'pm' : 'am';
-    final h12 = hour % 12 == 0 ? 12 : hour % 12;
-    return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]} '
-        'at $h12:00$ampm';
+        notAvailable ? messages.msg6() : messages.msg3(picks));
   }
 
   /// "Sat 15 Aug" — short weekday + date.
@@ -548,9 +540,9 @@ class Flows {
 
   // ------------------------------------------------------------- helpers
 
-  Cycle? _currentCycle(Context ctx) {
+  RollingWindow _currentWindow(Context ctx) {
     final now = config.toLocal(Config.nowUtc());
-    return repo.ensureCurrentCycle(now);
+    return RollingWindow.forDate(now);
   }
 
   /// Remembers (id, username) from any update so admins can add members by

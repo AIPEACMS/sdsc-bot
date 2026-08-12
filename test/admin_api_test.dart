@@ -293,7 +293,8 @@ void main() {
     final (_, state) = await call('GET', '/api/state');
     final stateMap = state as Map<String, dynamic>;
     expect(stateMap['held'], true);
-    expect(stateMap['cycle'], containsPair('status', anything));
+    expect(stateMap['window'], containsPair('weekend0', anything));
+    expect(stateMap['window'], containsPair('deadline0', anything));
 
     await call('POST', '/api/hold', body: {'held': false});
     expect(repo.isHeld(), false);
@@ -688,7 +689,7 @@ void main() {
 
   // ------------------------------------------------------- attendance
 
-  test('attendance lists sessions and toggles per member', () async {
+  test('attendance lists window sessions and sets explicit states', () async {
     repo.upsertUser(User(
       id: 101,
       name: '@alice',
@@ -702,16 +703,16 @@ void main() {
       group: 'B',
     ));
     final now = api.config.toLocal(Config.nowUtc());
-    final cycle = repo.ensureCurrentCycle(now);
-    repo.ensureSessionsForCycle(
-      cycle,
+    final w = RollingWindow.forDate(now);
+    repo.ensureSessionsForWeekend(
+      w.sat0,
       api.config.slotTimes,
       tzOffsetHours: api.config.timezoneOffsetHours,
     );
-    final sessions = repo.sessionsForCycle(cycle.id);
+    final sessions = repo.sessionsForWeekend(w.sat0);
     expect(sessions, isNotEmpty);
     final sessionId = sessions.first.id;
-    repo.replaceAllocations(cycle.id, [(101, sessionId), (102, sessionId)]);
+    repo.replaceAllocationsForWeekend(w.sat0, [(101, sessionId), (102, sessionId)]);
 
     final (status, body) = await call('GET', '/api/attendance');
     expect(status, 200);
@@ -720,27 +721,31 @@ void main() {
         .firstWhere((s) => s['id'] == sessionId);
     expect(s['label'], isNotEmpty);
     expect(s['location'], isNotEmpty);
-    expect((s['weekendIndex'] as num?)?.toInt(), inInclusiveRange(0, 1));
+    expect(s['weekendStart'], isNotEmpty);
     expect(['sat', 'sun'], contains(s['day']));
     expect(['am', 'pm'], contains(s['slot']));
     final members = (s['members'] as List).cast<Map<String, dynamic>>();
     expect(members, hasLength(2));
-    expect(members.every((m) => m['attended'] == false), isTrue);
+    expect(members.every((m) => m['state'] == 'unmarked'), isTrue);
 
     final (t1, t1Body) = await call('POST', '/api/attendance',
-        body: {'sessionId': sessionId, 'userId': 101});
+        body: {'sessionId': sessionId, 'userId': 101, 'state': 'present'});
     expect(t1, 200);
-    expect((t1Body as Map<String, dynamic>)['attended'], true);
-    expect(repo.attendanceForSession(sessionId), hasLength(1));
+    expect((t1Body as Map<String, dynamic>)['state'], 'present');
 
     final (t2, t2Body) = await call('POST', '/api/attendance',
-        body: {'sessionId': sessionId, 'userId': 101});
+        body: {'sessionId': sessionId, 'userId': 101, 'state': 'absent'});
     expect(t2, 200);
-    expect((t2Body as Map<String, dynamic>)['attended'], false);
+    expect((t2Body as Map<String, dynamic>)['state'], 'absent');
+
+    final (t3, t3Body) = await call('POST', '/api/attendance',
+        body: {'sessionId': sessionId, 'userId': 101, 'state': 'unmarked'});
+    expect(t3, 200);
+    expect((t3Body as Map<String, dynamic>)['state'], 'unmarked');
     expect(repo.attendanceForSession(sessionId), isEmpty);
 
     final (bad, _) = await call('POST', '/api/attendance',
-        body: {'sessionId': sessionId});
+        body: {'sessionId': sessionId, 'userId': 101, 'state': 'maybe'});
     expect(bad, 400);
   });
 
