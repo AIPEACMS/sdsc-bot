@@ -37,13 +37,12 @@ class Messages {
         '$contact.';
   }
 
-  /// Confirmation echoing the chosen availability slots. [allocLabel] is the
-  /// sharp time allocation runs, e.g. "Fri 14 Aug at 7:00pm".
-  String msg3(Iterable<Slot> slots, String allocLabel) {
+  /// Confirmation echoing the chosen availability slots.
+  String msg3(Iterable<Slot> slots) {
     final lines = slots.map((s) => '• ${s.toString()}').toList();
     final list = lines.isEmpty ? '(none)' : lines.join('\n');
     return 'Thank you! Here is what you told us:\n$list\n\n'
-        'Allocation runs at $allocLabel sharp. '
+        'Availability locks on the Friday before each weekend. '
         'Changed your mind? Send /repick to update before then.';
   }
 

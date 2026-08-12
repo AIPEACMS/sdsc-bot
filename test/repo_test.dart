@@ -49,53 +49,46 @@ void main() {
     return repo.findUser(id)!;
   }
 
-  test('cycle timeline computed from an even prompt week', () {
-    // 2026-08-03 is the Monday of ISO week 32 (even) — the week before the
-    // cycle whose first session weekend is week 33 (odd).
-    final now = DateTime(2026, 8, 3);
-    final cycle = repo.ensureCurrentCycle(now);
-
-    expect(cycle.blockWeek, 33);
-    expect(cycle.blockWeek.isOdd, true);
-    // Availability is asked within the session week: prompt Mon 08:00,
-    // reminder Thu 18:00, deadline Fri 18:00, allocation Fri 19:00 sharp.
-    expect(cycle.promptDay, DateTime(2026, 8, 10, 8));
-    expect(cycle.reminderDay, DateTime(2026, 8, 13, 18));
-    expect(cycle.deadline, DateTime(2026, 8, 14, 18));
-    expect(cycle.allocationDay, DateTime(2026, 8, 14, 19));
-    expect(cycle.deadline.weekday, DateTime.friday);
-    // Deadline (Fri 18:00) is before allocation (Fri 19:00).
-    expect(cycle.deadline.isBefore(cycle.allocationDay), true);
-    expect(cycle.allocationDay.isBefore(DateTime(2026, 8, 15)), true);
-  });
-
-  test('deadline closes the cycle automatically', () {
-    final now = DateTime(2026, 8, 3); // Monday of an even week
-    final cycle = repo.ensureCurrentCycle(now);
-    expect(cycle.status, CycleStatus.open);
-
-    final afterDeadline = cycle.deadline.add(const Duration(days: 1));
-    final closed = repo.ensureCurrentCycle(afterDeadline);
-    expect(closed.status, CycleStatus.closed);
-  });
-
-  test('sessions are created once and idempotently', () {
+  test('rolling window timeline computed from the current week', () {
+    // 2026-08-10 is the Monday of ISO week 33.
     final now = DateTime(2026, 8, 10);
-    final cycle = repo.ensureCurrentCycle(now);
-    repo.ensureSessionsForCycle(
-      cycle,
-      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      tzOffsetHours: 8,
-    );
-    final sessions = repo.sessionsForCycle(cycle.id);
-    expect(sessions.length, 16); // 2 weekends x 2 days x 2 slots x 2 locations
+    final w = RollingWindow.forDate(now);
 
-    repo.ensureSessionsForCycle(
-      cycle,
+    expect(w.sat0, DateTime(2026, 8, 15)); // weekend 0 = this week's Saturday
+    expect(w.sat1, DateTime(2026, 8, 22)); // weekend 1 = next week's Saturday
+    // Prompt Mon 08:00, reminder Thu 18:00, deadline0 Fri 18:00 (this week),
+    // deadline1 Fri 18:00 (next week).
+    expect(w.promptDay, DateTime(2026, 8, 10, 8));
+    expect(w.reminderDay, DateTime(2026, 8, 13, 18));
+    expect(w.deadline0, DateTime(2026, 8, 14, 18));
+    expect(w.deadline1, DateTime(2026, 8, 21, 18));
+    expect(w.deadline0.weekday, DateTime.friday);
+    expect(w.deadline0.isBefore(w.sat0), true);
+  });
+
+  test('a weekend locks at its Friday deadline', () {
+    final w = RollingWindow.forDate(DateTime(2026, 8, 10));
+    expect(w.locked(w.sat0, DateTime(2026, 8, 13, 12)), false);
+    expect(w.locked(w.sat0, DateTime(2026, 8, 14, 18)), true);
+    expect(w.locked(w.sat0, DateTime(2026, 8, 15, 9)), true);
+    expect(w.locked(w.sat1, DateTime(2026, 8, 14, 18)), false); // next week open
+  });
+
+  test('sessions are created once and idempotently per weekend', () {
+    final sat = DateTime(2026, 8, 15);
+    repo.ensureSessionsForWeekend(
+      sat,
       {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
       tzOffsetHours: 8,
     );
-    expect(repo.sessionsForCycle(cycle.id).length, 16);
+    expect(repo.sessionsForWeekend(sat).length, 8); // 2 days x 2 slots x 2 locations
+
+    repo.ensureSessionsForWeekend(
+      sat,
+      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+      tzOffsetHours: 8,
+    );
+    expect(repo.sessionsForWeekend(sat).length, 8);
   });
 
   test('availability, allocation and streak round-trip', () {
@@ -103,15 +96,12 @@ void main() {
     addUser(2, exp: Experience.experienced);
     addUser(3);
 
-    final now = DateTime(2026, 8, 10);
-    final cycle = repo.ensureCurrentCycle(now);
-    final pastDeadline = cycle.deadline.add(const Duration(days: 1));
-    repo.ensureCurrentCycle(pastDeadline); // closes the cycle
-
+    final sat = DateTime(2026, 8, 15);
     for (final id in [1, 2, 3]) {
       repo.setAvailability(Availability(
-        cycleId: cycle.id,
+        weekendStart: sat,
         userId: id,
+        bundleStart: sat,
         slots: {
           const Slot(0, 'sat', 'am', 'ocbc'),
           const Slot(0, 'sat', 'am', 'pasirRis'),
@@ -121,25 +111,24 @@ void main() {
       ));
     }
 
-    repo.ensureSessionsForCycle(
-      cycle,
+    repo.ensureSessionsForWeekend(
+      sat,
       {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
       tzOffsetHours: 8,
     );
-    final sessions = repo.sessionsForCycle(cycle.id);
+    final sessions = repo.sessionsForWeekend(sat);
 
     final result = Allocator(ocbcCapacity: 2, prCapacity: 20).run(
       sessions: sessions,
-      availability: repo.allAvailability(cycle.id),
+      availability: repo.availabilityForWeekend(sat),
       users: {
         for (final u in repo.allUsers()) u.id: u,
       },
     );
-    repo.replaceAllocations(cycle.id, result);
+    repo.replaceAllocationsForWeekend(sat, result);
 
-    final allocated = repo.allocationsForCycle(cycle.id);
+    final allocated = repo.allocationsForWeekend(sat);
     expect(allocated.length, 3);
-    expect(allocated.every((a) => a.$2.cycleId == cycle.id), true);
     // Session ids must survive the join (not collide with user ids).
     final sessionIds = sessions.map((s) => s.id).toSet();
     expect(allocated.every((a) => sessionIds.contains(a.$2.id)), true);
@@ -152,23 +141,37 @@ void main() {
         .every((a) => a.$2.location == Location.ocbc);
     expect(expOcbc, true);
 
-    repo.markAllocated(cycle.id);
-    expect(repo.cycleById(cycle.id)!.status, CycleStatus.allocated);
+    expect(repo.weekendAllocated(sat), false);
+    repo.markWeekendAllocated(sat);
+    expect(repo.weekendAllocated(sat), true);
   });
 
-  test('nonResponders only counts users without availability', () {
+  test('reminder targets exclude respondents and the quiet', () {
     addUser(1);
     addUser(2);
-    final cycle = repo.ensureCurrentCycle(DateTime(2026, 8, 10));
+    addUser(3);
+    final sat = DateTime(2026, 8, 15);
+    // User 2 answered the current bundle; user 3 answered last week's bundle
+    // (quiet — not bothered for 2 weeks).
     repo.setAvailability(Availability(
-      cycleId: cycle.id,
+      weekendStart: sat,
       userId: 2,
-        slots: {Slot(0, 'sat', 'am', 'ocbc')},
+      bundleStart: sat,
+      slots: {const Slot(0, 'sat', 'am', 'ocbc')},
       available: true,
       updatedAt: DateTime(2026, 8, 11),
     ));
-    final pending = repo.nonResponders(cycle.id);
+    repo.setAvailability(Availability(
+      weekendStart: sat.subtract(const Duration(days: 7)),
+      userId: 3,
+      bundleStart: sat.subtract(const Duration(days: 7)),
+      slots: {const Slot(0, 'sat', 'am', 'ocbc')},
+      available: true,
+      updatedAt: DateTime(2026, 8, 4),
+    ));
+    final pending = repo.reminderTargets(sat);
     expect(pending.map((u) => u.id), [1]);
+    expect(repo.isQuiet(3, sat), true);
   });
 
   test('holiday lookup by week', () {
@@ -188,28 +191,32 @@ void main() {
     expect(repo.hasHolidayOptout(8, DateTime(2026, 8, 3)), false);
   });
 
-  test('attendance stats split by location', () {
+  test('attendance stats split by location, negative marks not counted', () {
     addUser(1);
     addUser(2);
-    final cycle = repo.ensureCurrentCycle(DateTime(2026, 8, 10));
-    repo.ensureSessionsForCycle(
-      cycle,
+    final sat = DateTime(2026, 8, 15);
+    repo.ensureSessionsForWeekend(
+      sat,
       {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
       tzOffsetHours: 8,
     );
-    final sessions = repo.sessionsForCycle(cycle.id);
+    final sessions = repo.sessionsForWeekend(sat);
     final ocbc = sessions.firstWhere((s) => s.location == Location.ocbc);
     final pr = sessions.firstWhere((s) => s.location == Location.pasirRis);
-    repo.confirmAttendance(1, ocbc.id);
-    repo.confirmAttendance(1, ocbc.id); // same session dedupes
-    repo.confirmAttendance(1, pr.id);
-    repo.confirmAttendance(2, ocbc.id);
+    repo.setAttendanceState(1, ocbc.id, attended: true);
+    repo.setAttendanceState(1, ocbc.id, attended: true); // same session upserts
+    repo.setAttendanceState(1, pr.id, attended: true);
+    repo.setAttendanceState(2, ocbc.id, attended: true);
+    repo.setAttendanceState(2, pr.id, attended: false); // negative: not counted
+    repo.clearAttendance(2, ocbc.id); // recoverable
 
     final stats = repo.attendanceStats(1);
     expect(stats.total, 2);
     expect(stats.ocbc, 1);
     expect(stats.pasirRis, 1);
-    expect(repo.attendanceStats(2).total, 1);
+    expect(repo.attendanceStats(2).total, 0);
+    final prMarks = repo.attendanceForSession(pr.id);
+    expect(prMarks.firstWhere((a) => a.userId == 2).attended, false);
   });
 
   test('seen users resolve handles to ids', () {
@@ -296,14 +303,14 @@ void main() {
     expect(repo.isHeld(), false);
   });
 
-  test('nonResponders excludes check and old users', () {
+  test('reminder targets exclude check and old users', () {
     addUser(1);
     addUser(2);
     repo.setTier(2, 'check');
     addUser(3);
     repo.setTier(3, 'old');
-    final cycle = repo.ensureCurrentCycle(DateTime(2026, 8, 10));
-    final pending = repo.nonResponders(cycle.id);
+    final sat = DateTime(2026, 8, 15);
+    final pending = repo.reminderTargets(sat);
     expect(pending.map((u) => u.id), [1]);
   });
 

@@ -272,7 +272,7 @@ class AdminApi {
 
   Map<String, Object?> _stateBody() {
     final now = config.toLocal(Config.nowUtc());
-    final cycle = repo.ensureCurrentCycle(now);
+    final w = RollingWindow.forDate(now);
     return {
       'ok': true,
       'held': holdGate.isHeld,
@@ -280,15 +280,15 @@ class AdminApi {
           ? config.toLocal(Config.nowUtc()).toIso8601String()
           : null,
       'logRetentionDays': LogRing.retentionDays,
-      'cycle': {
-        'id': cycle.id,
-        'blockWeek': cycle.blockWeek,
-        'blockYear': cycle.blockYear,
-        'promptDay': cycle.promptDay.toIso8601String(),
-        'reminderDay': cycle.reminderDay.toIso8601String(),
-        'deadline': cycle.deadline.toIso8601String(),
-        'allocationDay': cycle.allocationDay.toIso8601String(),
-        'status': cycle.status.name,
+      'window': {
+        'weekend0': w.sat0.toIso8601String(),
+        'weekend1': w.sat1.toIso8601String(),
+        'promptDay': w.promptDay.toIso8601String(),
+        'reminderDay': w.reminderDay.toIso8601String(),
+        'deadline0': w.deadline0.toIso8601String(),
+        'deadline1': w.deadline1.toIso8601String(),
+        'allocated0': repo.weekendAllocated(w.sat0),
+        'allocated1': repo.weekendAllocated(w.sat1),
       },
     };
   }
@@ -470,18 +470,19 @@ class AdminApi {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
     final now = config.toLocal(Config.nowUtc());
-    final cycle = repo.ensureCurrentCycle(now);
+    final w = RollingWindow.forDate(now);
     switch (op) {
       case 'prompt':
-        await service.sendPrompts(cycle);
+        await service.sendPrompts(w);
         LogRing.log('admin API: prompts sent');
         return (200, {'ok': true, 'op': op});
       case 'remind':
-        await service.sendReminders(cycle);
+        await service.sendReminders(w);
         LogRing.log('admin API: reminders sent');
         return (200, {'ok': true, 'op': op});
       case 'allocate':
-        await service.allocate(cycle);
+        await service.allocateWeekend(w.sat0);
+        await service.allocateWeekend(w.sat1);
         LogRing.log('admin API: allocation run');
         return (200, {'ok': true, 'op': op});
     }
@@ -502,10 +503,10 @@ class AdminApi {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
     final now = config.toLocal(Config.nowUtc());
-    final cycle = repo.ensureCurrentCycle(now);
-    final text = service.promptFor(user, cycle) ??
+    final w = RollingWindow.forDate(now);
+    final text = service.promptFor(user, w) ??
         service.messages.msg1(user.group);
-    await service.showAvailability(user, cycle, text);
+    await service.showAvailability(user, w, text);
     LogRing.log('admin API: ask ${user.name}');
     return (200, {'ok': true, 'asked': user.name});
   }
@@ -534,26 +535,31 @@ class AdminApi {
     return (200, {'ok': true, 'sent': sent});
   }
 
-  /// Current cycle's sessions with their allocated members and attended
-  /// flags, for the console's attendance screen.
+  /// Current rolling window's sessions with their allocated members and
+  /// attendance states, for the console's attendance timetable.
   Map<String, Object?> _attendanceBody() {
     final now = config.toLocal(Config.nowUtc());
-    final cycle = repo.ensureCurrentCycle(now);
-    final allocations = repo.allocationsForCycle(cycle.id);
+    final w = RollingWindow.forDate(now);
+    final sessions = repo.windowSessions(w);
     final bySession = <int, List<User>>{};
-    for (final (u, s) in allocations) {
-      bySession.putIfAbsent(s.id, () => []).add(u);
+    for (final sat in w.weekends) {
+      for (final (u, s) in repo.allocationsForWeekend(sat)) {
+        bySession.putIfAbsent(s.id, () => []).add(u);
+      }
     }
     return {
       'ok': true,
-      'cycleStatus': cycle.status.name,
+      'window': {
+        'weekend0': w.sat0.toIso8601String(),
+        'weekend1': w.sat1.toIso8601String(),
+      },
       'sessions': [
-        for (final s in repo.sessionsForCycle(cycle.id))
+        for (final s in sessions)
           {
             'id': s.id,
             'label': _sessionLabel(s),
             'location': s.location.name,
-            'weekendIndex': s.weekendIndex,
+            'weekendStart': s.weekendStart.toIso8601String(),
             'day': s.day,
             'slot': s.slot,
             'members': [
@@ -561,9 +567,7 @@ class AdminApi {
                 {
                   'id': u.id,
                   'name': u.name,
-                  'attended': repo
-                      .attendanceForSession(s.id)
-                      .any((a) => a.userId == u.id),
+                  'state': _attendanceStateFor(u.id, s.id),
                 },
             ],
           },
@@ -571,7 +575,16 @@ class AdminApi {
     };
   }
 
-  /// Toggles one member's attendance for one session; returns the new state.
+  /// 'present' | 'absent' | 'unmarked' for (user, session).
+  String _attendanceStateFor(int userId, int sessionId) {
+    for (final a in repo.attendanceForSession(sessionId)) {
+      if (a.userId == userId) return a.attended ? 'present' : 'absent';
+    }
+    return 'unmarked';
+  }
+
+  /// Sets one member's attendance state for a session: 'present' | 'absent'
+  /// | 'unmarked' (removes the mark — recoverable).
   Future<(int, Object)> _toggleAttendance(String bodyText) async {
     final body = _jsonBody(bodyText);
     final sessionId = (body['sessionId'] as num?)?.toInt();
@@ -586,20 +599,22 @@ class AdminApi {
     if (session == null) return (404, {'ok': false, 'error': 'no such session'});
     final user = repo.findUser(userId);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    final already = repo
-        .attendanceForSession(sessionId)
-        .any((a) => a.userId == userId);
-    if (already) {
-      repo.raw.execute(
-        'DELETE FROM attendance WHERE user_id = ? AND session_id = ?',
-        [userId, sessionId],
-      );
-    } else {
-      repo.confirmAttendance(userId, sessionId);
+    final state = (body['state'] as String?) ?? 'unmarked';
+    switch (state) {
+      case 'present':
+        repo.setAttendanceState(userId, sessionId, attended: true);
+      case 'absent':
+        repo.setAttendanceState(userId, sessionId, attended: false);
+      case 'unmarked':
+        repo.clearAttendance(userId, sessionId);
+      default:
+        return (400, {
+          'ok': false,
+          'error': 'expected {"state": "present"|"absent"|"unmarked"}',
+        });
     }
-    LogRing.log('admin API: attendance ${already ? 'unmarked' : 'marked'} '
-        '${user.name}');
-    return (200, {'ok': true, 'attended': !already});
+    LogRing.log('admin API: attendance ${user.name} → $state');
+    return (200, {'ok': true, 'state': state});
   }
 
   static String _sessionLabel(Session s) {

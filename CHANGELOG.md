@@ -63,6 +63,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-08-12
+
+### Added
+
+- **Rolling availability windows.** Availability is now per-weekend with a
+  weekly sliding bundle (current + next weekend) instead of a fixed 2-week
+  cycle with a single deadline. Each weekend locks on its own Friday 18:00
+  and is allocated right after; the picker always shows the current and
+  next weekend and never closes mid-week.
+- **2-week quiet rule.** Members who answer a bundle (available or not
+  available) are not prompted again for the next 2 weeks. Non-responders
+  are re-prompted the following week for the rolled bundle.
+- **3-state attendance** — present, not-participated, or unmarked — with a
+  recoverable tap-cycle. A "not participated" mark dismisses the unmarked
+  reminders for that member.
+- **Attendance-marking reminders.** Each Sunday the bot reminds every
+  group's admin about members with no attendance mark, again on Monday, and
+  surfaces it in the console log so the operator can chase slow admins.
+- **Sessions, availability, allocations and attendance are keyed by
+  weekend** instead of by 2-week cycle; existing databases migrate
+  automatically on startup.
+
+### Changed
+
+- **`/start`, `/status`, `/mystatus` and the picker speak in bundles and
+  per-weekend lock times** instead of cycle milestones.
+
 ## [1.6.0] - 2026-08-12
 
 ### Added

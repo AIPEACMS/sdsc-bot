@@ -6,14 +6,13 @@ import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
 import '../core/allocate.dart';
-import '../core/week.dart';
 import 'hold.dart';
 import '../core/log.dart';
 import 'state.dart';
 
-/// High-level operations that drive a cycle: prompting, reminding, allocating
-/// and delivering allocation messages. Used by both the scheduler and the
-/// admin commands.
+/// High-level operations that drive the rolling schedule: prompting,
+/// reminding, allocating each weekend and delivering allocation messages.
+/// Used by both the scheduler and the admin commands.
 class CycleService {
   final Repo repo;
   final Config config;
@@ -29,14 +28,11 @@ class CycleService {
     required this.bot,
   });
 
-  /// Picks the right prompt for [user] for [cycle]: holiday variant first,
+  /// Picks the right prompt for [user] for [window]: holiday variant first,
   /// then the "you did not attend" variant for lapsed members. Returns null
   /// when the member opted out of the holiday.
-  String? promptFor(User user, Cycle cycle) {
-    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
-    final weekend2 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
-    final holiday = repo.holidayOn(weekend1) ?? repo.holidayOn(weekend2);
+  String? promptFor(User user, RollingWindow w) {
+    final holiday = repo.holidayOn(w.sat0) ?? repo.holidayOn(w.sat1);
     if (holiday != null) {
       if (repo.hasHolidayOptout(user.id, holiday.weekStart)) return null;
       if (holiday.kind == HolidayKind.middle) {
@@ -53,9 +49,9 @@ class CycleService {
         Config.nowUtc().difference(user.registeredAt!.toUtc()) <
             const Duration(days: 14);
     final year = repo.latestCalendarYear();
-    final sem = year?.semesterAt(weekend1);
+    final sem = year?.semesterAt(w.sat0);
     final semesterMature = sem?.firstStart != null &&
-        weekend1.difference(sem!.firstStart!) >= const Duration(days: 14);
+        w.sat0.difference(sem!.firstStart!) >= const Duration(days: 14);
     if (!joinedRecently &&
         semesterMature &&
         !repo.hasAttendedInPastDays(user.id, 14)) {
@@ -64,75 +60,60 @@ class CycleService {
     return messages.msg1(user.group);
   }
 
-  Future<void> sendPrompts(Cycle cycle) async {
+  /// Sends the availability picker for [window] to every prompt target.
+  Future<void> sendPrompts(RollingWindow w) async {
     var failures = 0;
     final today = config.toLocal(Config.nowUtc());
-    for (final user in repo.activeUsers()) {
+    for (final user in repo.promptTargets(w.sat0)) {
       try {
         // Never send the same prompt to the same user twice in one day.
         if (repo.messageSentOnDay(user.id, 'prompt', today)) continue;
-        final text = promptFor(user, cycle);
+        final text = promptFor(user, w);
         if (text == null) continue; // opted out of this holiday
-        await showAvailability(user, cycle, text);
+        await showAvailability(user, w, text);
         repo.markMessageSent(user.id, 'prompt', today);
       } catch (_) {
         failures++; // member may have blocked the bot
       }
     }
-    repo.markPromptSent(cycle.id);
-        if (failures > 0) LogRing.log('prompt: $failures members unreachable');
+    if (failures > 0) LogRing.log('prompt: $failures members unreachable');
   }
 
-  Future<void> sendReminders(Cycle cycle) async {
+  /// Reminds the bundle's non-responders (and not the quiet).
+  Future<void> sendReminders(RollingWindow w) async {
     var failures = 0;
     final today = config.toLocal(Config.nowUtc());
-    for (final user in repo.nonResponders(cycle.id)) {
+    for (final user in repo.reminderTargets(w.sat0)) {
       try {
         if (repo.messageSentOnDay(user.id, 'reminder', today)) continue;
-        final holidayWeek = _cycleHolidayWeek(cycle);
-        if (holidayWeek != null && repo.hasHolidayOptout(user.id, holidayWeek)) {
-          continue;
-        }
-        await showAvailability(user, cycle, messages.msg2(user.group));
+        await showAvailability(user, w, messages.msg2(user.group));
         repo.markMessageSent(user.id, 'reminder', today);
       } catch (_) {
         failures++;
       }
     }
-    repo.markReminderSent(cycle.id);
-        if (failures > 0) LogRing.log('remind: $failures members unreachable');
+    if (failures > 0) LogRing.log('remind: $failures members unreachable');
   }
 
-  /// The week (Monday) of the holiday covering this cycle's sessions, if any.
-  DateTime? _cycleHolidayWeek(Cycle cycle) {
-    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
-    final weekend2 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
-    return repo.holidayOn(weekend1)?.weekStart ??
-        repo.holidayOn(weekend2)?.weekStart;
-  }
+  /// Whether this window's weekends fall on a holiday week.
+  static bool isHolidayWindow(Repo repo, RollingWindow w) =>
+      repo.holidayOn(w.sat0) != null || repo.holidayOn(w.sat1) != null;
 
-  /// Whether this cycle's sessions fall on a holiday week.
-  static bool isHolidayCycle(Repo repo, Cycle cycle) {
-    final weekend1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
-    final weekend2 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
-    return repo.holidayOn(weekend1) != null || repo.holidayOn(weekend2) != null;
-  }
-
-  /// Runs the allocator, persists allocations + streaks, then sends msg4.
-  Future<void> allocate(Cycle cycle) async {
-    repo.ensureSessionsForCycle(
-      cycle,
+  /// Allocates one weekend's sessions from the weekend's availability rows,
+  /// persists allocations + streaks, then sends msg4.
+  Future<void> allocateWeekend(DateTime sat) async {
+    repo.ensureSessionsForWeekend(
+      sat,
       config.slotTimes,
       tzOffsetHours: config.timezoneOffsetHours,
     );
-    final sessions = repo.sessionsForCycle(cycle.id);
+    final sessions = repo.sessionsForWeekend(sat);
     // Only active users can be allocated; check/old users have no availability
     // and stale availability rows must not make them candidates.
     final activeUsers = repo.activeUsers();
     final activeIds = {for (final u in activeUsers) u.id};
-    final availability = repo.allAvailability(cycle.id)
+    final availability = repo
+        .availabilityForWeekend(sat)
         .where((a) => activeIds.contains(a.userId))
         .toList();
     final users = {for (final u in activeUsers) u.id: u};
@@ -146,7 +127,7 @@ class CycleService {
       users: users,
     );
 
-    repo.replaceAllocations(cycle.id, result);
+    repo.replaceAllocationsForWeekend(sat, result);
 
     final sessionsById = {for (final s in sessions) s.id: s};
     for (final (userId, sessionId) in result) {
@@ -159,7 +140,7 @@ class CycleService {
       repo.setOcbcStreak(userId, streak);
     }
 
-    repo.markAllocated(cycle.id);
+    repo.markWeekendAllocated(sat);
 
     var failures = 0;
     final today = config.toLocal(Config.nowUtc());
@@ -168,8 +149,7 @@ class CycleService {
       final user = users[userId];
       if (session == null || user == null) continue;
       final label = sessionLabel(session);
-      final time =
-          '${_fmt(session.start)} to ${_fmt(session.end)}';
+      final time = '${_fmt(session.start)} to ${_fmt(session.end)}';
       try {
         if (repo.messageSentOnDay(user.id, 'allocation', today)) continue;
         try {
@@ -185,20 +165,68 @@ class CycleService {
         failures++;
       }
     }
-        if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
+    if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
+  }
+
+  /// Sunday/Monday attendance-marking reminders: for every allocated member
+  /// of [sat]'s weekend with no attendance mark yet, remind the member's
+  /// group admin. The console is notified via the log ring on the second day.
+  Future<void> remindAttendanceMarking(DateTime sat, DateTime day) async {
+    final sessions = repo.sessionsForWeekend(sat);
+    var unmarkedTotal = 0;
+    final byAdmin = <int, List<String>>{};
+    for (final s in sessions) {
+      final allocations =
+          repo.allocationsForWeekend(sat).where((a) => a.$2.id == s.id);
+      final marked =
+          repo.attendanceForSession(s.id).map((a) => a.userId).toSet();
+      for (final (user, _) in allocations) {
+        if (marked.contains(user.id)) continue;
+        unmarkedTotal++;
+        final admin = repo.groupAdmin(user.group);
+        if (admin == null) continue; // no group → nobody responsible
+        byAdmin
+            .putIfAbsent(admin.id, () => [])
+            .add('${user.name} — ${sessionLabel(s)}');
+      }
+    }
+    if (byAdmin.isEmpty) return;
+
+    for (final entry in byAdmin.entries) {
+      if (repo.messageSentOnDay(entry.key, 'attmark', day)) continue;
+      final list = entry.value.take(6).join('\n');
+      final more = entry.value.length > 6
+          ? '\n… and ${entry.value.length - 6} more'
+          : '';
+      try {
+        await bot.api.sendMessage(
+          ChatID(entry.key),
+          '⏰ <b>Mark attendance</b> — still unmarked:\n$list$more\n\n'
+              'Mark it in the console or with /confirm.',
+          parseMode: ParseMode.html,
+        );
+        repo.markMessageSent(entry.key, 'attmark', day);
+      } catch (_) {
+        // admin unreachable; the console banner still surfaces it
+      }
+    }
+    LogRing.log(
+        'attmark: $unmarkedTotal unmarked members on '
+        '${_dayShort(sat)} — console: please chase the admins');
   }
 
   /// Sends (or edits an existing) availability keyboard message to [user].
   Future<void> showAvailability(
     User user,
-    Cycle cycle,
+    RollingWindow w,
     String text,
   ) async {
     final picked = state.picksFor(user.id);
     final keyboard = buildKeyboard(
-      cycle,
+      w,
       picked,
-      holiday: isHolidayCycle(repo, cycle),
+      now: config.toLocal(Config.nowUtc()),
+      holiday: isHolidayWindow(repo, w),
     );
 
     final existing = state.availabilityMessages[user.id];
@@ -228,7 +256,7 @@ class CycleService {
       );
       state.availabilityMessages[user.id] = (user.id, msg.messageId);
     } on HeldException {
-      // held: block & drop, treated as delivered so the (prompt/reminder)
+      // held: block & drop, treated as delivered so the prompt/reminder
       // flags still advance and nothing is replayed on unhold.
     }
   }
@@ -248,22 +276,29 @@ class CycleService {
     return '${d.day} ${months[d.month - 1]}';
   }
 
+  static String _dayShort(DateTime d) =>
+      '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
+
   static String _fmt(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   String _hint() => 'Tap the sessions you can attend, then <b>Done</b>. '
       'Not able to attend? Tap <b>Not available</b>.';
 
-  /// Builds the availability inline keyboard: toggles per weekend/day/slot
-  /// and location, plus Done and Not available actions. On a holiday cycle a
-  /// "skip me this holiday" opt-out button is appended.
+  /// Builds the availability inline keyboard for the window's two weekends.
+  /// Weekends whose deadline has passed are not offered (locked). Toggles
+  /// per weekend/day/slot/location, plus Done and Not available; on a
+  /// holiday window a "skip me this holiday" opt-out button is appended.
   static InlineKeyboard buildKeyboard(
-    Cycle cycle,
+    RollingWindow w,
     Set<Slot> picked, {
     bool holiday = false,
+    required DateTime now,
   }) {
     var kb = InlineKeyboard();
-    for (final wi in [0, 1]) {
+    for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
+      if (w.locked(sat, now)) continue; // weekend already locked
       for (final day in Slot.allDays) {
         final dayLabel = day == 'sat' ? 'Sat' : 'Sun';
         for (final slot in Slot.allSlots) {
@@ -275,7 +310,7 @@ class CycleService {
             final locLabel = loc == 'ocbc' ? 'OCBC' : 'PR';
             kb = kb.text(
               '$mark $locLabel $dayLabel $slotLabel',
-              'slot|${cycle.id}|$key',
+              'slot|${_satKey(sat)}|$key',
             );
           }
           kb = kb.row();
@@ -284,14 +319,18 @@ class CycleService {
       kb = kb.row();
     }
     kb = kb
-        .text('✅ Done', 'done|${cycle.id}')
+        .text('✅ Done', 'done|${_satKey(w.sat0)}')
         .row()
-        .text('❌ Not available', 'no|${cycle.id}');
+        .text('❌ Not available', 'no|${_satKey(w.sat0)}');
     if (holiday) {
       kb = kb
           .row()
-          .text('🔕 Skip me this holiday', 'holidayout|${cycle.id}');
+          .text('🔕 Skip me this holiday', 'holidayout|${_satKey(w.sat0)}');
     }
     return kb;
   }
+
+  static String _satKey(DateTime sat) =>
+      '${sat.year}-${sat.month.toString().padLeft(2, '0')}-'
+      '${sat.day.toString().padLeft(2, '0')}';
 }

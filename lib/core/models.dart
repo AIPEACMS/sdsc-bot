@@ -1,12 +1,12 @@
 import 'dart:convert';
 
+import 'week.dart';
+
 enum Experience { experienced, newbie }
 
 enum Location { ocbc, pasirRis }
 
 enum HolidayKind { middle, winter, summer }
-
-enum CycleStatus { open, closed, allocated }
 
 /// Member tiers, in display/sort order: console > admin > check > member > old.
 /// `console` and `admin` are derived (console id + is_admin); `check`, `member`
@@ -168,75 +168,72 @@ class Slot {
   int get hashCode => Object.hash(weekendIndex, day, slot, location);
 }
 
-/// A 2-week cycle identified by its first session weekend ISO week (`blockWeek`, odd).
-class Cycle {
-  final int id;
-  final int blockWeek; // ISO week of the first session weekend (odd)
-  final int blockYear; // ISO year of blockWeek
-  final DateTime promptDay; // Monday of blockWeek - 1
-  final DateTime reminderDay; // Thursday of blockWeek - 1
-  final DateTime deadline; // Friday of blockWeek - 1 18:00
-  final DateTime allocationDay; // Wednesday of blockWeek
-  final CycleStatus status;
-  final bool promptSent;
-  final bool reminderSent;
-  final bool allocated;
+/// The rolling availability window: the current week's bundle (this weekend
+/// and next weekend) with its per-weekend deadlines. Everything is computed
+/// from the calendar — no database rows.
+///
+///   - prompt:    Monday 08:00 of the current week
+///   - reminder:  Thursday 18:00
+///   - deadline0: Friday 18:00 of the current week (locks this weekend)
+///   - deadline1: Friday 18:00 of next week (locks the second weekend)
+///   - weekends:  Saturday of the current week and the next
+class RollingWindow {
+  final DateTime sat0;
+  final DateTime sat1;
+  final DateTime promptDay;
+  final DateTime reminderDay;
+  final DateTime deadline0;
+  final DateTime deadline1;
 
-  const Cycle({
-    required this.id,
-    required this.blockWeek,
-    required this.blockYear,
+  const RollingWindow({
+    required this.sat0,
+    required this.sat1,
     required this.promptDay,
     required this.reminderDay,
-    required this.deadline,
-    required this.allocationDay,
-    required this.status,
-    required this.promptSent,
-    required this.reminderSent,
-    required this.allocated,
+    required this.deadline0,
+    required this.deadline1,
   });
 
-  Cycle copyWith({
-    CycleStatus? status,
-    bool? promptSent,
-    bool? reminderSent,
-    bool? allocated,
-  }) {
-    return Cycle(
-      id: id,
-      blockWeek: blockWeek,
-      blockYear: blockYear,
-      promptDay: promptDay,
-      reminderDay: reminderDay,
-      deadline: deadline,
-      allocationDay: allocationDay,
-      status: status ?? this.status,
-      promptSent: promptSent ?? this.promptSent,
-      reminderSent: reminderSent ?? this.reminderSent,
-      allocated: allocated ?? this.allocated,
+  /// The bundle whose first weekend is [sat0].
+  factory RollingWindow.fromSat0(DateTime sat0) {
+    final monday = sat0.subtract(const Duration(days: 5)); // Sat - 5 = Mon
+    return RollingWindow(
+      sat0: sat0,
+      sat1: sat0.add(const Duration(days: 7)),
+      promptDay: WeekMath.atTime(monday, 8),
+      reminderDay: WeekMath.atTime(monday.add(const Duration(days: 3)), 18),
+      deadline0: WeekMath.atTime(monday.add(const Duration(days: 4)), 18),
+      deadline1: WeekMath.atTime(monday.add(const Duration(days: 11)), 18),
     );
   }
 
-  factory Cycle.fromRow(Map<String, Object?> row) => Cycle(
-        id: row['id'] as int,
-        blockWeek: row['block_week'] as int,
-        blockYear: row['block_year'] as int,
-        promptDay: DateTime.parse(row['prompt_day'] as String),
-        reminderDay: DateTime.parse(row['reminder_day'] as String),
-        deadline: DateTime.parse(row['deadline'] as String),
-        allocationDay: DateTime.parse(row['allocation_day'] as String),
-        status: CycleStatus.values.byName(row['status'] as String),
-        promptSent: (row['prompt_sent'] as int) == 1,
-        reminderSent: (row['reminder_sent'] as int) == 1,
-        allocated: (row['allocated'] as int) == 1,
-      );
+  /// The window for a local date: bundle = [current week, next week].
+  factory RollingWindow.forDate(DateTime localNow) {
+    final week = WeekMath.isoWeek(localNow);
+    final year = WeekMath.isoYear(localNow);
+    return RollingWindow.fromSat0(WeekMath.saturdayOfWeek(week, year));
+  }
+
+  List<DateTime> get weekends => [sat0, sat1];
+
+  bool sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  /// The deadline that locks [weekendStart] (one of [sat0], [sat1]).
+  DateTime deadlineFor(DateTime weekendStart) =>
+      sameDay(weekendStart, sat0) ? deadline0 : deadline1;
+
+  /// Whether [weekendStart]'s availability is already locked at [now].
+  bool locked(DateTime weekendStart, DateTime now) =>
+      !now.isBefore(deadlineFor(weekendStart));
 }
 
 /// A concrete session (weekend x day x slot x location) needing volunteers.
 class Session {
   final int id;
-  final int cycleId;
-  final int weekendIndex; // 0 or 1
+
+  /// The Saturday date of the session's weekend.
+  final DateTime weekendStart;
   final String day; // 'sat' | 'sun'
   final String slot; // 'am' | 'pm'
   final Location location;
@@ -245,8 +242,7 @@ class Session {
 
   const Session({
     required this.id,
-    required this.cycleId,
-    required this.weekendIndex,
+    required this.weekendStart,
     required this.day,
     required this.slot,
     required this.location,
@@ -254,12 +250,11 @@ class Session {
     required this.end,
   });
 
-  String slotKey() => '$weekendIndex:$day:$slot';
+  String slotKey() => '$day:$slot';
 
   factory Session.fromRow(Map<String, Object?> row) => Session(
         id: row['id'] as int,
-        cycleId: row['cycle_id'] as int,
-        weekendIndex: row['weekend_index'] as int,
+        weekendStart: DateTime.parse(row['weekend_start'] as String),
         day: row['day'] as String,
         slot: row['slot'] as String,
         location: (row['location'] as String) == 'ocbc'
@@ -270,17 +265,22 @@ class Session {
       );
 }
 
-/// A user's availability for a cycle.
+/// A user's availability for one weekend of a bundle.
 class Availability {
-  final int cycleId;
+  final DateTime weekendStart; // the Saturday of the covered weekend
   final int userId;
+
+  /// The Saturday of the bundle's first weekend — the prompt this response
+  /// answers. The quiet rule ("not bothered for 2 weeks") keys off this.
+  final DateTime bundleStart;
   final Set<Slot> slots;
-  final bool available; // false = explicitly not available for the 2 weeks
+  final bool available; // false = explicitly not available for the weekend
   final DateTime updatedAt;
 
   const Availability({
-    required this.cycleId,
+    required this.weekendStart,
     required this.userId,
+    required this.bundleStart,
     required this.slots,
     required this.available,
     required this.updatedAt,
@@ -288,12 +288,12 @@ class Availability {
 }
 
 class Allocation {
-  final int cycleId;
+  final int id;
   final int userId;
   final int sessionId;
 
   const Allocation({
-    required this.cycleId,
+    required this.id,
     required this.userId,
     required this.sessionId,
   });
@@ -302,11 +302,15 @@ class Allocation {
 class Attendance {
   final int userId;
   final int sessionId;
+
+  /// true = present, false = not participated (a deliberate negative mark).
+  final bool attended;
   final DateTime confirmedAt;
 
   const Attendance({
     required this.userId,
     required this.sessionId,
+    required this.attended,
     required this.confirmedAt,
   });
 }

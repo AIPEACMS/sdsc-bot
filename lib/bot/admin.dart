@@ -5,7 +5,6 @@ import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
-import '../core/week.dart';
 import 'command_both.dart';
 import 'pickers.dart';
 import 'service.dart';
@@ -36,7 +35,11 @@ class Admin {
     commandBoth(bot, 'prompt', _guard(_promptConfirm), label: 'prompt');
     commandBoth(bot, 'remind', _guard(_remindConfirm), label: 'remind');
     commandBoth(bot, 'allocate',
-        _guard((ctx) => service.allocate(_cycle(ctx))),
+        _guard((ctx) async {
+          final w = _window(ctx);
+          await service.allocateWeekend(w.sat0);
+          await service.allocateWeekend(w.sat1);
+        }),
         label: 'allocate');
     commandBoth(bot, 'ask', _guard(_ask), label: 'ask');
     commandBoth(bot, 'confirm', _guard(_confirm), label: 'mark-attend');
@@ -80,10 +83,8 @@ class Admin {
     };
   }
 
-  Cycle _cycle(Context ctx) {
-    final now = config.toLocal(Config.nowUtc());
-    return repo.ensureCurrentCycle(now);
-  }
+  RollingWindow _window(Context ctx) =>
+      RollingWindow.forDate(config.toLocal(Config.nowUtc()));
 
   // ----------------------------------------------------------- /adduser
 
@@ -190,37 +191,29 @@ class Admin {
   // ----------------------------------------------------------- /status
 
   Future<void> _status(Context ctx) async {
-    final cycle = _cycle(ctx);
+    final w = _window(ctx);
     final users = repo.activeUsers();
     final activeIds = {for (final u in users) u.id};
-    final avail =
-        repo.allAvailability(cycle.id).where((a) => activeIds.contains(a.userId));
+    final avail = [
+      ...repo.availabilityForWeekend(w.sat0),
+      ...repo.availabilityForWeekend(w.sat1),
+    ].where((a) => activeIds.contains(a.userId));
     final responders = avail.where((a) => a.available).length;
-    final nonResponders = repo.nonResponders(cycle.id);
-    final allocations = repo.allocationsForCycle(cycle.id);
-
-    final w1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
-    final w2 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
+    final pending = repo.reminderTargets(w.sat0);
 
     final sb = StringBuffer()
       ..writeln('📊 <b>SDSC status</b>')
-      ..writeln('Cycle sessions: ${_day(w1)} & ${_day(w2)} '
-          '(${_cycleLabel(cycle)})')
-      ..writeln('Prompt: ${_day(cycle.promptDay)}'
-          '${cycle.promptSent ? ' ✅' : ''}  |  '
-          'Reminder: ${_day(cycle.reminderDay)}'
-          '${cycle.reminderSent ? ' ✅' : ''}  |  '
-          'Deadline: ${_day(cycle.deadline)} '
-          '${cycle.status == CycleStatus.closed ? '⛔' : ''}  |  '
-          'Allocated: ${cycle.allocated ? '✅' : '—'}')
+      ..writeln('Bundle: ${_day(w.sat0)} & ${_day(w.sat1)}')
+      ..writeln('Prompt: ${_day(w.promptDay)}  |  '
+          'Reminder: ${_day(w.reminderDay)}  |  '
+          'Lock W1: ${_day(w.deadline0)}  |  '
+          'Lock W2: ${_day(w.deadline1)}')
       ..writeln('Registered members: ${users.length}')
       ..writeln('Responded: $responders/${users.length} '
-          '(+${nonResponders.length} pending)')
-      ..writeln('Allocations: ${allocations.length}');
+          '(+${pending.length} pending)');
 
-    if (nonResponders.isNotEmpty) {
-      sb.writeln('⏳ Pending: ${nonResponders.map((u) => u.name).join(', ')}');
+    if (pending.isNotEmpty) {
+      sb.writeln('⏳ Pending: ${pending.map((u) => u.name).join(', ')}');
     }
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
@@ -272,9 +265,9 @@ class Admin {
       await ctx.reply('Unknown user id.');
       return;
     }
-    final cycle = _cycle(ctx);
-    final text = service.promptFor(user, cycle) ?? messages.msg1(user.group);
-    await service.showAvailability(user, cycle, text);
+    final w = _window(ctx);
+    final text = service.promptFor(user, w) ?? messages.msg1(user.group);
+    await service.showAvailability(user, w, text);
   }
 
   Future<void> _askPicker(Context ctx, int page) async {
@@ -297,24 +290,26 @@ class Admin {
     await ctx.answerCallbackQuery();
     final user = repo.findUser(memberId);
     if (user == null) return;
-    final cycle = _cycle(ctx);
-    final text = service.promptFor(user, cycle) ?? messages.msg1(user.group);
-    await service.showAvailability(user, cycle, text);
+    final w = _window(ctx);
+    final text = service.promptFor(user, w) ?? messages.msg1(user.group);
+    await service.showAvailability(user, w, text);
     await ctx.editMessageText('✅ Availability picker sent to ${user.name}.');
   }
 
   // ----------------------------------------------------------- /confirm
 
   Future<void> _confirm(Context ctx) async {
-    final cycle = _cycle(ctx);
-    final sessions = repo.sessionsForCycle(cycle.id);
+    final w = _window(ctx);
+    final sessions = repo.windowSessions(w);
     if (sessions.isEmpty) {
       await ctx.reply('No sessions yet. Run /allocate first.');
       return;
     }
     var kb = InlineKeyboard();
     for (final s in sessions) {
-      final label = 'Wk${s.weekendIndex + 1} '
+      final week = repo.windowSessions(w)
+          .indexOf(s) < 8 ? 'Wk1' : 'Wk2';
+      final label = '$week '
           '${s.day == 'sat' ? 'Sat' : 'Sun'} '
           '${s.slot.toUpperCase()} ${s.location == Location.ocbc ? 'OCBC' : 'PR'}';
       kb = kb.text(label, 'att_sess|${s.id}').row();
@@ -328,56 +323,61 @@ class Admin {
   Future<void> _sessionPicker(Context ctx, int sessionId) async {
     final session = repo.sessionById(sessionId);
     if (session == null) return;
-    final allocations = repo.allocationsForCycle(session.cycleId);
-    final members = allocations
+    final members = repo
+        .allocationsForWeekend(session.weekendStart)
         .where((a) => a.$2.id == sessionId)
         .map((a) => a.$1)
         .toList();
-    final attended = repo.attendanceForSession(sessionId)
-        .map((a) => a.userId)
-        .toSet();
+    final state = repo.attendanceForSession(sessionId);
 
     var kb = InlineKeyboard();
     for (final user in members) {
-      final mark = attended.contains(user.id) ? '✅' : '⬜';
+      final mark = _markFor(user.id, state);
       kb = kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}').row();
     }
     await ctx.editMessageText(
-      '${service.sessionLabel(session)}\nTap to toggle attendance:',
+      '${service.sessionLabel(session)}\n'
+      'Tap to cycle: ⬜ unmarked → ✅ present → ❌ not participated → ⬜',
       replyMarkup: kb,
     );
+  }
+
+  static String _markFor(int userId, List<Attendance> marks) {
+    for (final m in marks) {
+      if (m.userId == userId) return m.attended ? '✅' : '❌';
+    }
+    return '⬜';
   }
 
   Future<void> _toggleAttendance(Context ctx, int sessionId, int userId) async {
     final session = repo.sessionById(sessionId);
     if (session == null) return;
-    final attended = repo.attendanceForSession(sessionId)
-        .map((a) => a.userId)
-        .toSet();
-    if (attended.contains(userId)) {
-      repo.raw.execute(
-        'DELETE FROM attendance WHERE user_id = ? AND session_id = ?',
-        [userId, sessionId],
-      );
+    final current = repo
+        .attendanceForSession(sessionId)
+        .where((a) => a.userId == userId)
+        .toList();
+    if (current.isEmpty) {
+      repo.setAttendanceState(userId, sessionId, attended: true);
+    } else if (current.first.attended) {
+      repo.setAttendanceState(userId, sessionId, attended: false);
     } else {
-      repo.confirmAttendance(userId, sessionId);
+      repo.clearAttendance(userId, sessionId);
     }
-    final allocations = repo.allocationsForCycle(session.cycleId);
-    final members = allocations
+    final members = repo
+        .allocationsForWeekend(session.weekendStart)
         .where((a) => a.$2.id == sessionId)
         .map((a) => a.$1)
         .toList();
-    final newAttended = repo.attendanceForSession(sessionId)
-        .map((a) => a.userId)
-        .toSet();
+    final state = repo.attendanceForSession(sessionId);
 
     var kb = InlineKeyboard();
     for (final user in members) {
-      final mark = newAttended.contains(user.id) ? '✅' : '⬜';
+      final mark = _markFor(user.id, state);
       kb = kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}').row();
     }
     await ctx.editMessageText(
-      '${service.sessionLabel(session)}\nTap to toggle attendance:',
+      '${service.sessionLabel(session)}\n'
+      'Tap to cycle: ⬜ unmarked → ✅ present → ❌ not participated → ⬜',
       replyMarkup: kb,
     );
   }
@@ -569,12 +569,12 @@ class Admin {
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(yes ? 'Sending prompts…' : 'Cancelled — nothing was sent.');
-        if (yes) await service.sendPrompts(_cycle(ctx));
+        if (yes) await service.sendPrompts(_window(ctx));
       case 'remind':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(yes ? 'Sending reminders…' : 'Cancelled — nothing was sent.');
-        if (yes) await service.sendReminders(_cycle(ctx));
+        if (yes) await service.sendReminders(_window(ctx));
       case 'cancel':
         await ctx.answerCallbackQuery();
         state.pendingArg.remove(ctx.from!.id);
@@ -631,33 +631,6 @@ class Admin {
       }
       return;
     }
-  }
-
-  /// Labels the cycle's session weekends in academic-calendar terms:
-  /// "sem1, week 5 & 6" when inside a semester, "winter holiday" /
-  /// "summer holiday" / "middle break" for breaks, else the raw ISO week.
-  String _cycleLabel(Cycle cycle) {
-    final year = repo.latestCalendarYear();
-    if (year == null) return 'week ${cycle.blockWeek}';
-    final w1 = WeekMath.saturdayOfWeek(cycle.blockWeek, cycle.blockYear);
-    final w2 =
-        WeekMath.saturdayOfWeek(cycle.blockWeek + 1, cycle.blockYear);
-    final info1 = year.weekOf(w1);
-    if (info1 != null) {
-      final sem = info1.$1 == 'semester_1' ? 'sem1' : 'sem2';
-      final info2 = year.weekOf(w2);
-      final week2 = info2 != null && info2.$1 == info1.$1 ? info2.$2 : info1.$2 + 1;
-      return '$sem, week ${info1.$2} & $week2';
-    }
-    final holiday = repo.holidayOn(w1);
-    if (holiday != null) {
-      return switch (holiday.kind) {
-        HolidayKind.winter => 'winter holiday',
-        HolidayKind.summer => 'summer holiday',
-        HolidayKind.middle => 'middle break',
-      };
-    }
-    return 'week ${cycle.blockWeek}';
   }
 
   static String _day(DateTime d) {

@@ -7,14 +7,20 @@ import '../core/week.dart';
 import 'service.dart';
 import '../core/log.dart';
 
-/// Periodically checks the calendar and fires whatever is due for the current
-/// cycle. A lightweight Timer replaces a cron daemon and naturally catches up
-/// when the bot restarts.
+/// Periodically drives the rolling schedule. A lightweight Timer replaces a
+/// cron daemon and naturally catches up when the bot restarts.
 ///
-/// Two timers:
-///  - a one-shot armed to the next milestone (prompt / reminder / deadline /
-///    allocation) so things fire on the sharp hour they are scheduled for;
-///  - a slow periodic safety net that catches up after restarts and drift.
+/// The rolling window (bundle = current + next weekend) has, every week:
+///  - Monday 08:00   prompts for the bundle (quiet users skipped)
+///  - Thursday 18:00 reminders to the bundle's non-responders
+///  - Friday 18:00   deadline for this weekend (locks)
+///  - Friday 18:00+  allocation of this weekend's sessions
+///  - next Friday 18:00+ allocation of the second weekend's sessions
+///  - Sunday 20:00 / Monday 08:00 attendance-marking reminders to admins
+///
+/// Two timers: a one-shot armed to the next milestone so things fire on the
+/// sharp scheduled hour, and a slow periodic safety net that catches up
+/// after restarts and drift.
 class Scheduler {
   final Repo repo;
   final Config config;
@@ -45,54 +51,79 @@ class Scheduler {
     _milestone?.cancel();
     try {
       final now = config.toLocal(Config.nowUtc());
-      final cycle = repo.ensureCurrentCycle(now);
+      final w = RollingWindow.forDate(now);
+      final monday = WeekMath.mondayOf(now);
+      final today = DateTime(now.year, now.month, now.day);
 
-      if (cycle.status == CycleStatus.open && !cycle.promptSent) {
-        if (!now.isBefore(cycle.promptDay) && now.isBefore(cycle.deadline)) {
-          await service.sendPrompts(cycle);
-        }
+      // The window's sessions must exist before anything touches them.
+      repo.ensureSessionsForWeekend(
+        w.sat0,
+        config.slotTimes,
+        tzOffsetHours: config.timezoneOffsetHours,
+      );
+      repo.ensureSessionsForWeekend(
+        w.sat1,
+        config.slotTimes,
+        tzOffsetHours: config.timezoneOffsetHours,
+      );
+
+      // Monday: availability prompts for the current bundle.
+      if (_sameDay(today, monday) && !now.isBefore(w.promptDay)) {
+        await service.sendPrompts(w);
       }
 
-      if (!cycle.reminderSent && now.isBefore(cycle.deadline)) {
-        if (!now.isBefore(cycle.reminderDay)) {
-          await service.sendReminders(cycle);
-        }
+      // Thursday: reminders to non-responders of the bundle.
+      if (_sameDay(today, monday.add(const Duration(days: 3))) &&
+          !now.isBefore(w.reminderDay)) {
+        await service.sendReminders(w);
       }
 
-      if (!cycle.allocated && cycle.status != CycleStatus.open) {
-        final lastSessionSat = WeekMath.saturdayOfWeek(
-          cycle.blockWeek + 1,
-          cycle.blockYear,
-        );
-        final lastSessionEnd =
-            lastSessionSat.add(const Duration(days: 2)); // Monday after
-        if (!now.isBefore(cycle.allocationDay) &&
-            now.isBefore(lastSessionEnd)) {
-          await service.allocate(cycle);
-        }
+      // Friday 18:00+: allocate this weekend (once, then flagged).
+      if (!repo.weekendAllocated(w.sat0) &&
+          !now.isBefore(w.deadline0) &&
+          now.isBefore(w.sat1)) {
+        await service.allocateWeekend(w.sat0);
+      }
+
+      // Next Friday 18:00+: allocate the second weekend of the bundle.
+      if (!repo.weekendAllocated(w.sat1) &&
+          !now.isBefore(w.deadline1) &&
+          now.isBefore(w.sat1.add(const Duration(days: 7)))) {
+        await service.allocateWeekend(w.sat1);
+      }
+
+      // Attendance-marking reminders for the weekend just finished:
+      // Sunday evening and again Monday morning.
+      final weekendSat = monday.subtract(const Duration(days: 2));
+      final sunday = monday.subtract(const Duration(days: 1));
+      if (_sameDay(today, sunday) && now.hour >= 20) {
+        await service.remindAttendanceMarking(weekendSat, today);
+      }
+      if (_sameDay(today, monday) && now.hour >= 8) {
+        await service.remindAttendanceMarking(weekendSat, today);
       }
     } catch (e) {
       // Scheduling failures should not kill the bot.
-            LogRing.log('scheduler error: $e');
+      LogRing.log('scheduler error: $e');
     }
     _scheduleNext();
   }
 
-  /// Arms a one-shot timer for the next not-yet-done milestone of the current
-  /// cycle so it fires on the sharp scheduled hour.
+  /// Arms a one-shot timer for the next upcoming milestone so it fires on
+  /// the sharp scheduled hour instead of on the next 12h tick.
   void _scheduleNext() {
     final now = config.toLocal(Config.nowUtc());
-    final cycle = repo.ensureCurrentCycle(now);
+    final w = RollingWindow.forDate(now);
+    final monday = WeekMath.mondayOf(now);
 
-    final due = <DateTime>[];
-    if (cycle.status == CycleStatus.open) {
-      if (!cycle.promptSent) due.add(cycle.promptDay);
-      if (!cycle.reminderSent) due.add(cycle.reminderDay);
-      due.add(cycle.deadline); // auto-close availability
-    } else if (!cycle.allocated) {
-      due.add(cycle.allocationDay);
-    }
-
+    final due = <DateTime>[
+      // This week's milestones, if still in the future.
+      w.promptDay,
+      w.reminderDay,
+      w.deadline0,
+      w.deadline1,
+      monday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
+    ];
     DateTime? next;
     for (final d in due) {
       if (d.isAfter(now) && (next == null || d.isBefore(next))) next = d;
@@ -100,4 +131,7 @@ class Scheduler {
     if (next == null) return;
     _milestone = Timer(next.difference(now), () => _tick());
   }
+
+  static bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 }

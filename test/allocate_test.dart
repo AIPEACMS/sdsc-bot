@@ -3,8 +3,6 @@ import 'package:sdsc_bot/sdsc_bot.dart';
 
 const _am = Slot(0, 'sat', 'am', 'ocbc');
 const _amPr = Slot(0, 'sat', 'am', 'pasirRis');
-const _wi1Am = Slot(1, 'sat', 'am', 'ocbc');
-const _wi1AmPr = Slot(1, 'sat', 'am', 'pasirRis');
 
 User _user(int id, Experience exp, {int streak = 0}) => User(
       id: id,
@@ -15,35 +13,32 @@ User _user(int id, Experience exp, {int streak = 0}) => User(
     );
 
 Availability _avail(int userId, Set<Slot> slots) => Availability(
-      cycleId: 1,
+      weekendStart: DateTime(2026, 8, 8),
       userId: userId,
+      bundleStart: DateTime(2026, 8, 8),
       slots: slots,
       available: true,
       updatedAt: DateTime(2026, 8, 1),
     );
 
 List<Session> _sessions() {
-  Session s(int weekendIndex, String day, String slot, Location loc, int id) =>
-      Session(
+  Session s(String day, String slot, Location loc, int id) => Session(
         id: id,
-        cycleId: 1,
-        weekendIndex: weekendIndex,
+        weekendStart: DateTime(2026, 8, 8),
         day: day,
         slot: slot,
         location: loc,
         start: DateTime(2026, 8, 8),
         end: DateTime(2026, 8, 8, 3),
       );
-  // weekend 0: sat am (both locations), sat pm, sun am; weekend 1: sat am
+  // One weekend: sat am (both locations), sat pm, sun am.
   return [
-    s(0, 'sat', 'am', Location.ocbc, 1),
-    s(0, 'sat', 'am', Location.pasirRis, 2),
-    s(0, 'sat', 'pm', Location.ocbc, 3),
-    s(0, 'sat', 'pm', Location.pasirRis, 4),
-    s(0, 'sun', 'am', Location.ocbc, 5),
-    s(0, 'sun', 'am', Location.pasirRis, 6),
-    s(1, 'sat', 'am', Location.ocbc, 7),
-    s(1, 'sat', 'am', Location.pasirRis, 8),
+    s('sat', 'am', Location.ocbc, 1),
+    s('sat', 'am', Location.pasirRis, 2),
+    s('sat', 'pm', Location.ocbc, 3),
+    s('sat', 'pm', Location.pasirRis, 4),
+    s('sun', 'am', Location.ocbc, 5),
+    s('sun', 'am', Location.pasirRis, 6),
   ];
 }
 
@@ -119,43 +114,8 @@ void main() {
     expect(prCount, 2);
   });
 
-  test('same user can be allocated on both weekends', () {
-    final usersList = [
-      _user(1, Experience.experienced),
-      _user(2, Experience.experienced),
-    ];
-    final result = allocator.run(
-      sessions: _sessions(),
-      availability: [
-        _avail(1, {_am, _amPr, _wi1Am, _wi1AmPr}),
-        _avail(2, {_am, _amPr, _wi1Am, _wi1AmPr}),
-      ],
-      users: users(usersList),
-    );
-    final sessionsFor1 = result.where((e) => e.$1 == 1).map((e) => e.$2).toSet();
-    expect(sessionsFor1.length, 2); // one OCBC session per weekend
-  });
-
-  test('a member who picks one location is only allocated there', () {
-    // User 1 picks only OCBC Sat AM; user 2 picks only Pasir Ris Sat AM.
-    final result = allocator.run(
-      sessions: _sessions(),
-      availability: [
-        _avail(1, {_am}),
-        _avail(2, {_amPr}),
-      ],
-      users: users([_user(1, Experience.experienced), _user(2, Experience.newbie)]),
-    );
-    final byUser = <int, int>{};
-    for (final (uid, sid) in result) {
-      byUser[uid] = sid;
-    }
-    expect(byUser[1], 1); // OCBC Sat AM
-    expect(byUser[2], 2); // PR Sat AM
-  });
-
   test('a member is allocated at most one session per weekend', () {
-    // User picks every slot of weekend 0 (both locations, all days/times).
+    // User picks every slot of the weekend (both locations, all days/times).
     final allWk0 = <Slot>{
       for (final day in Slot.allDays)
         for (final slot in Slot.allSlots)
