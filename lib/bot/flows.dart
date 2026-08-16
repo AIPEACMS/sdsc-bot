@@ -66,7 +66,7 @@ class Flows {
       if (data == null) return next();
       final head = data.split('|').first;
       if (head == 'slot' || head == 'done' || head == 'no' ||
-          head == 'holidayout') {
+          head == 'cancel' || head == 'holidayout') {
         await _onCallback(ctx);
         return;
       }
@@ -412,6 +412,8 @@ class Flows {
         await _saveAvailability(ctx, userId, parts[1], false);
       case 'no':
         await _saveAvailability(ctx, userId, parts[1], true);
+      case 'cancel':
+        await _cancelAvailability(ctx, userId, parts);
       case 'holidayout':
         await _optOutHoliday(ctx, userId, parts);
     }
@@ -474,11 +476,44 @@ class Flows {
           picks,
           now: now,
           holiday: CycleService.isHolidayWindow(repo, w),
+          hasIndicated: repo.hasBundleResponse(sat0, userId),
         ),
       );
     } catch (_) {
       // message may be gone; ignore
     }
+  }
+
+  /// Withdraws the member's saved availability for the bundle's still-open
+  /// weekends. The Cancel button only appears once they have responded, so
+  /// there is always something to withdraw; locked weekends are left alone.
+  Future<void> _cancelAvailability(
+      Context ctx, int userId, List<String> parts) async {
+    await ctx.answerCallbackQuery();
+    if (parts.length < 2) return;
+    final sat0 = DateTime.tryParse(parts[1]);
+    if (sat0 == null) return;
+    final w = RollingWindow.fromSat0(sat0);
+    final now = config.toLocal(Config.nowUtc());
+    var cancelled = 0;
+    for (final (_, sat) in [(0, w.sat0), (1, w.sat1)]) {
+      if (w.locked(sat, now)) continue;
+      repo.deleteAvailability(sat, userId);
+      cancelled++;
+    }
+    state.forgetAvailability(userId);
+    if (cancelled == 0) {
+      await ctx.reply('Both weekends are already locked — nothing was '
+          'cancelled.');
+      return;
+    }
+    try {
+      await ctx.editMessageText('Your availability has been cancelled.');
+    } catch (_) {
+      // message may be gone; ignore
+    }
+    await ctx.reply('Your availability for the open weekends has been '
+        'cancelled. Changed your mind? Send /repick to update by Friday.');
   }
 
   Future<void> _saveAvailability(
@@ -536,7 +571,16 @@ class Flows {
       // message may be gone; ignore
     }
     await ctx.reply(
-        unavailable ? messages.msg6() : messages.msg3(picks));
+        unavailable
+            ? messages.msg6()
+            : messages.msg3(picks, allocateAt: _hour12(config.deadlineHour)));
+  }
+
+  /// "18" -> "6:00 PM" — the sharp hour the allocation message goes out.
+  static String _hour12(int h) {
+    final hour12 = h % 12 == 0 ? 12 : h % 12;
+    final ampm = h < 12 ? 'AM' : 'PM';
+    return '$hour12:00 $ampm';
   }
 
   /// "Sat 15 Aug" — short weekday + date.

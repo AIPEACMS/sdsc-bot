@@ -179,6 +179,144 @@ void main() {
     expect(notice, isNot(contains('TBD')));
   });
 
+  test('not-available confirmation says by Friday', () {
+    expect(messages.msg6(), contains('by Friday'));
+  });
+
+  test('available confirmation announces the sharp allocation hour', () {
+    final text = messages.msg3(const [], allocateAt: '6:00 PM');
+    expect(text, contains('<b>You will get allocated at 6:00 PM</b> later'));
+  });
+
+  test('cancel button appears only after the member has responded', () {
+    final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
+    final now = DateTime(2026, 8, 12); // Wednesday, both weekends open
+    final kbNo = CycleService.buildKeyboard(w, {}, now: now);
+    final labelsNo =
+        kbNo.inlineKeyboard.expand((r) => r).map((b) => b.text).toList();
+    expect(labelsNo.contains('❌ Cancel'), isFalse);
+    final kbYes =
+        CycleService.buildKeyboard(w, {}, now: now, hasIndicated: true);
+    final labelsYes =
+        kbYes.inlineKeyboard.expand((r) => r).map((b) => b.text).toList();
+    expect(labelsYes.contains('❌ Cancel'), isTrue);
+  });
+
+  test('cancel withdraws the saved availability for open weekends',
+      () async {
+    final sent = <Map<String, dynamic>>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((req) async {
+      final path = req.uri.path;
+      if (path.endsWith('/getMe')) {
+        await _json(req, {
+          'ok': true,
+          'result': {
+            'id': 1,
+            'is_bot': true,
+            'first_name': 'test',
+            'username': 'sdsc_attendence_bot',
+          },
+        });
+      } else if (path.endsWith('/getUpdates')) {
+        await _json(req, {'ok': true, 'result': <dynamic>[]});
+      } else if (path.endsWith('/sendMessage')) {
+        final body = jsonDecode(await utf8.decoder.bind(req).join());
+        sent.add(body as Map<String, dynamic>);
+        await _json(req, {
+          'ok': true,
+          'result': {
+            'message_id': 1,
+            'date': 1,
+            'chat': {'id': 1, 'type': 'private'},
+            'text': body['text'],
+          },
+        });
+      } else if (path.endsWith('/answerCallbackQuery') ||
+          path.endsWith('/editMessageText')) {
+        await _json(req, {'ok': true, 'result': true});
+      } else {
+        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+      }
+    });
+
+    repo.upsertUser(User(
+      id: 42,
+      name: '@alice',
+      experience: Experience.newbie,
+      group: '1',
+    ));
+
+    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+    final state = BotState();
+    final service = CycleService(
+      repo: repo,
+      config: config,
+      messages: messages,
+      state: state,
+      bot: bot,
+    );
+    Flows(
+      bot: bot,
+      repo: repo,
+      config: config,
+      messages: messages,
+      state: state,
+      service: service,
+    ).register();
+
+    final startFuture = bot.start();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    // alice first answers the bundle (Done, nothing selected → not
+    // available). This weekend (2026-08-15) is already locked on the real
+    // clock; next weekend is still open.
+    await bot.handleUpdate(Update.fromJson({
+      'update_id': 1,
+      'callback_query': {
+        'id': '1',
+        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+        'chat_instance': '1',
+        'message': {
+          'message_id': 7,
+          'date': 1,
+          'chat': {'id': 42, 'type': 'private'},
+          'text': 'Your availability (tap to toggle):',
+        },
+        'data': 'done|2026-08-15',
+      },
+    }));
+
+    // The open weekend (Sat 22 Aug) now has a saved response.
+    final sat1 = DateTime(2026, 8, 22);
+    expect(repo.getAvailability(sat1, 42), isNotNull);
+
+    // alice cancels: the open weekend's row is withdrawn.
+    await bot.handleUpdate(Update.fromJson({
+      'update_id': 2,
+      'callback_query': {
+        'id': '2',
+        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+        'chat_instance': '1',
+        'message': {
+          'message_id': 7,
+          'date': 1,
+          'chat': {'id': 42, 'type': 'private'},
+          'text': 'Your availability (tap to toggle):',
+        },
+        'data': 'cancel|2026-08-15',
+      },
+    }));
+
+    await bot.stop();
+    await startFuture;
+    await server.close(force: true);
+
+    expect(repo.getAvailability(sat1, 42), isNull);
+    final texts = sent.map((s) => s['text'] as String).toList();
+    expect(texts.any((t) => t.contains('has been cancelled')), isTrue);
+  });
+
   test('toggling a slot keeps the picker anchored to the bundle start',
       () async {
     final edits = <Map<String, dynamic>>[];

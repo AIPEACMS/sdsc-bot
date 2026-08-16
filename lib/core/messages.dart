@@ -37,20 +37,24 @@ class Messages {
         '$contact.';
   }
 
-  /// Confirmation echoing the chosen availability slots.
-  String msg3(Iterable<Slot> slots) {
+  /// Confirmation echoing the chosen availability slots. [allocateAt] is the
+  /// sharp hour the allocation message goes out (e.g. "6:00 PM").
+  String msg3(Iterable<Slot> slots, {String? allocateAt}) {
     final lines = slots.map((s) => '• ${s.toString()}').toList();
     final list = lines.isEmpty ? '(none)' : lines.join('\n');
+    final alloc = allocateAt == null
+        ? ''
+        : '\n\n<b>You will get allocated at $allocateAt</b> later';
     return 'Thank you! Here is what you told us:\n$list\n\n'
         'Availability locks on the Friday before each weekend. '
-        'Changed your mind? Send /repick to update before then.';
+        'Changed your mind? Send /repick to update before then.$alloc';
   }
 
   /// Confirmation when the member indicated they are not available.
   String msg6() {
     return 'No worries — you are all set for the next 2 weeks. '
         'We will prompt you again for the following cycle!\n\n'
-        'Changed your mind? Send /repick to update before then.';
+        'Changed your mind? Send /repick to update by Friday.';
   }
 
   /// Allocation notice. `session` is e.g. "OCBC @ Pasir Ris" placeholder —
