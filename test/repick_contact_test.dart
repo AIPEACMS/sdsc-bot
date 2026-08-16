@@ -188,6 +188,16 @@ void main() {
     expect(text, contains('<b>You will get allocated at 6:00 PM</b> later'));
   });
 
+  test('the allocation hour is the next sharp hour after indicating', () {
+    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 14, 23)),
+        '3:00 PM');
+    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 15, 0)),
+        '4:00 PM');
+    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 23, 30)),
+        '12:00 AM');
+    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 0, 5)), '1:00 AM');
+  });
+
   test('cancel button appears only after the member has responded', () {
     final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
     final now = DateTime(2026, 8, 12); // Wednesday, both weekends open

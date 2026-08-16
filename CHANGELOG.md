@@ -5,6 +5,17 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.5] - 2026-08-16
+
+### Fixed
+
+- **The availability confirmation renders as HTML and names the real
+  allocation hour.** The bold "You will get allocated at ..." line is sent
+  with HTML parsing (the tags were showing literally), and the hour is the
+  next sharp hour after the member indicated — not a fixed evening time.
+- **The allocation notice renders as HTML too** — the bold session label
+  was showing as literal tags.
+
 ## [1.8.4] - 2026-08-16
 
 ### Fixed

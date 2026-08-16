@@ -156,6 +156,7 @@ class CycleService {
           await bot.api.sendMessage(
             ChatID(userId),
             messages.msg4(user.group, label, time),
+            parseMode: ParseMode.html,
           );
         } on HeldException {
           // held: drop, still marked as sent
