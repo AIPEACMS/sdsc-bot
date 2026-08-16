@@ -434,40 +434,39 @@ ON CONFLICT(username) DO UPDATE SET
 
   // --------------------------------------------------------------- sessions
 
-  /// Creates the 8 sessions (sat/sun x am/pm x 2 locations) of [sat]'s
-  /// weekend, using the given slot time windows. Idempotent.
+  /// Creates the 4 sessions (Saturday x am/pm x 2 locations) of [sat]'s
+  /// weekend, using the given slot time windows. There are no Sunday
+  /// sessions. Idempotent.
   void ensureSessionsForWeekend(
     DateTime sat,
     Map<String, (String, String)> slotTimes, {
     required int tzOffsetHours,
   }) {
-    const days = ['sat', 'sun'];
     const slots = ['am', 'pm'];
     const locations = [Location.ocbc, Location.pasirRis];
-    for (final day in days) {
-      final dayDate = sat.add(Duration(days: day == 'sun' ? 1 : 0));
-      for (final slot in slots) {
-        final (startT, endT) = slotTimes[slot]!;
-        final start = _parseTime(dayDate, startT);
-        final end = _parseTime(dayDate, endT);
-        for (final loc in locations) {
-          raw.execute(
-            '''
+    for (final slot in slots) {
+      final (startT, endT) = slotTimes[slot]!;
+      final start = _parseTime(sat, startT);
+      final end = _parseTime(sat, endT);
+      for (final loc in locations) {
+        raw.execute(
+          '''
 INSERT OR IGNORE INTO sessions
   (weekend_start, day, slot, location, start_at, end_at)
 VALUES (?, ?, ?, ?, ?, ?)
 ''',
-            [_dayKey(sat), day, slot, loc.name, _fmt(start), _fmt(end)],
-          );
-        }
+          [_dayKey(sat), 'sat', slot, loc.name, _fmt(start), _fmt(end)],
+        );
       }
     }
   }
 
-  /// Sessions of one weekend, ordered by start time.
+  /// Sessions of one weekend, ordered by start time. Saturday only — Sunday
+  /// sessions are not a thing (and stale rows from older versions are hidden).
   List<Session> sessionsForWeekend(DateTime sat) => raw
       .select(
-        'SELECT * FROM sessions WHERE weekend_start = ? ORDER BY start_at',
+        'SELECT * FROM sessions WHERE weekend_start = ? AND day = \'sat\' '
+        'ORDER BY start_at',
         [_dayKey(sat)],
       )
       .map(Session.fromRow)
@@ -643,7 +642,7 @@ SELECT u.*,
 FROM allocations al
 JOIN users u ON u.id = al.user_id
 JOIN sessions s ON s.id = al.session_id
-WHERE s.weekend_start = ?
+WHERE s.weekend_start = ? AND s.day = 'sat'
 ORDER BY s.start_at, u.name
 ''',
       [_dayKey(sat)],

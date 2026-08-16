@@ -6,7 +6,7 @@
 ///   - reminder: Thursday of blockWeek-1
 ///   - deadline: Friday of blockWeek-1 18:00
 ///   - allocate: Wednesday of blockWeek 09:00
-///   - sessions: Sat/Sun of blockWeek and blockWeek+1
+///   - sessions: Saturday of blockWeek and blockWeek+1
 class WeekMath {
   /// ISO-8601 week number (1..53) for [date].
   static int isoWeek(DateTime date) {

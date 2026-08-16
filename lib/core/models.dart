@@ -93,17 +93,17 @@ class User {
 }
 
 /// One session of one weekend, e.g. `0:sat:am:ocbc` = weekend 0, Saturday AM,
-/// OCBC. Format: `{weekendIndex}:{day}:{slot}:{location}` where day in
-/// {sat,sun}, slot in {am,pm}, location in {ocbc,pasirRis}.
+/// OCBC. Format: `{weekendIndex}:{day}:{slot}:{location}` where day is
+/// {sat}, slot in {am,pm}, location in {ocbc,pasirRis}.
 class Slot {
   final int weekendIndex; // 0 or 1
-  final String day; // 'sat' | 'sun'
+  final String day; // 'sat'
   final String slot; // 'am' | 'pm'
   final String location; // 'ocbc' | 'pasirRis'
 
   const Slot(this.weekendIndex, this.day, this.slot, this.location);
 
-  static const allDays = ['sat', 'sun'];
+  static const allDays = ['sat']; // Saturday only — there are no Sunday sessions
   static const allSlots = ['am', 'pm'];
   static const allLocations = ['ocbc', 'pasirRis'];
 
@@ -234,7 +234,7 @@ class Session {
 
   /// The Saturday date of the session's weekend.
   final DateTime weekendStart;
-  final String day; // 'sat' | 'sun'
+  final String day; // 'sat' (Saturday only — no Sunday sessions)
   final String slot; // 'am' | 'pm'
   final Location location;
   final DateTime start; // actual date+time

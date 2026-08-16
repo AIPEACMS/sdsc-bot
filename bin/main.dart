@@ -29,7 +29,12 @@ Future<void> main() async {
     }
   }
 
-  final messages = Messages(config.contactForGroup);
+  // The contact shown in messages is the member's group leader (the admin of
+  // their group); the configured env contact is only a fallback for groups
+  // with no leader yet.
+  final messages = Messages(
+    (group) => repo.groupAdmin(group)?.name ?? config.contactForGroup(group),
+  );
   final state = BotState();
 
   final bot = Bot<Context>(config.botToken);

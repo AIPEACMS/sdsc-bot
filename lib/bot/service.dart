@@ -299,6 +299,12 @@ class CycleService {
     var kb = InlineKeyboard();
     for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
       if (w.locked(sat, now)) continue; // weekend already locked
+      // A non-interactive header naming the date, so the picker says which
+      // weekend each slot belongs to. No arbitrary week numbers — the
+      // calendar may have breaks between weeks.
+      kb = kb
+          .text('Sat ${_day(sat)}', 'noop|$wi')
+          .row();
       for (final day in Slot.allDays) {
         final dayLabel = day == 'sat' ? 'Sat' : 'Sun';
         for (final slot in Slot.allSlots) {

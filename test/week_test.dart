@@ -113,11 +113,11 @@ void main() {
         const Slot(0, 'sat', 'am', 'ocbc'),
         const Slot(0, 'sat', 'am', 'pasirRis'),
       });
-      // New 4-part keys decode as-is.
+      // New 4-part keys decode as-is; Sunday slots are not a thing and are
+      // dropped.
       final set2 = Slot.decodeSet('["0:sat:am:ocbc","1:sun:pm:pasirRis"]');
       expect(set2, {
         const Slot(0, 'sat', 'am', 'ocbc'),
-        const Slot(1, 'sun', 'pm', 'pasirRis'),
       });
     });
   });

@@ -81,14 +81,14 @@ void main() {
       {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
       tzOffsetHours: 8,
     );
-    expect(repo.sessionsForWeekend(sat).length, 8); // 2 days x 2 slots x 2 locations
+    expect(repo.sessionsForWeekend(sat).length, 4); // Saturday: 2 slots x 2 locations
 
     repo.ensureSessionsForWeekend(
       sat,
       {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
       tzOffsetHours: 8,
     );
-    expect(repo.sessionsForWeekend(sat).length, 8);
+    expect(repo.sessionsForWeekend(sat).length, 4);
   });
 
   test('availability, allocation and streak round-trip', () {
