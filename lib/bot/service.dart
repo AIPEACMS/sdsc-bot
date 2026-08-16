@@ -314,9 +314,12 @@ class CycleService {
             final selected = picked.any((s) => s.encode() == key);
             final mark = selected ? '✅' : '▫️';
             final locLabel = loc == 'ocbc' ? 'OCBC' : 'PR';
+            // The callback carries the BUNDLE's first Saturday (not the
+            // clicked weekend) so a toggle re-renders the same anchored
+            // window — the header dates and weekend indexes never shift.
             kb = kb.text(
               '$mark $locLabel $dayLabel $slotLabel',
-              'slot|${_satKey(sat)}|$key',
+              'slot|${_satKey(w.sat0)}|$key',
             );
           }
           kb = kb.row();
