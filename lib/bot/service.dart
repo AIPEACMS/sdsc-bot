@@ -227,6 +227,7 @@ class CycleService {
       picked,
       now: config.toLocal(Config.nowUtc()),
       holiday: isHolidayWindow(repo, w),
+      hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
     );
 
     final existing = state.availabilityMessages[user.id];
@@ -290,10 +291,13 @@ class CycleService {
   /// Weekends whose deadline has passed are not offered (locked). Toggles
   /// per weekend/day/slot/location, plus Done and Not available; on a
   /// holiday window a "skip me this holiday" opt-out button is appended.
+  /// A Cancel button (withdraw the saved answer) appears at the very bottom
+  /// only when the member has already responded to this bundle.
   static InlineKeyboard buildKeyboard(
     RollingWindow w,
     Set<Slot> picked, {
     bool holiday = false,
+    bool hasIndicated = false,
     required DateTime now,
   }) {
     var kb = InlineKeyboard();
@@ -335,6 +339,9 @@ class CycleService {
       kb = kb
           .row()
           .text('🔕 Skip me this holiday', 'holidayout|${_satKey(w.sat0)}');
+    }
+    if (hasIndicated) {
+      kb = kb.row().text('❌ Cancel', 'cancel|${_satKey(w.sat0)}');
     }
     return kb;
   }

@@ -5,6 +5,22 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.3] - 2026-08-16
+
+### Added
+
+- **A Cancel button at the bottom of the availability picker** — but only
+  for members who have already answered this bundle. Tapping it withdraws
+  their saved availability for the still-open weekends.
+
+### Changed
+
+- **The availability confirmation tells members when the allocation goes
+  out.** After "Thank you! Here is what you told us: ...", a bold line
+  announces the sharp hour (e.g. "You will get allocated at 6:00 PM").
+- **The "not available" confirmation says "by Friday"** instead of "before
+  then" when pointing members to /repick.
+
 ## [1.8.2] - 2026-08-16
 
 ### Changed
