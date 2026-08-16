@@ -491,6 +491,9 @@ class Flows {
     if (user == null) return;
 
     final picks = state.picksFor(userId).toSet();
+    // Done with nothing selected means the same as "Not available": an
+    // explicit "cannot make it" answer, never a "(none)" confirmation.
+    final unavailable = notAvailable || picks.isEmpty;
     // Save one row per weekend that is still open; locked weekends are left
     // alone (their allocation has already run or is about to).
     var saved = 0;
@@ -500,8 +503,10 @@ class Flows {
         weekendStart: sat,
         userId: userId,
         bundleStart: sat0,
-        slots: notAvailable ? {} : picks.where((s) => s.weekendIndex == wi).toSet(),
-        available: !notAvailable,
+        slots: unavailable
+            ? {}
+            : picks.where((s) => s.weekendIndex == wi).toSet(),
+        available: !unavailable,
         updatedAt: now,
       ));
       saved++;
@@ -516,7 +521,7 @@ class Flows {
 
     try {
       await ctx.editMessageText(
-        notAvailable
+        unavailable
             ? 'You indicated <b>not available</b> for the open weekends.'
             : 'Availability saved.',
         parseMode: ParseMode.html,
@@ -525,7 +530,7 @@ class Flows {
       // message may be gone; ignore
     }
     await ctx.reply(
-        notAvailable ? messages.msg6() : messages.msg3(picks));
+        unavailable ? messages.msg6() : messages.msg3(picks));
   }
 
   /// "Sat 15 Aug" — short weekday + date.

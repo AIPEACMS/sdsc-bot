@@ -5,63 +5,31 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.3.1] - 2026-08-11
+## [1.8.0] - 2026-08-16
 
 ### Fixed
 
-- **Typed slash commands were being swallowed.** The message bookkeeping
-  middleware short-circuited the chain for any command, so commands typed
-  directly (`/addkey`, and any admin/console slash command) never reached
-  their handlers. Grid buttons were unaffected (they send plain text). The
-  middleware now always continues the chain, so typed commands work again.
-
-## [1.3.0] - 2026-08-11
-
-### Added
-
-- **Every incoming message is now logged.** The bot records each message it
-  receives (sender + text, truncated) into the log ring and journal, so the
-  console's Logs tab shows what actually arrived — no more invisible command
-  attempts.
-- **Time-based log retention.** The log ring keeps lines for a configurable
-  window (default 14 days) and prunes older ones, instead of an opaque line
-  cap. The window is set from the console via `POST /api/log-retention` and
-  persisted across restarts; `GET /api/state` reports the current value.
-
-## [1.2.0] - 2026-08-11
-
-### Added
-
-- **The admin API now has its own identity.** The bot generates an Ed25519
-  keypair on first use (persisted in the DB) and signs every API response.
-  `GET /api/server-info` exposes the public key and fingerprint so the console
-  app can pin it on first connect after out-of-band verification. A fake
-  backend can no longer pose as the bot even if it registers the console's
-  public key — every response must be signed by the pinned server identity.
-
-## [1.1.1] - 2026-08-11
-
-### Fixed
-
-- Admin API would not start on a fresh database with no console keys
-  registered yet, so the very first key could never authenticate. The API now
-  always listens; with no keys it rejects every request.
-
-## [1.1.0] - 2026-08-11
+- **Mark attendance (`/confirm`) now lists only the current week's four
+  Saturday sessions** (Sat AM/PM × OCBC/PR) instead of every session of the
+  rolling window. Each button carries a status mark scoped to the admin's own
+  group: blue when some of the group's members are still unmarked, green when
+  all are marked, and no icon when nobody from the group is allocated. The
+  member list inside a session shows only the admin's own group.
+- **Mark attendance rolls over at Saturday 00:00.** Until then the previous
+  Saturday's sessions can always still be marked; the header names which
+  weekend is being marked.
+- **Re-picking and pressing Done with nothing selected** is now treated the
+  same as "Not available" instead of confirming "(none)".
+- **Messages now name the group leader.** The "Questions? Message …" line in
+  prompts and the allocation notice use the member's group admin instead of
+  the configured contact placeholder (which read "TBD" when unset).
 
 ### Changed
 
-- **Console app authentication is now asymmetric.** The desktop console app
-  generates an Ed25519 keypair on first run, the operator registers its public
-  key with the console-only `/addkey` command, and every admin-API request is
-  signed (timestamp + nonce + path + body hash). Registers with `/keys`,
-  revokes with `/rmkey`.
-- **The calendar-sync cron token never authorizes the admin API.** The two
-  credentials are now fully separate — the loopback IPC token is scoped to
-  the calendar sync only. The optional admin `ADMIN_API_TOKEN` remains as a
-  manual bearer fallback.
-
-## [Unreleased]
+- **There are no Sunday sessions.** Sessions, availability and allocation are
+  Saturday-only; the availability picker labels each weekend by its date
+  ("Sat 15 Aug", no arbitrary week numbers) so it is clear which week a slot
+  belongs to. Stale Sunday rows from earlier versions are ignored.
 
 ## [1.7.0] - 2026-08-12
 
@@ -167,6 +135,62 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   "Skip me this holiday" button on the prompt.
 - **`/start` message cleaned up**: the member section matches the grid
   (`/repick`, `/mystatus`), and no removed commands are advertised.
+
+## [1.3.1] - 2026-08-11
+
+### Fixed
+
+- **Typed slash commands were being swallowed.** The message bookkeeping
+  middleware short-circuited the chain for any command, so commands typed
+  directly (`/addkey`, and any admin/console slash command) never reached
+  their handlers. Grid buttons were unaffected (they send plain text). The
+  middleware now always continues the chain, so typed commands work again.
+
+## [1.3.0] - 2026-08-11
+
+### Added
+
+- **Every incoming message is now logged.** The bot records each message it
+  receives (sender + text, truncated) into the log ring and journal, so the
+  console's Logs tab shows what actually arrived — no more invisible command
+  attempts.
+- **Time-based log retention.** The log ring keeps lines for a configurable
+  window (default 14 days) and prunes older ones, instead of an opaque line
+  cap. The window is set from the console via `POST /api/log-retention` and
+  persisted across restarts; `GET /api/state` reports the current value.
+
+## [1.2.0] - 2026-08-11
+
+### Added
+
+- **The admin API now has its own identity.** The bot generates an Ed25519
+  keypair on first use (persisted in the DB) and signs every API response.
+  `GET /api/server-info` exposes the public key and fingerprint so the console
+  app can pin it on first connect after out-of-band verification. A fake
+  backend can no longer pose as the bot even if it registers the console's
+  public key — every response must be signed by the pinned server identity.
+
+## [1.1.1] - 2026-08-11
+
+### Fixed
+
+- Admin API would not start on a fresh database with no console keys
+  registered yet, so the very first key could never authenticate. The API now
+  always listens; with no keys it rejects every request.
+
+## [1.1.0] - 2026-08-11
+
+### Changed
+
+- **Console app authentication is now asymmetric.** The desktop console app
+  generates an Ed25519 keypair on first run, the operator registers its public
+  key with the console-only `/addkey` command, and every admin-API request is
+  signed (timestamp + nonce + path + body hash). Registers with `/keys`,
+  revokes with `/rmkey`.
+- **The calendar-sync cron token never authorizes the admin API.** The two
+  credentials are now fully separate — the loopback IPC token is scoped to
+  the calendar sync only. The optional admin `ADMIN_API_TOKEN` remains as a
+  manual bearer fallback.
 
 ## [1.0.1] - 2026-08-11
 

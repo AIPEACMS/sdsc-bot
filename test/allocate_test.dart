@@ -31,14 +31,12 @@ List<Session> _sessions() {
         start: DateTime(2026, 8, 8),
         end: DateTime(2026, 8, 8, 3),
       );
-  // One weekend: sat am (both locations), sat pm, sun am.
+  // One weekend: Saturday am/pm, both locations. No Sunday sessions.
   return [
     s('sat', 'am', Location.ocbc, 1),
     s('sat', 'am', Location.pasirRis, 2),
     s('sat', 'pm', Location.ocbc, 3),
     s('sat', 'pm', Location.pasirRis, 4),
-    s('sun', 'am', Location.ocbc, 5),
-    s('sun', 'am', Location.pasirRis, 6),
   ];
 }
 

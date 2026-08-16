@@ -298,42 +298,100 @@ class Admin {
 
   // ----------------------------------------------------------- /confirm
 
+  /// The weekend /confirm marks: the current week's Saturday from 00:00
+  /// Saturday onward; before that, the previous Saturday (the week just
+  /// finished) can still be marked.
+  DateTime _currentWeekendSat() {
+    final now = config.toLocal(Config.nowUtc());
+    final w = RollingWindow.forDate(now);
+    return now.isBefore(w.sat0)
+        ? w.sat0.subtract(const Duration(days: 7))
+        : w.sat0;
+  }
+
+  /// The calling admin's group. Empty when the user has no group (e.g. the
+  /// console before being added as a member) — then no group filter applies.
+  String _adminGroup(Context ctx) {
+    final user = repo.findUser(ctx.from?.id ?? 0);
+    return user?.group ?? '';
+  }
+
+  /// The calling admin's own group only: the /confirm flow is scoped to the
+  /// group the admin leads, so a leader never marks (or is reminded about)
+  /// another group's members.
   Future<void> _confirm(Context ctx) async {
-    final w = _window(ctx);
-    final sessions = repo.windowSessions(w);
+    final sat = _currentWeekendSat();
+    final sessions = repo.sessionsForWeekend(sat);
     if (sessions.isEmpty) {
       await ctx.reply('No sessions yet. Run /allocate first.');
       return;
     }
+    final group = _adminGroup(ctx);
     var kb = InlineKeyboard();
     for (final s in sessions) {
-      final week = repo.windowSessions(w)
-          .indexOf(s) < 8 ? 'Wk1' : 'Wk2';
-      final label = '$week '
-          '${s.day == 'sat' ? 'Sat' : 'Sun'} '
-          '${s.slot.toUpperCase()} ${s.location == Location.ocbc ? 'OCBC' : 'PR'}';
-      kb = kb.text(label, 'att_sess|${s.id}').row();
+      final mark = _sessionMark(s, group);
+      final loc = s.location == Location.ocbc ? 'OCBC' : 'PR';
+      kb = kb
+          .text('$mark$loc Sat ${s.slot.toUpperCase()}', 'att_sess|${s.id}')
+          .row();
     }
     await ctx.reply(
-      'Tap a session to confirm attendance:',
+      'Mark attendance for ${_day(sat)}:\n'
+      '🔵 some of your group unmarked · 🟢 all marked · '
+      'no icon = nobody from your group',
       replyMarkup: kb,
     );
   }
 
+  /// The status mark for one session's button, scoped to the admin's [group]:
+  /// '' (transparent) when nobody from the group is allocated, '🟢 ' when
+  /// every allocated member is marked, '🔵 ' when some are still unmarked.
+  String _sessionMark(Session s, String group) {
+    final members = _sessionMembers(s, group);
+    if (members.isEmpty) return '';
+    final marks = repo.attendanceForSession(s.id);
+    for (final user in members) {
+      if (!marks.any((a) => a.userId == user.id)) return '🔵 ';
+    }
+    return '🟢 ';
+  }
+
+  /// The admin's group members allocated to [session] (empty group = every
+  /// group).
+  List<User> _sessionMembers(Session s, String group) => repo
+      .allocationsForWeekend(s.weekendStart)
+      .where((a) => a.$2.id == s.id && (group.isEmpty || a.$1.group == group))
+      .map((a) => a.$1)
+      .toList();
+
   Future<void> _sessionPicker(Context ctx, int sessionId) async {
     final session = repo.sessionById(sessionId);
     if (session == null) return;
-    final members = repo
-        .allocationsForWeekend(session.weekendStart)
-        .where((a) => a.$2.id == sessionId)
-        .map((a) => a.$1)
-        .toList();
-    final state = repo.attendanceForSession(sessionId);
+    await _renderSessionPicker(ctx, session);
+  }
 
+  /// The per-member attendance list for one session, scoped to the admin's
+  /// own group. Both the picker entry and the post-toggle re-render go
+  /// through here so they always show the same members.
+  Future<void> _renderSessionPicker(Context ctx, Session session) async {
+    final group = _adminGroup(ctx);
+    final members = _sessionMembers(session, group);
+
+    if (members.isEmpty) {
+      await ctx.editMessageText(
+        '${service.sessionLabel(session)}\n'
+        'No one from your group is allocated here.',
+      );
+      return;
+    }
+
+    final state = repo.attendanceForSession(session.id);
     var kb = InlineKeyboard();
     for (final user in members) {
       final mark = _markFor(user.id, state);
-      kb = kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}').row();
+      kb = kb
+          .text('$mark ${user.name}', 'att_toggle|${session.id}|${user.id}')
+          .row();
     }
     await ctx.editMessageText(
       '${service.sessionLabel(session)}\n'
@@ -363,23 +421,7 @@ class Admin {
     } else {
       repo.clearAttendance(userId, sessionId);
     }
-    final members = repo
-        .allocationsForWeekend(session.weekendStart)
-        .where((a) => a.$2.id == sessionId)
-        .map((a) => a.$1)
-        .toList();
-    final state = repo.attendanceForSession(sessionId);
-
-    var kb = InlineKeyboard();
-    for (final user in members) {
-      final mark = _markFor(user.id, state);
-      kb = kb.text('$mark ${user.name}', 'att_toggle|$sessionId|${user.id}').row();
-    }
-    await ctx.editMessageText(
-      '${service.sessionLabel(session)}\n'
-      'Tap to cycle: ⬜ unmarked → ✅ present → ❌ not participated → ⬜',
-      replyMarkup: kb,
-    );
+    await _renderSessionPicker(ctx, session);
   }
 
   // ----------------------------------------------------------- /setexp
@@ -525,7 +567,7 @@ class Admin {
     final parts = data.split('|');
     switch (parts[0]) {
       case 'att_sess':
-        final id = int.tryParse(parts[1]);
+        final id = int.tryParse(parts.length > 1 ? parts[1] : '');
         if (id != null) await _sessionPicker(ctx, id);
       case 'att_toggle':
         final sid = int.tryParse(parts[1]);
