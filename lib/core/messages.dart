@@ -49,7 +49,8 @@ class Messages {
   /// Confirmation when the member indicated they are not available.
   String msg6() {
     return 'No worries — you are all set for the next 2 weeks. '
-        'We will prompt you again for the following cycle!';
+        'We will prompt you again for the following cycle!\n\n'
+        'Changed your mind? Send /repick to update before then.';
   }
 
   /// Allocation notice. `session` is e.g. "OCBC @ Pasir Ris" placeholder —
