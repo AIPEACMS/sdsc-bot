@@ -178,6 +178,130 @@ void main() {
     expect(notice, contains('@leader'));
     expect(notice, isNot(contains('TBD')));
   });
+
+  test('toggling a slot keeps the picker anchored to the bundle start',
+      () async {
+    final edits = <Map<String, dynamic>>[];
+    var answered = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((req) async {
+      final path = req.uri.path;
+      if (path.endsWith('/getMe')) {
+        await _json(req, {
+          'ok': true,
+          'result': {
+            'id': 1,
+            'is_bot': true,
+            'first_name': 'test',
+            'username': 'sdsc_attendence_bot',
+          },
+        });
+      } else if (path.endsWith('/getUpdates')) {
+        await _json(req, {'ok': true, 'result': <dynamic>[]});
+      } else if (path.endsWith('/sendMessage')) {
+        await _json(req, {
+          'ok': true,
+          'result': {
+            'message_id': 1,
+            'date': 1,
+            'chat': {'id': 1, 'type': 'private'},
+            'text': 'x',
+          },
+        });
+      } else if (path.endsWith('/editMessageText')) {
+        final body = jsonDecode(await utf8.decoder.bind(req).join());
+        edits.add(body as Map<String, dynamic>);
+        await _json(req, {'ok': true, 'result': true});
+      } else if (path.endsWith('/answerCallbackQuery')) {
+        answered++;
+        await _json(req, {'ok': true, 'result': true});
+      } else {
+        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+      }
+    });
+
+    repo.upsertUser(User(
+      id: 42,
+      name: '@alice',
+      experience: Experience.newbie,
+      group: '1',
+    ));
+
+    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+    final state = BotState();
+    final service = CycleService(
+      repo: repo,
+      config: config,
+      messages: messages,
+      state: state,
+      bot: bot,
+    );
+    Flows(
+      bot: bot,
+      repo: repo,
+      config: config,
+      messages: messages,
+      state: state,
+      service: service,
+    ).register();
+
+    final startFuture = bot.start();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    // Toggle a week-2 slot (weekend index 1 of the bundle starting
+    // 2026-08-15). The re-rendered keyboard must stay anchored to that
+    // bundle: only the open weekend (Sat 22 Aug) shows a header — never a
+    // shifted one like "Sat 29 Aug".
+    await bot.handleUpdate(Update.fromJson({
+      'update_id': 1,
+      'callback_query': {
+        'id': '1',
+        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+        'chat_instance': '1',
+        'message': {
+          'message_id': 7,
+          'date': 1,
+          'chat': {'id': 42, 'type': 'private'},
+          'text': 'Your availability (tap to toggle):',
+        },
+        'data': 'slot|2026-08-15|1:sat:am:ocbc',
+      },
+    }));
+
+    expect(edits, isNotEmpty);
+    final rows =
+        (edits.last['reply_markup']! as Map)['inline_keyboard']! as List;
+    final headers = [
+      for (final row in rows)
+        for (final b in (row as List))
+          if ((b as Map)['callback_data'].toString().startsWith('noop'))
+            b['text'] as String,
+    ];
+    expect(headers, ['Sat 22 Aug']);
+
+    // A header tap is answered immediately (no spinner left hanging).
+    final answeredBeforeNoop = answered;
+    await bot.handleUpdate(Update.fromJson({
+      'update_id': 2,
+      'callback_query': {
+        'id': '2',
+        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+        'chat_instance': '1',
+        'message': {
+          'message_id': 7,
+          'date': 1,
+          'chat': {'id': 42, 'type': 'private'},
+          'text': 'Your availability (tap to toggle):',
+        },
+        'data': 'noop|1',
+      },
+    }));
+    expect(answered, answeredBeforeNoop + 1);
+
+    await bot.stop();
+    await startFuture;
+    await server.close(force: true);
+  });
 }
 
 Future<void> _json(HttpRequest req, Map<String, dynamic> body,

@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.1] - 2026-08-16
+
+### Fixed
+
+- **The re-pick picker stays anchored to its bundle.** Toggling a slot no
+  longer re-anchors the keyboard to the clicked weekend, which had shifted
+  the weekend headers (and the check marks) one week into the future.
+- **The picker's date header rows are inert.** Tapping a "Sat 15 Aug"
+  header is answered instantly instead of leaving a pending spinner.
+
 ## [1.8.0] - 2026-08-16
 
 ### Fixed

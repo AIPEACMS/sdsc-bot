@@ -70,6 +70,12 @@ class Flows {
         await _onCallback(ctx);
         return;
       }
+      if (head == 'noop') {
+        // Non-interactive label rows (e.g. the picker's weekend headers):
+        // dismiss the button press instantly so Telegram shows no spinner.
+        await ctx.answerCallbackQuery();
+        return;
+      }
       await next();
     });
   }
