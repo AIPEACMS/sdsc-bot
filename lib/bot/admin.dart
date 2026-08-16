@@ -219,13 +219,22 @@ class Admin {
   }
 
   Future<void> _users(Context ctx) async {
-    final users = repo.allUsers();
+    final users = repo.allUsers().where((u) {
+      // The console shows only while still a member (or admin); once demoted
+      // out of membership entirely, they disappear from the list.
+      if (!config.isConsole(u.id)) return true;
+      return u.isAdmin || MemberTier.isActive(u.memberTier);
+    }).toList();
     final lines = users.map((u) {
-      final tier = MemberTier.of(u, isConsole: config.isConsole(u.id));
+      final isConsole = config.isConsole(u.id);
+      final tier = isConsole
+          ? (u.isAdmin ? MemberTier.admin : MemberTier.member)
+          : MemberTier.of(u, isConsole: false);
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
-      return '• <b>${u.name}</b> (id ${u.id}, $tier, '
+      final stats = repo.attendanceStats(u.id);
+      return '• <b>${u.name}</b> ($tier, '
           'group ${u.group.isEmpty ? 'none' : u.group}, '
-          '$exp, ocbc×${u.ocbcStreak})';
+          '$exp, ocbc × ${stats.ocbc}, pr × ${stats.pasirRis})';
     });
     await ctx.reply(
       '<b>Registered users (${users.length})</b>\n${lines.join('\n')}',

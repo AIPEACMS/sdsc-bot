@@ -5,6 +5,21 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.2] - 2026-08-16
+
+### Changed
+
+- **`/users` shows attendance counts instead of the user id.** Each entry now
+  lists `ocbc × n, pr × n` (sessions attended at each venue). The console
+  account is listed by its current rank — admin while an admin, member when
+  demoted to member — and disappears entirely once no longer a member.
+
+### Fixed
+
+- **The "not available" confirmation now reminds members they can change
+  their mind.** The reply after marking yourself unavailable includes
+  "Changed your mind? Send /repick to update before then."
+
 ## [1.8.1] - 2026-08-16
 
 ### Fixed
