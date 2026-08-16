@@ -559,11 +559,14 @@ class Flows {
     await ctx.reply(
         unavailable
             ? messages.msg6()
-            : messages.msg3(picks, allocateAt: _hour12(config.deadlineHour)));
+            : messages.msg3(picks, allocateAt: nextSharpHourLabel(now)),
+        parseMode: ParseMode.html);
   }
 
-  /// "18" -> "6:00 PM" — the sharp hour the allocation message goes out.
-  static String _hour12(int h) {
+  /// The sharp hour the allocation goes out: the next hour boundary after
+  /// [now] (the moment the member indicated). "14:23" -> "3:00 PM".
+  static String nextSharpHourLabel(DateTime now) {
+    final h = now.add(const Duration(hours: 1)).hour;
     final hour12 = h % 12 == 0 ? 12 : h % 12;
     final ampm = h < 12 ? 'AM' : 'PM';
     return '$hour12:00 $ampm';
