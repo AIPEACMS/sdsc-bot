@@ -106,14 +106,17 @@ void main() {
       state: state,
       bot: bot,
     );
-    Flows(
+    var dynamicRuns = 0;
+    final flows = Flows(
       bot: bot,
       repo: repo,
       config: config,
       messages: messages,
       state: state,
       service: service,
-    ).register();
+    );
+    flows.onAvailabilitySaved = () => dynamicRuns++;
+    flows.register();
 
     final startFuture = bot.start();
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -151,6 +154,9 @@ void main() {
     final row = repo.getAvailability(sat1, 42);
     expect(row, isNotNull);
     expect(row!.available, isFalse);
+
+    // Saving availability arms the dynamic allocation run.
+    expect(dynamicRuns, 1);
   });
 
   test('message contacts resolve to the group leader, not the placeholder',

@@ -7,12 +7,14 @@ typedef AllocationResult = List<(int userId, int sessionId)>;
 ///
 /// Rules:
 ///  - Experienced members are preferred for OCBC; new members for Pasir Ris.
-///  - A member must not be allocated to OCBC 3 cycles in a row
-///    (i.e. their [User.ocbcStreak] must not reach 3 unless there is no
+///  - A member must not be allocated to OCBC 2 weekends in a row
+///    (i.e. their [User.ocbcStreak] must not reach 2 unless there is no
 ///    alternative).
 ///  - Each member is allocated at most one session per weekend, at one of the
 ///    slots they marked available.
 ///  - OCBC and Pasir Ris both have per-slot capacities.
+///  - After the greedy fill, members are spread across the time slots of each
+///    location so no slot is overstuffed while another sits empty.
 class Allocator {
   final int ocbcCapacity;
   final int prCapacity;
@@ -95,11 +97,12 @@ class Allocator {
         var ocbcSeats = ocbcCapacity;
         final ocbcTaken = <int>{};
 
-        // Pass 1: OCBC — prefer experienced, skip anyone already at streak 2.
+        // Pass 1: OCBC — prefer experienced, skip anyone already at streak 1
+        // (would be 2 weekends in a row).
         for (final user in ocbcSorted) {
           if (ocbcSeats == 0) break;
           final streak = streakOf(user.id);
-          if (streak >= 2) continue; // would be 3 in a row
+          if (streak >= 1) continue; // would be 2 in a row
           ocbcTaken.add(user.id);
           ocbcSeats--;
         }
@@ -139,7 +142,68 @@ class Allocator {
       }
     }
 
+    _balance(result, sessions, availability);
     return result;
+  }
+
+  /// Spreads members across the time slots of each location so no slot is
+  /// overstuffed while another sits empty. Only moves within the same
+  /// location, so the experience and OCBC-streak rules are unaffected.
+  void _balance(
+    List<(int, int)> result,
+    List<Session> sessions,
+    List<Availability> availability,
+  ) {
+    final sessionMeta = <int, (String, String, String)>{
+      for (final s in sessions) s.id: (s.day, s.slot, s.location.name),
+    };
+    final picked = <int, Set<(String, String, String)>>{
+      for (final av in availability)
+        if (av.available)
+          av.userId: {for (final s in av.slots) (s.day, s.slot, s.location)},
+    };
+    final byLoc = <String, Map<String, List<int>>>{};
+    for (final (uid, sid) in result) {
+      final m = sessionMeta[sid];
+      if (m == null) continue;
+      byLoc.putIfAbsent(m.$3, () => {}).putIfAbsent(m.$2, () => []).add(uid);
+    }
+    for (final loc in byLoc.keys) {
+      final slots = byLoc[loc]!;
+      // Materialize both time slots so moves into an empty slot persist.
+      slots.putIfAbsent('am', () => <int>[]);
+      slots.putIfAbsent('pm', () => <int>[]);
+      for (final day in Slot.allDays) {
+        final am = slots['am']!;
+        final pm = slots['pm']!;
+        bool canMove(int uid, String to) =>
+            picked[uid]?.contains((day, to, loc)) ?? false;
+        while (am.length > pm.length + 1) {
+          final i = am.indexWhere((uid) => canMove(uid, 'pm'));
+          if (i < 0) break;
+          pm.add(am.removeAt(i));
+        }
+        while (pm.length > am.length + 1) {
+          final i = pm.indexWhere((uid) => canMove(uid, 'am'));
+          if (i < 0) break;
+          am.add(pm.removeAt(i));
+        }
+      }
+    }
+    result
+      ..clear()
+      ..addAll([
+        for (final loc in byLoc.keys)
+          for (final slot in byLoc[loc]!.keys)
+            for (final uid in byLoc[loc]![slot]!)
+              (
+                uid,
+                sessionMeta.entries
+                    .firstWhere(
+                        (e) => e.value.$2 == slot && e.value.$3 == loc)
+                    .key,
+              ),
+      ]);
   }
 
   static int _expRank(User u) =>

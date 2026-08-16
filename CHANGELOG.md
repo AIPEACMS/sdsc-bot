@@ -5,6 +5,23 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.6] - 2026-08-16
+
+### Changed
+
+- **Allocation is now dynamic.** Every availability indication (Done or Not
+  available) arms a re-optimization at the next sharp hour, over the current
+  availability of both open weekends. The Friday batch allocation is
+  deprecated and no longer fires.
+- **The allocator re-optimizes the whole weekend each run** — the current
+  best solution wins. Members whose assignment changed are re-notified;
+  members dropped by a re-optimization are told their slot is gone.
+- **OCBC rotation tightened to 2 weeks.** A member is no longer allocated to
+  OCBC 2 weekends in a row (previously 3), unless there is no alternative.
+- **Slots are balanced.** After the greedy fill, members are spread across
+  the morning/afternoon sessions of each location so no slot is overstuffed
+  while another sits empty.
+
 ## [1.8.5] - 2026-08-16
 
 ### Fixed
