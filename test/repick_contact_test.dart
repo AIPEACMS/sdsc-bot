@@ -202,7 +202,7 @@ void main() {
     expect(labelsYes.contains('❌ Cancel'), isTrue);
   });
 
-  test('cancel withdraws the saved availability for open weekends',
+  test('cancel aborts the in-progress repick, keeping the saved answer',
       () async {
     final sent = <Map<String, dynamic>>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -291,11 +291,30 @@ void main() {
     final sat1 = DateTime(2026, 8, 22);
     expect(repo.getAvailability(sat1, 42), isNotNull);
 
-    // alice cancels: the open weekend's row is withdrawn.
+    // alice starts a repick: toggles a week-2 slot (in-progress change).
     await bot.handleUpdate(Update.fromJson({
       'update_id': 2,
       'callback_query': {
         'id': '2',
+        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+        'chat_instance': '1',
+        'message': {
+          'message_id': 7,
+          'date': 1,
+          'chat': {'id': 42, 'type': 'private'},
+          'text': 'Your availability (tap to toggle):',
+        },
+        'data': 'slot|2026-08-15|1:sat:am:ocbc',
+      },
+    }));
+    expect(state.picksFor(42), isNotEmpty);
+
+    // alice cancels: the in-progress toggle is discarded, the saved answer
+    // is kept.
+    await bot.handleUpdate(Update.fromJson({
+      'update_id': 3,
+      'callback_query': {
+        'id': '3',
         'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
         'chat_instance': '1',
         'message': {
@@ -312,9 +331,12 @@ void main() {
     await startFuture;
     await server.close(force: true);
 
-    expect(repo.getAvailability(sat1, 42), isNull);
+    // The saved answer is untouched and the in-progress picks are gone.
+    expect(repo.getAvailability(sat1, 42), isNotNull);
+    expect(state.availabilityPicks.containsKey(42), isFalse);
     final texts = sent.map((s) => s['text'] as String).toList();
-    expect(texts.any((t) => t.contains('has been cancelled')), isTrue);
+    expect(texts.any((t) => t.contains('previous availability is kept')),
+        isTrue);
   });
 
   test('toggling a slot keeps the picker anchored to the bundle start',

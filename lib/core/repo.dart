@@ -549,15 +549,6 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
     return rows.isNotEmpty;
   }
 
-  /// Removes [user]'s availability row for one weekend (the picker's Cancel
-  /// action). Locked weekends are left alone by the caller.
-  void deleteAvailability(DateTime weekendStart, int userId) {
-    raw.execute(
-      'DELETE FROM availability WHERE weekend_start = ? AND user_id = ?',
-      [_dayKey(weekendStart), userId],
-    );
-  }
-
   /// The most recent bundle (Saturday) [user] answered, if any.
   DateTime? lastBundleStart(int userId) {
     final rows = raw.select(

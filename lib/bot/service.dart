@@ -291,8 +291,9 @@ class CycleService {
   /// Weekends whose deadline has passed are not offered (locked). Toggles
   /// per weekend/day/slot/location, plus Done and Not available; on a
   /// holiday window a "skip me this holiday" opt-out button is appended.
-  /// A Cancel button (withdraw the saved answer) appears at the very bottom
-  /// only when the member has already responded to this bundle.
+  /// A Cancel button (abort the in-progress repick, keeping the saved
+  /// answer) appears at the very bottom only when the member has already
+  /// responded to this bundle.
   static InlineKeyboard buildKeyboard(
     RollingWindow w,
     Set<Slot> picked, {

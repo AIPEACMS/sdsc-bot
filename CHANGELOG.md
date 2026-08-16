@@ -5,6 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.4] - 2026-08-16
+
+### Fixed
+
+- **The picker's Cancel button aborts the in-progress /repick** instead of
+  withdrawing the saved answer: the toggles made in this session are
+  discarded and the previously saved availability is kept.
+
 ## [1.8.3] - 2026-08-16
 
 ### Added
