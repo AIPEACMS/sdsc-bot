@@ -137,6 +137,7 @@ Future<void> main() async {
   flows.onAddUserText = admin.onAddUserText;
   flows.onSetDateText = console.onSetDateText;
   flows.onSyncCalendarText = console.onSyncCalendarText;
+  flows.onAvailabilitySaved = scheduler.scheduleDynamicAllocation;
 
   bot.onError((error) {
     processLog('bot error: ${error.error}');

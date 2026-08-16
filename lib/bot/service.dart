@@ -100,7 +100,10 @@ class CycleService {
       repo.holidayOn(w.sat0) != null || repo.holidayOn(w.sat1) != null;
 
   /// Allocates one weekend's sessions from the weekend's availability rows,
-  /// persists allocations + streaks, then sends msg4.
+  /// persists allocations + streaks, then notifies. Runs dynamically (at the
+  /// next sharp hour after an indication) and re-optimizes the whole weekend
+  /// each time, so members whose assignment changed are re-notified and
+  /// members dropped by a re-optimization are told their slot is gone.
   Future<void> allocateWeekend(DateTime sat) async {
     repo.ensureSessionsForWeekend(
       sat,
@@ -127,6 +130,10 @@ class CycleService {
       users: users,
     );
 
+    // Previous allocation, for change detection across dynamic re-runs.
+    final previous = repo.allocationsForWeekend(sat);
+    final prevByUser = {for (final (u, s) in previous) u.id: s.id};
+
     repo.replaceAllocationsForWeekend(sat, result);
 
     final sessionsById = {for (final s in sessions) s.id: s};
@@ -143,30 +150,43 @@ class CycleService {
     repo.markWeekendAllocated(sat);
 
     var failures = 0;
-    final today = config.toLocal(Config.nowUtc());
+    final newIds = <int>{};
     for (final (userId, sessionId) in result) {
       final session = sessionsById[sessionId];
       final user = users[userId];
       if (session == null || user == null) continue;
+      newIds.add(userId);
+      if (prevByUser[userId] == sessionId) continue; // unchanged
       final label = sessionLabel(session);
       final time = '${_fmt(session.start)} to ${_fmt(session.end)}';
       try {
-        if (repo.messageSentOnDay(user.id, 'allocation', today)) continue;
-        try {
-          await bot.api.sendMessage(
-            ChatID(userId),
-            messages.msg4(user.group, label, time),
-            parseMode: ParseMode.html,
-          );
-        } on HeldException {
-          // held: drop, still marked as sent
-        }
-        repo.markMessageSent(user.id, 'allocation', today);
+        await bot.api.sendMessage(
+          ChatID(userId),
+          messages.msg4(user.group, label, time),
+          parseMode: ParseMode.html,
+        );
+      } on HeldException {
+        // held: drop
       } catch (_) {
         failures++;
       }
     }
-    if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
+    // Members dropped by a re-optimization need to know their slot is gone.
+    for (final (u, s) in previous) {
+      if (newIds.contains(u.id)) continue;
+      try {
+        await bot.api.sendMessage(
+          ChatID(u.id),
+          messages.msgAllocationDropped(sessionLabel(s)),
+          parseMode: ParseMode.html,
+        );
+      } on HeldException {
+        // held: drop
+      } catch (_) {
+        failures++;
+      }
+    }
+    if (failures > 0) LogRing.log('allocate: $failures sends failed');
   }
 
   /// Sunday/Monday attendance-marking reminders: for every allocated member

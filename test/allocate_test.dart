@@ -66,9 +66,9 @@ void main() {
     expect(byUser[3], 2); // PR
   });
 
-  test('streak rule: streak-2 experienced yields to streak-0', () {
+  test('streak rule: streak-1 experienced yields to streak-0', () {
     final usersList = [
-      _user(1, Experience.experienced, streak: 2),
+      _user(1, Experience.experienced, streak: 1),
       _user(2, Experience.experienced),
       _user(3, Experience.newbie),
     ];
@@ -82,12 +82,12 @@ void main() {
       byUser[uid] = sid;
     }
     expect(byUser[2], 1); // OCBC (streak 0 preferred)
-    expect(byUser[1], 2); // streak-2 pushed to PR (no 3-in-a-row)
-    expect(byUser[3], 1); // newbie fills the 2nd OCBC seat over the streak-2
+    expect(byUser[1], 2); // streak-1 pushed to PR (no 2-in-a-row)
+    expect(byUser[3], 1); // newbie fills the 2nd OCBC seat over the streak-1
   });
 
   test('streak rule relaxed when no alternative', () {
-    final usersList = [_user(1, Experience.experienced, streak: 2)];
+    final usersList = [_user(1, Experience.experienced, streak: 1)];
     final result = allocator.run(
       sessions: _sessions(),
       availability: [_avail(1, {_am, _amPr})],
@@ -125,5 +125,56 @@ void main() {
       users: users([_user(1, Experience.experienced)]),
     );
     expect(result.where((e) => e.$1 == 1).length, 1);
+  });
+
+  test('people spread across time slots when available', () {
+    // 4 experienced users available for every slot; greedy would stuff the
+    // morning, the balancing pass spreads them 1 per session.
+    const pmOcbc = Slot(0, 'sat', 'pm', 'ocbc');
+    const pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
+    final all = {_am, _amPr, pmOcbc, pmPr};
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [for (var i = 1; i <= 4; i++) _avail(i, all)],
+      users: users([for (var i = 1; i <= 4; i++) _user(i, Experience.experienced)]),
+    );
+    final bySession = <int, int>{};
+    for (final (_, sid) in result) {
+      bySession[sid] = (bySession[sid] ?? 0) + 1;
+    }
+    expect(bySession[1], 1); // am OCBC
+    expect(bySession[3], 1); // pm OCBC
+    expect(bySession[2], 1); // am PR
+    expect(bySession[4], 1); // pm PR
+  });
+
+  test('balancing only moves within a location', () {
+    // 2 experienced available for am+pm OCBC, 2 newbies for am+pm PR.
+    // Greedy: am OCBC 2, am PR 2. Balancing moves 1 OCBC to pm and 1 PR to
+    // pm, but never swaps a member between locations.
+    const pmOcbc = Slot(0, 'sat', 'pm', 'ocbc');
+    const pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [
+        _avail(1, {_am, pmOcbc}),
+        _avail(2, {_am, pmOcbc}),
+        _avail(3, {_amPr, pmPr}),
+        _avail(4, {_amPr, pmPr}),
+      ],
+      users: users([
+        _user(1, Experience.experienced),
+        _user(2, Experience.experienced),
+        _user(3, Experience.newbie),
+        _user(4, Experience.newbie),
+      ]),
+    );
+    final byUser = <int, int>{};
+    for (final (uid, sid) in result) {
+      byUser[uid] = sid;
+    }
+    // Experienced stay on OCBC (one am, one pm); newbies on PR (one am, one pm).
+    expect({byUser[1], byUser[2]}, {1, 3});
+    expect({byUser[3], byUser[4]}, {2, 4});
   });
 }

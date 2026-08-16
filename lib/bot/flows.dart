@@ -20,6 +20,10 @@ class Flows {
   final BotState state;
   final CycleService service;
 
+  /// Fired after a member's availability is saved (Done or Not available).
+  /// Wired in main.dart to the scheduler's dynamic-allocation trigger.
+  void Function()? onAvailabilitySaved;
+
   Flows({
     required this.bot,
     required this.repo,
@@ -545,6 +549,8 @@ class Flows {
       await ctx.reply('Both weekends are already locked — nothing was saved.');
       return;
     }
+    // Dynamic allocation: re-optimize at the next sharp hour.
+    onAvailabilitySaved?.call();
 
     try {
       await ctx.editMessageText(
