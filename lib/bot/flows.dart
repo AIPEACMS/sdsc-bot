@@ -484,36 +484,22 @@ class Flows {
     }
   }
 
-  /// Withdraws the member's saved availability for the bundle's still-open
-  /// weekends. The Cancel button only appears once they have responded, so
-  /// there is always something to withdraw; locked weekends are left alone.
+  /// Aborts the in-progress /repick: discards the toggles made in this
+  /// session and keeps the previously saved availability untouched. The
+  /// Cancel button only appears once the member has responded, so there is
+  /// always a saved answer to fall back to.
   Future<void> _cancelAvailability(
       Context ctx, int userId, List<String> parts) async {
     await ctx.answerCallbackQuery();
     if (parts.length < 2) return;
-    final sat0 = DateTime.tryParse(parts[1]);
-    if (sat0 == null) return;
-    final w = RollingWindow.fromSat0(sat0);
-    final now = config.toLocal(Config.nowUtc());
-    var cancelled = 0;
-    for (final (_, sat) in [(0, w.sat0), (1, w.sat1)]) {
-      if (w.locked(sat, now)) continue;
-      repo.deleteAvailability(sat, userId);
-      cancelled++;
-    }
     state.forgetAvailability(userId);
-    if (cancelled == 0) {
-      await ctx.reply('Both weekends are already locked — nothing was '
-          'cancelled.');
-      return;
-    }
     try {
-      await ctx.editMessageText('Your availability has been cancelled.');
+      await ctx.editMessageText('Cancelled — your previous answer is kept.');
     } catch (_) {
       // message may be gone; ignore
     }
-    await ctx.reply('Your availability for the open weekends has been '
-        'cancelled. Changed your mind? Send /repick to update by Friday.');
+    await ctx.reply('Your previous availability is kept. '
+        'Changed your mind? Send /repick to update by Friday.');
   }
 
   Future<void> _saveAvailability(
