@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.10.1] - 2026-08-17
+
+### Changed
+
+- **Clearer availability instructions.** The picker, prompts and reminder now
+  spell out what each tap means — tap once = backup 🟢, tap twice = booked
+  🔒 — and the allocation outcome: every session you book 🔒 is allocated to
+  you (one per time slot), plus one of your 🟢 backups. The confirmation and
+  status list label the 🔒/🟢 symbols the same way.
+
 ## [1.10.0] - 2026-08-17
 
 ### Added
