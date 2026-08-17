@@ -180,9 +180,18 @@ void main() {
     expect(prompt, isNot(contains('TBD')));
 
     final notice = messages.msg4('1', 'OCBC · Saturday 15 Aug AM',
-        '09:00 to 12:00');
+        '09:00 to 12:00',
+        deadlinePassed: true, deadlineLabel: 'Friday 6:00 PM');
     expect(notice, contains('@leader'));
     expect(notice, isNot(contains('TBD')));
+
+    // Before the weekend's Friday deadline the member can still re-pick
+    // instead of messaging the contact.
+    final before = messages.msg4('1', 'OCBC · Saturday 15 Aug AM',
+        '09:00 to 12:00',
+        deadlinePassed: false, deadlineLabel: 'Friday 6:00 PM');
+    expect(before, contains('re-pick'));
+    expect(before, isNot(contains('@leader')));
   });
 
   test('not-available confirmation says by Friday', () {
@@ -190,8 +199,16 @@ void main() {
   });
 
   test('available confirmation announces the sharp allocation hour', () {
-    final text = messages.msg3(const [], allocateAt: '6:00 PM');
+    final text = messages.msg3(const [], const [], allocateAt: '6:00 PM');
     expect(text, contains('<b>You will get allocated at 6:00 PM</b> later'));
+  });
+
+  test('confirmation lists booked 🔒 and offered 🟢 slots separately', () {
+    const want = Slot(0, 'sat', 'am', 'ocbc');
+    const avail = Slot(0, 'sat', 'pm', 'pasirRis');
+    final text = messages.msg3(const [want], const [avail]);
+    expect(text, contains('🔒 Weekend 1 · OCBC · Sat AM'));
+    expect(text, contains('🟢 Weekend 1 · PR · Sat PM'));
   });
 
   test('the allocation hour is the next sharp hour after indicating', () {
@@ -207,12 +224,14 @@ void main() {
   test('cancel button appears only after the member has responded', () {
     final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
     final now = DateTime(2026, 8, 12); // Wednesday, both weekends open
-    final kbNo = CycleService.buildKeyboard(w, {}, now: now);
+    final kbNo = CycleService.buildKeyboard(w, (const {}, const {}),
+        now: now);
     final labelsNo =
         kbNo.inlineKeyboard.expand((r) => r).map((b) => b.text).toList();
     expect(labelsNo.contains('❌ Cancel'), isFalse);
     final kbYes =
-        CycleService.buildKeyboard(w, {}, now: now, hasIndicated: true);
+        CycleService.buildKeyboard(w, (const {}, const {}),
+            now: now, hasIndicated: true);
     final labelsYes =
         kbYes.inlineKeyboard.expand((r) => r).map((b) => b.text).toList();
     expect(labelsYes.contains('❌ Cancel'), isTrue);
@@ -323,7 +342,7 @@ void main() {
         'data': 'slot|2026-08-15|1:sat:am:ocbc',
       },
     }));
-    expect(state.picksFor(42), isNotEmpty);
+    expect(state.picksFor(42).$2, isNotEmpty); // 1 tap = offered 🟢
 
     // alice cancels: the in-progress toggle is discarded, the saved answer
     // is kept.
@@ -477,6 +496,123 @@ void main() {
     await bot.stop();
     await startFuture;
     await server.close(force: true);
+  });
+
+  test('toggling cycles off → offered → booked → off and saves want separately',
+      () async {
+    final sent = <Map<String, dynamic>>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    server.listen((req) async {
+      final path = req.uri.path;
+      if (path.endsWith('/getMe')) {
+        await _json(req, {
+          'ok': true,
+          'result': {
+            'id': 1,
+            'is_bot': true,
+            'first_name': 'test',
+            'username': 'sdsc_attendence_bot',
+          },
+        });
+      } else if (path.endsWith('/getUpdates')) {
+        await _json(req, {'ok': true, 'result': <dynamic>[]});
+      } else if (path.endsWith('/sendMessage')) {
+        final body = jsonDecode(await utf8.decoder.bind(req).join());
+        sent.add(body as Map<String, dynamic>);
+        await _json(req, {
+          'ok': true,
+          'result': {
+            'message_id': 1,
+            'date': 1,
+            'chat': {'id': 1, 'type': 'private'},
+            'text': body['text'],
+          },
+        });
+      } else if (path.endsWith('/answerCallbackQuery') ||
+          path.endsWith('/editMessageText')) {
+        await _json(req, {'ok': true, 'result': true});
+      } else {
+        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+      }
+    });
+
+    repo.upsertUser(User(
+      id: 42,
+      name: '@alice',
+      experience: Experience.newbie,
+      group: '1',
+    ));
+
+    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+    final state = BotState();
+    final service = CycleService(
+      repo: repo,
+      config: config,
+      messages: messages,
+      state: state,
+      bot: bot,
+    );
+    Flows(
+      bot: bot,
+      repo: repo,
+      config: config,
+      messages: messages,
+      state: state,
+      service: service,
+    ).register();
+
+    final startFuture = bot.start();
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+
+    Future<void> tap(int updateId, String data) => bot.handleUpdate(
+        Update.fromJson({
+          'update_id': updateId,
+          'callback_query': {
+            'id': '$updateId',
+            'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+            'chat_instance': '1',
+            'message': {
+              'message_id': 7,
+              'date': 1,
+              'chat': {'id': 42, 'type': 'private'},
+              'text': 'Your availability (tap to toggle):',
+            },
+            'data': data,
+          },
+        }));
+
+    // 1st tap: offered 🟢.
+    await tap(1, 'slot|2026-08-15|1:sat:am:ocbc');
+    expect(state.picksFor(42).$1, isEmpty);
+    expect(state.picksFor(42).$2, {const Slot(1, 'sat', 'am', 'ocbc')});
+
+    // 2nd tap: booked 🔒.
+    await tap(2, 'slot|2026-08-15|1:sat:am:ocbc');
+    expect(state.picksFor(42).$1, {const Slot(1, 'sat', 'am', 'ocbc')});
+    expect(state.picksFor(42).$2, isEmpty);
+
+    // 3rd tap: off again.
+    await tap(3, 'slot|2026-08-15|1:sat:am:ocbc');
+    expect(state.picksFor(42).$1, isEmpty);
+    expect(state.picksFor(42).$2, isEmpty);
+
+    // Book it again (2 taps) and also offer a second slot, then Done.
+    await tap(4, 'slot|2026-08-15|1:sat:am:ocbc');
+    await tap(5, 'slot|2026-08-15|1:sat:am:ocbc');
+    await tap(6, 'slot|2026-08-15|1:sat:pm:pasirRis');
+    await tap(7, 'done|2026-08-15');
+
+    await bot.stop();
+    await startFuture;
+    await server.close(force: true);
+
+    // The open weekend (Sat 22 Aug) saved want and available separately.
+    final sat1 = DateTime(2026, 8, 22);
+    final row = repo.getAvailability(sat1, 42);
+    expect(row, isNotNull);
+    expect(row!.wantSlots, {const Slot(1, 'sat', 'am', 'ocbc')});
+    expect(row.slots, {const Slot(1, 'sat', 'pm', 'pasirRis')});
+    expect(row.available, isTrue);
   });
 
   test('saving availability revokes the member\'s allocation', () async {

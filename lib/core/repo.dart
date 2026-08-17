@@ -525,11 +525,12 @@ VALUES (?, ?, ?, ?, ?, ?)
   void setAvailability(Availability a) {
     raw.execute(
       '''
-INSERT INTO availability (weekend_start, user_id, bundle_start, slots, available, updated_at)
-VALUES (?, ?, ?, ?, ?, ?)
+INSERT INTO availability (weekend_start, user_id, bundle_start, slots, want_slots, available, updated_at)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(weekend_start, user_id) DO UPDATE SET
   bundle_start = excluded.bundle_start,
   slots = excluded.slots,
+  want_slots = excluded.want_slots,
   available = excluded.available,
   updated_at = excluded.updated_at
 ''',
@@ -538,6 +539,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
         a.userId,
         _dayKey(a.bundleStart),
         jsonEncode(a.slots.map((s) => s.encode()).toList()),
+        jsonEncode(a.wantSlots.map((s) => s.encode()).toList()),
         a.available ? 1 : 0,
         _fmt(a.updatedAt),
       ],
@@ -556,6 +558,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
       userId: userId,
       bundleStart: DateTime.parse(r['bundle_start'] as String),
       slots: Slot.decodeSet(r['slots'] as String),
+      wantSlots: Slot.decodeSet(r['want_slots'] as String),
       available: (r['available'] as int) == 1,
       updatedAt: DateTime.parse(r['updated_at'] as String),
     );
@@ -572,6 +575,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
               userId: r['user_id'] as int,
               bundleStart: DateTime.parse(r['bundle_start'] as String),
               slots: Slot.decodeSet(r['slots'] as String),
+              wantSlots: Slot.decodeSet(r['want_slots'] as String),
               available: (r['available'] as int) == 1,
               updatedAt: DateTime.parse(r['updated_at'] as String),
             ))

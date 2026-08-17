@@ -17,7 +17,9 @@ class PendingArg {
 /// tracks interactive flows in progress (availability picks) and the console's
 /// grid preview.
 class BotState {
-  final Map<int, Set<Slot>> availabilityPicks = {};
+  /// Per user, the in-progress availability pick: (want, available) slot sets.
+  /// want = tapped to 🔒 (commitment), available = tapped to 🟢 (backup).
+  final Map<int, (Set<Slot>, Set<Slot>)> availabilityPicks = {};
 
   /// Inline-keyboard message ids for availability selection per user, so a
   /// new /repick or prompt replaces the old keyboard instead of stacking.
@@ -41,6 +43,8 @@ class BotState {
 
   void forgetAvailability(int userId) => availabilityPicks.remove(userId);
 
-  Set<Slot> picksFor(int userId) =>
-      availabilityPicks.putIfAbsent(userId, () => {});
+  /// The in-progress (want, available) pick sets for [userId], creating them
+  /// if absent.
+  (Set<Slot>, Set<Slot>) picksFor(int userId) => availabilityPicks.putIfAbsent(
+      userId, () => (<Slot>{}, <Slot>{}));
 }

@@ -102,8 +102,8 @@ class CycleService {
   /// Allocates one weekend's sessions from the weekend's availability rows,
   /// persists allocations, then notifies. Runs dynamically (at the next sharp
   /// hour after an indication). Already-allocated members are locked in —
-  /// the run only fills the remaining seats with newly-indicated members, so
-  /// nobody is ever moved or un-allocated by a later indication.
+  /// the run only fills the remaining sessions with newly-indicated members,
+  /// so nobody is ever moved or un-allocated by a later indication.
   Future<void> allocateWeekend(DateTime sat) async {
     repo.ensureSessionsForWeekend(
       sat,
@@ -121,29 +121,31 @@ class CycleService {
         .toList();
     final users = {for (final u in activeUsers) u.id: u};
 
-    // Already-allocated members are locked in place.
+    // Already-allocated members are locked in place (every session they hold).
     final existing = repo.allocationsForWeekend(sat);
-    final locked = {for (final (u, s) in existing) u.id: s.id};
+    final locked = [for (final (u, s) in existing) (u.id, s.id)];
 
-    final result = Allocator(
-      ocbcCapacity: config.ocbcCapacity,
-      prCapacity: config.prCapacity,
-    ).run(
+    final result = const Allocator().run(
       sessions: sessions,
       availability: availability,
-      users: users,
       locked: locked,
     );
 
     repo.replaceAllocationsForWeekend(sat, result);
     repo.markWeekendAllocated(sat);
 
+    // Before the weekend's Friday deadline the member can still re-pick;
+    // after it they must message the contact instead.
+    final now = config.toLocal(Config.nowUtc());
+    final deadline = RollingWindow.fromSat0(sat).deadlineFor(sat);
+    final deadlinePassed = !now.isBefore(deadline);
+
     // Notify only the newly allocated — locked members were notified when
     // they were allocated.
     var failures = 0;
     final sessionsById = {for (final s in sessions) s.id: s};
     for (final (userId, sessionId) in result) {
-      if (locked.containsKey(userId)) continue;
+      if (locked.any((l) => l.$1 == userId && l.$2 == sessionId)) continue;
       final session = sessionsById[sessionId];
       final user = users[userId];
       if (session == null || user == null) continue;
@@ -152,7 +154,13 @@ class CycleService {
       try {
         await bot.api.sendMessage(
           ChatID(userId),
-          messages.msg4(user.group, label, time),
+          messages.msg4(
+            user.group,
+            label,
+            time,
+            deadlinePassed: deadlinePassed,
+            deadlineLabel: 'Friday ${_fmt12h(deadline)}',
+          ),
           parseMode: ParseMode.html,
         );
       } on HeldException {
@@ -162,6 +170,14 @@ class CycleService {
       }
     }
     if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
+  }
+
+  /// 12h "H:MM AM/PM" for human-facing deadlines (e.g. "6:00 PM").
+  String _fmt12h(DateTime dt) {
+    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+    final m = dt.minute.toString().padLeft(2, '0');
+    final ampm = dt.hour < 12 ? 'AM' : 'PM';
+    return '$h:$m $ampm';
   }
 
   /// Marks attendance and updates the OCBC streak: a present OCBC session
@@ -266,6 +282,57 @@ class CycleService {
         '${_dayShort(monday)} — console: please chase the admins');
   }
 
+  /// The full allocation list for one weekend — the `check` tier's status
+  /// report, reused by the on-demand button and the Friday-evening push.
+  String checkListText(DateTime sat) {
+    final sb = StringBuffer()..writeln('📋 <b>This week\'s allocation</b>');
+    final allocations = repo.allocationsForWeekend(sat);
+    if (allocations.isEmpty) {
+      sb.writeln('\nNo allocation published yet for ${_dayShort(sat)}.');
+      return sb.toString();
+    }
+
+    final bySession = <int, List<String>>{};
+    for (final (u, s) in allocations) {
+      bySession.putIfAbsent(s.id, () => []).add(u.name);
+    }
+
+    final sessions = repo.sessionsForWeekend(sat)
+      ..sort((a, b) => a.start.compareTo(b.start));
+
+    sb.writeln();
+    for (final s in sessions) {
+      final names = bySession[s.id];
+      sb.writeln('• ${sessionLabel(s)}');
+      sb.writeln('   ${names == null || names.isEmpty ? '—' : names.join(', ')}');
+    }
+    return sb.toString();
+  }
+
+  /// Friday evening: push the current weekend's full allocation to every
+  /// `check`-tier user — a final confirmation list the backend sends
+  /// proactively (not a response to their status button).
+  Future<void> sendCheckList(DateTime sat) async {
+    final text = checkListText(sat);
+    final today = config.toLocal(Config.nowUtc());
+    var failures = 0;
+    for (final user in repo.allUsers()) {
+      if (user.memberTier != MemberTier.check) continue;
+      try {
+        if (repo.messageSentOnDay(user.id, 'checklist', today)) continue;
+        await bot.api.sendMessage(
+          ChatID(user.id),
+          text,
+          parseMode: ParseMode.html,
+        );
+        repo.markMessageSent(user.id, 'checklist', today);
+      } catch (_) {
+        failures++;
+      }
+    }
+    if (failures > 0) LogRing.log('checklist: $failures sends failed');
+  }
+
   /// Sends (or edits an existing) availability keyboard message to [user].
   Future<void> showAvailability(
     User user,
@@ -335,23 +402,25 @@ class CycleService {
   static String _fmt(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
-  String _hint() => 'Tap the sessions you can attend, then <b>Done</b>. '
-      'Not able to attend? Tap <b>Not available</b>.';
+  String _hint() => 'Tap a session <b>once</b> to offer it 🟢, or '
+      '<b>twice</b> to book it 🔒. Not able to attend? '
+      'Tap <b>Not available</b>.';
 
   /// Builds the availability inline keyboard for the window's two weekends.
-  /// Weekends whose deadline has passed are not offered (locked). Toggles
-  /// per weekend/day/slot/location, plus Done and Not available; on a
-  /// holiday window a "skip me this holiday" opt-out button is appended.
-  /// A Cancel button (abort the in-progress repick, keeping the saved
-  /// answer) appears at the very bottom only when the member has already
-  /// responded to this bundle.
+  /// Weekends whose deadline has passed are not offered (locked). Each slot
+  /// toggles off ▫️ → offered 🟢 → booked 🔒 → off. Plus Done and Not
+  /// available; on a holiday window a "skip me this holiday" opt-out button
+  /// is appended. A Cancel button (abort the in-progress repick, keeping the
+  /// saved answer) appears at the very bottom only when the member has
+  /// already responded to this bundle.
   static InlineKeyboard buildKeyboard(
     RollingWindow w,
-    Set<Slot> picked, {
+    (Set<Slot>, Set<Slot>) picked, {
     bool holiday = false,
     bool hasIndicated = false,
     required DateTime now,
   }) {
+    final (want, available) = picked;
     var kb = InlineKeyboard();
     for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
       if (w.locked(sat, now)) continue; // weekend already locked
@@ -367,8 +436,11 @@ class CycleService {
           final slotLabel = slot == 'am' ? 'AM' : 'PM';
           for (final loc in Slot.allLocations) {
             final key = '$wi:$day:$slot:$loc';
-            final selected = picked.any((s) => s.encode() == key);
-            final mark = selected ? '✅' : '▫️';
+            final mark = want.any((s) => s.encode() == key)
+                ? '🔒'
+                : available.any((s) => s.encode() == key)
+                    ? '🟢'
+                    : '▫️';
             final locLabel = loc == 'ocbc' ? 'OCBC' : 'PR';
             // The callback carries the BUNDLE's first Saturday (not the
             // clicked weekend) so a toggle re-renders the same anchored

@@ -3,20 +3,18 @@ import 'package:sdsc_bot/sdsc_bot.dart';
 
 const _am = Slot(0, 'sat', 'am', 'ocbc');
 const _amPr = Slot(0, 'sat', 'am', 'pasirRis');
+const _pm = Slot(0, 'sat', 'pm', 'ocbc');
+const _pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
+const _am1 = Slot(1, 'sat', 'am', 'ocbc'); // weekend 1
 
-User _user(int id, Experience exp, {int streak = 0}) => User(
-      id: id,
-      name: 'u$id',
-      experience: exp,
-      group: 'A',
-      ocbcStreak: streak,
-    );
-
-Availability _avail(int userId, Set<Slot> slots) => Availability(
+Availability _avail(int userId,
+        {Set<Slot> want = const {}, Set<Slot> slots = const {}}) =>
+    Availability(
       weekendStart: DateTime(2026, 8, 8),
       userId: userId,
       bundleStart: DateTime(2026, 8, 8),
       slots: slots,
+      wantSlots: want,
       available: true,
       updatedAt: DateTime(2026, 8, 1),
     );
@@ -41,188 +39,145 @@ List<Session> _sessions() {
 }
 
 void main() {
-  const allocator = Allocator(ocbcCapacity: 2, prCapacity: 20);
+  const allocator = Allocator();
 
-  Map<int, User> users(Iterable<User> u) => {for (final x in u) x.id: x};
-
-  test('experienced go to OCBC, new go to Pasir Ris', () {
-    final usersList = [
-      _user(1, Experience.experienced),
-      _user(2, Experience.experienced),
-      _user(3, Experience.newbie),
-    ];
+  test('want picks are allocated first, one per time slot', () {
+    // User wants every session of the weekend: gets one AM + one PM, never
+    // two sessions at the same time.
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [_avail(1, {_am, _amPr}), _avail(2, {_am, _amPr}), _avail(3, {_am, _amPr})],
-      users: users(usersList),
+      availability: [_avail(1, want: {_am, _amPr, _pm, _pmPr})],
     );
-
-    final byUser = <int, int>{};
-    for (final (uid, sid) in result) {
-      byUser[uid] = sid;
-    }
-    expect(byUser[1], 1); // OCBC
-    expect(byUser[2], 1); // OCBC (both experienced, cap 2)
-    expect(byUser[3], 2); // PR
+    final sids = result.where((e) => e.$1 == 1).map((e) => e.$2).toSet();
+    expect(sids, {1, 3}); // am OCBC + pm OCBC (first of each slot)
   });
 
-  test('streak rule: streak-2 experienced yields to streak-0', () {
-    final usersList = [
-      _user(1, Experience.experienced, streak: 2),
-      _user(2, Experience.experienced),
-      _user(3, Experience.newbie),
-    ];
+  test('no double-booking: two locations of the same slot never both assigned',
+      () {
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [_avail(1, {_am, _amPr}), _avail(2, {_am, _amPr}), _avail(3, {_am, _amPr})],
-      users: users(usersList),
+      availability: [_avail(1, want: {_am, _amPr})],
     );
-    final byUser = <int, int>{};
-    for (final (uid, sid) in result) {
-      byUser[uid] = sid;
-    }
-    expect(byUser[2], 1); // OCBC (streak 0 preferred)
-    expect(byUser[1], 2); // streak-2 pushed to PR (no 3-in-a-row)
-    expect(byUser[3], 1); // newbie fills the 2nd OCBC seat over the streak-2
+    expect(result.where((e) => e.$1 == 1).length, 1);
+    expect(result.single.$2, 1); // am OCBC (first in iteration order)
   });
 
-  test('streak rule relaxed when no alternative', () {
-    final usersList = [_user(1, Experience.experienced, streak: 2)];
+  test('full-day: want in both AM and PM allocates both', () {
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [_avail(1, {_am, _amPr})],
-      users: users(usersList),
+      availability: [_avail(1, want: {_am, _pm})],
     );
-    expect(result.map((e) => e.$2), [1]); // still OCBC (no alternative)
+    final sids = result.where((e) => e.$1 == 1).map((e) => e.$2).toSet();
+    expect(sids, {1, 3});
   });
 
-  test('new members spill to OCBC when PR overflow', () {
-    // OCBC cap 2, PR cap 20; 4 new users => 2 OCBC (relaxed), 2 PR
-    final usersList = [
-      for (var i = 1; i <= 4; i++) _user(i, Experience.newbie),
-    ];
+  test('available picks give exactly one session per member', () {
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [for (var i = 1; i <= 4; i++) _avail(i, {_am, _amPr})],
-      users: users(usersList),
-    );
-    final ocbcCount = result.where((e) => e.$2 == 1).length;
-    final prCount = result.where((e) => e.$2 == 2).length;
-    expect(ocbcCount, 2);
-    expect(prCount, 2);
-  });
-
-  test('a member is allocated at most one session per weekend', () {
-    // User picks every slot of the weekend (both locations, all days/times).
-    final allWk0 = <Slot>{
-      for (final day in Slot.allDays)
-        for (final slot in Slot.allSlots)
-          for (final loc in Slot.allLocations) Slot(0, day, slot, loc),
-    };
-    final result = allocator.run(
-      sessions: _sessions(),
-      availability: [_avail(1, allWk0)],
-      users: users([_user(1, Experience.experienced)]),
+      availability: [_avail(1, slots: {_am, _amPr, _pm, _pmPr})],
     );
     expect(result.where((e) => e.$1 == 1).length, 1);
   });
 
-  test('people spread across time slots when available', () {
-    // 4 experienced users available for every slot; greedy would stuff the
-    // morning, the balancing pass spreads them 1 per session.
-    const pmOcbc = Slot(0, 'sat', 'pm', 'ocbc');
-    const pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
-    final all = {_am, _amPr, pmOcbc, pmPr};
+  test('want sessions plus one available session in a free time slot', () {
+    // User wants am OCBC and offers pm OCBC + pm PR: gets am OCBC (want) and
+    // one of the pm offers.
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [for (var i = 1; i <= 4; i++) _avail(i, all)],
-      users: users([for (var i = 1; i <= 4; i++) _user(i, Experience.experienced)]),
+      availability: [_avail(1, want: {_am}, slots: {_pm, _pmPr})],
     );
-    final bySession = <int, int>{};
-    for (final (_, sid) in result) {
-      bySession[sid] = (bySession[sid] ?? 0) + 1;
-    }
-    expect(bySession[1], 1); // am OCBC
-    expect(bySession[3], 1); // pm OCBC
-    expect(bySession[2], 1); // am PR
-    expect(bySession[4], 1); // pm PR
+    final sids = result.where((e) => e.$1 == 1).map((e) => e.$2).toSet();
+    expect(sids, {1, 3}); // am OCBC + pm OCBC
   });
 
-  test('balancing only moves within a location', () {
-    // 2 experienced available for am+pm OCBC, 2 newbies for am+pm PR.
-    // Greedy: am OCBC 2, am PR 2. Balancing moves 1 OCBC to pm and 1 PR to
-    // pm, but never swaps a member between locations.
-    const pmOcbc = Slot(0, 'sat', 'pm', 'ocbc');
-    const pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
+  test('available pass never adds a second session in a held time slot', () {
+    // User wants am OCBC and offers am PR: the am slot is already held, so
+    // the available pass adds nothing.
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, want: {_am}, slots: {_amPr})],
+    );
+    expect(result.where((e) => e.$1 == 1).length, 1);
+  });
+
+  test('want members and available members are all placed (no capacity)', () {
     final result = allocator.run(
       sessions: _sessions(),
       availability: [
-        _avail(1, {_am, pmOcbc}),
-        _avail(2, {_am, pmOcbc}),
-        _avail(3, {_amPr, pmPr}),
-        _avail(4, {_amPr, pmPr}),
+        _avail(1, want: {_am}),
+        _avail(2, slots: {_am}),
+        _avail(3, want: {_pm}),
       ],
-      users: users([
-        _user(1, Experience.experienced),
-        _user(2, Experience.experienced),
-        _user(3, Experience.newbie),
-        _user(4, Experience.newbie),
-      ]),
     );
-    final byUser = <int, int>{};
+    final byUser = <int, Set<int>>{};
     for (final (uid, sid) in result) {
-      byUser[uid] = sid;
+      byUser.putIfAbsent(uid, () => {}).add(sid);
     }
-    // Experienced stay on OCBC (one am, one pm); newbies on PR (one am, one pm).
-    expect({byUser[1], byUser[2]}, {1, 3});
-    expect({byUser[3], byUser[4]}, {2, 4});
+    expect(byUser[1], {1}); // want: am OCBC
+    expect(byUser[2], {1}); // available: am OCBC (no capacity)
+    expect(byUser[3], {3}); // want: pm OCBC
   });
 
-  test('locked members keep their session and their seat is reserved', () {
-    // User 1 is already allocated to am OCBC (session 1) and locked in.
-    // Two new experienced users arrive; OCBC cap 2 leaves exactly one seat.
+  test('locked members keep their session; others may still join', () {
     final result = allocator.run(
       sessions: _sessions(),
       availability: [
-        _avail(1, {_am, _amPr}),
-        _avail(2, {_am, _amPr}),
-        _avail(3, {_am, _amPr}),
+        _avail(1, want: {_am}),
+        _avail(2, want: {_am}),
       ],
-      users: users([
-        _user(1, Experience.experienced),
-        _user(2, Experience.experienced),
-        _user(3, Experience.experienced),
-      ]),
-      locked: {1: 1},
+      locked: [(1, 1)],
     );
-    final byUser = <int, int>{};
+    final byUser = <int, Set<int>>{};
     for (final (uid, sid) in result) {
-      byUser[uid] = sid;
+      byUser.putIfAbsent(uid, () => {}).add(sid);
     }
-    expect(byUser[1], 1); // locked member never moves
-    expect(byUser[2], 1); // fills the remaining OCBC seat
-    expect(byUser[3], 2); // PR
+    expect(byUser[1], {1}); // locked member keeps am OCBC
+    expect(byUser[2], {1}); // no capacity: user 2 joins the same session
   });
 
-  test('balancing never moves a locked member', () {
-    // Users 1 and 2 are locked to the morning sessions. The balancing pass
-    // must move only the non-locked members to the empty afternoon slots.
-    const pmOcbc = Slot(0, 'sat', 'pm', 'ocbc');
-    const pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
-    final all = {_am, _amPr, pmOcbc, pmPr};
+  test('locked member never gets a second session in their held time slot',
+      () {
+    // User 1 is locked to am OCBC and also wants am PR: the am slot is taken
+    // for them, so only the locked session stands.
     final result = allocator.run(
       sessions: _sessions(),
-      availability: [for (var i = 1; i <= 4; i++) _avail(i, all)],
-      users: users([for (var i = 1; i <= 4; i++) _user(i, Experience.experienced)]),
-      locked: {1: 1, 2: 2},
+      availability: [_avail(1, want: {_amPr})],
+      locked: [(1, 1)],
     );
-    final byUser = <int, int>{};
-    for (final (uid, sid) in result) {
-      byUser[uid] = sid;
-    }
-    expect(byUser[1], 1); // locked: am OCBC, untouched
-    expect(byUser[2], 2); // locked: am PR, untouched
-    expect(byUser[3], 3); // non-locked moved to pm OCBC
-    expect(byUser[4], 4); // non-locked moved to pm PR
+    expect(result.where((e) => e.$1 == 1).map((e) => e.$2), [1]);
+  });
+
+  test('both Saturdays: want picks allocate in each weekend run', () {
+    final w0 = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, want: {_am})],
+    );
+    final w1Sessions = _sessions()
+        .map((s) => Session(
+              id: s.id + 10,
+              weekendStart: DateTime(2026, 8, 15),
+              day: s.day,
+              slot: s.slot,
+              location: s.location,
+              start: s.start.add(const Duration(days: 7)),
+              end: s.end.add(const Duration(days: 7)),
+            ))
+        .toList();
+    final w1 = allocator.run(
+      sessions: w1Sessions,
+      availability: [
+        Availability(
+          weekendStart: DateTime(2026, 8, 15),
+          userId: 1,
+          bundleStart: DateTime(2026, 8, 8),
+          slots: {},
+          wantSlots: {_am1},
+          available: true,
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+      ],
+    );
+    expect(w0.single.$2, 1); // weekend 0: am OCBC
+    expect(w1.single.$2, 11); // weekend 1: am OCBC
   });
 }

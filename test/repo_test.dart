@@ -106,10 +106,19 @@ void main() {
           const Slot(0, 'sat', 'am', 'ocbc'),
           const Slot(0, 'sat', 'am', 'pasirRis'),
         },
+        wantSlots: {const Slot(0, 'sat', 'pm', 'ocbc')},
         available: true,
         updatedAt: DateTime(2026, 8, 12),
       ));
     }
+
+    // want_slots round-trips through the store.
+    final stored = repo.getAvailability(sat, 1)!;
+    expect(stored.wantSlots, {const Slot(0, 'sat', 'pm', 'ocbc')});
+    expect(stored.slots, {
+      const Slot(0, 'sat', 'am', 'ocbc'),
+      const Slot(0, 'sat', 'am', 'pasirRis'),
+    });
 
     repo.ensureSessionsForWeekend(
       sat,
@@ -118,17 +127,15 @@ void main() {
     );
     final sessions = repo.sessionsForWeekend(sat);
 
-    final result = Allocator(ocbcCapacity: 2, prCapacity: 20).run(
+    final result = const Allocator().run(
       sessions: sessions,
       availability: repo.availabilityForWeekend(sat),
-      users: {
-        for (final u in repo.allUsers()) u.id: u,
-      },
     );
     repo.replaceAllocationsForWeekend(sat, result);
 
     final allocated = repo.allocationsForWeekend(sat);
-    expect(allocated.length, 3);
+    // Each member gets their want (pm OCBC) plus one available (am OCBC).
+    expect(allocated.length, 6);
     // Session ids must survive the join (not collide with user ids).
     final sessionIds = sessions.map((s) => s.id).toSet();
     expect(allocated.every((a) => sessionIds.contains(a.$2.id)), true);
