@@ -5,6 +5,30 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.10.0] - 2026-08-17
+
+### Added
+
+- **Per-slot commitment.** Each session in the availability picker now
+  toggles through three states: tap once to offer it (you can attend if
+  needed), tap twice to book it (you want to attend), tap again to unselect.
+  Booked sessions are allocated first — every one of them, one per time slot
+  (a member can never be in two places at once) — then each member is
+  allocated to one of their offered sessions. There are no capacity limits:
+  anyone who wants a session gets it.
+- **Friday-evening allocation list for checkers.** Every Friday at 9 PM the
+  full allocation for the coming weekend is pushed to the check tier — a
+  final confirmation list the backend sends on its own, in addition to the
+  on-demand status button.
+
+### Changed
+
+- **The allocation message now depends on when it is sent.** Before the
+  weekend's Friday deadline it says you can change your pick with re-pick;
+  after the deadline it asks you to message the contact instead.
+- **The availability confirmation and status list distinguish booked (🔒)
+  from offered (🟢) sessions.**
+
 ## [1.9.0] - 2026-08-17
 
 ### Added

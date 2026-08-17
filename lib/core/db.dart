@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS availability (
   user_id INTEGER NOT NULL REFERENCES users(id),
   bundle_start TEXT NOT NULL,
   slots TEXT NOT NULL DEFAULT '[]',
+  want_slots TEXT NOT NULL DEFAULT '[]',
   available INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (weekend_start, user_id)
@@ -160,6 +161,15 @@ CREATE TABLE IF NOT EXISTS console_keys (
       }
     }
 
+    // Per-slot commitment: the sessions a member *wants* to attend, separate
+    // from the ones they can attend if needed (availability.slots). Databases
+    // created before the split only have `slots`.
+    try {
+      db.execute("ALTER TABLE availability ADD COLUMN want_slots TEXT NOT NULL DEFAULT '[]'");
+    } catch (_) {
+      // column already present
+    }
+
     // Groups are now numeric (1, 2, ...) and led by admins. One-time data
     // migration from the legacy letter groups; idempotent.
     db.execute("UPDATE users SET group_id = '1' WHERE group_id = 'A'");
@@ -247,6 +257,7 @@ CREATE TABLE availability (
   user_id INTEGER NOT NULL REFERENCES users(id),
   bundle_start TEXT NOT NULL,
   slots TEXT NOT NULL DEFAULT '[]',
+  want_slots TEXT NOT NULL DEFAULT '[]',
   available INTEGER NOT NULL DEFAULT 1,
   updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (weekend_start, user_id)

@@ -14,6 +14,7 @@ import '../core/log.dart';
 ///  - Monday 08:00   prompts for the bundle (quiet users skipped)
 ///  - Thursday 18:00 reminders to the bundle's non-responders
 ///  - Friday 18:00   deadline for this weekend (locks availability)
+///  - Friday 21:00   full allocation list pushed to the `check` tier
 ///  - Sunday 20:00 / Monday 08:00 attendance-marking reminders to admins
 ///
 /// Allocation is dynamic: every availability indication arms a one-shot run
@@ -87,6 +88,14 @@ class Scheduler {
       // availability indication (see scheduleDynamicAllocation). The Friday
       // batch is deprecated and no longer fires here.
 
+      // Friday 21:00: push the current weekend's full allocation to the
+      // `check` tier — a final confirmation list, independent of their
+      // on-demand status button.
+      if (_sameDay(today, monday.add(const Duration(days: 4))) &&
+          now.hour >= 21) {
+        await service.sendCheckList(w.sat0);
+      }
+
       // Attendance-marking reminders for the weekend just finished:
       // Sunday evening and again Monday morning.
       final weekendSat = monday.subtract(const Duration(days: 2));
@@ -116,6 +125,7 @@ class Scheduler {
       // This week's milestones, if still in the future.
       w.promptDay,
       w.reminderDay,
+      monday.add(const Duration(days: 4, hours: 21)), // Friday 21:00
       monday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
     ];
     DateTime? next;

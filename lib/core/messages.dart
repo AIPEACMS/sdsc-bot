@@ -12,9 +12,11 @@ class Messages {
     final contact = contactForGroup(group);
     return 'Hi! It is time to let us know your availability for the next 2 '
         'weekends.\n\n'
-        'Tap the sessions you can attend and press <b>Done</b> when you '
-        'finish. If you cannot make it at all, press <b>Not available</b> '
-        'instead — no pressure at all.\n\n'
+        'Tap a session <b>once</b> to offer it 🟢 — you can attend it if '
+        'needed. Tap it <b>twice</b> to book it 🔒 — you want to attend it. '
+        'Tap again to unselect. Then press <b>Done</b>.\n\n'
+        'If you cannot make it at all, press <b>Not available</b> instead — '
+        'no pressure at all.\n\n'
         'Questions? Message $contact.';
   }
 
@@ -23,8 +25,9 @@ class Messages {
     return 'Hi! It is time to let us know your availability for the next 2 '
         'weekends.\n\n'
         'We noticed you have not attended the past 2 weeks — it would be '
-        'great to see you again! Tap the sessions you can attend and press '
-        '<b>Done</b>. If you are short on time, even one session helps.';
+        'great to see you again!\n\n'
+        'Tap a session <b>once</b> to offer it 🟢, or <b>twice</b> to book '
+        'it 🔒. Then press <b>Done</b>.';
   }
 
   /// Reminder for members who have not responded.
@@ -32,16 +35,21 @@ class Messages {
     final contact = contactForGroup(group);
     return 'Hi! Just a reminder: we have not heard from you yet about the '
         'next 2 weekends.\n\n'
-        'Tap the sessions you can attend and press <b>Done</b>, or press '
-        '<b>Not available</b> if you cannot make it. Questions? Message '
-        '$contact.';
+        'Tap a session <b>once</b> to offer it 🟢 (you can attend it if '
+        'needed), or <b>twice</b> to book it 🔒 (you want to attend it). '
+        'Then press <b>Done</b>, or press <b>Not available</b> if you cannot '
+        'make it. Questions? Message $contact.';
   }
 
-  /// Confirmation echoing the chosen availability slots. [allocateAt] is the
-  /// sharp hour the allocation message goes out (e.g. "6:00 PM").
-  String msg3(Iterable<Slot> slots, {String? allocateAt}) {
-    final lines = slots.map((s) => '• ${s.toString()}').toList();
-    final list = lines.isEmpty ? '(none)' : lines.join('\n');
+  /// Confirmation echoing the chosen availability: [want] slots are the 🔒
+  /// bookings, [available] the 🟢 offers. [allocateAt] is the sharp hour the
+  /// allocation message goes out (e.g. "6:00 PM").
+  String msg3(Iterable<Slot> want, Iterable<Slot> available,
+      {String? allocateAt}) {
+    final wantList = want.map((s) => '🔒 ${s.toString()}').toList();
+    final availList = available.map((s) => '🟢 ${s.toString()}').toList();
+    final all = [...wantList, ...availList];
+    final list = all.isEmpty ? '(none)' : all.join('\n');
     final alloc = allocateAt == null
         ? ''
         : '\n\n<b>You will get allocated at $allocateAt</b> later';
@@ -59,11 +67,18 @@ class Messages {
 
   /// Allocation notice. `session` is e.g. "OCBC @ Pasir Ris" placeholder —
   /// the caller formats the session label; [time] is the "from $time to $time"
-  /// portion.
-  String msg4(String group, String sessionLabel, String timeLabel) {
+  /// portion. [deadlinePassed] decides the tail: before the weekend's Friday
+  /// deadline the member can still re-pick; after it, they must message the
+  /// contact instead. [deadlineLabel] is the deadline rendered as a human
+  /// time (e.g. "Friday 6:00 PM").
+  String msg4(String group, String sessionLabel, String timeLabel,
+      {required bool deadlinePassed, required String deadlineLabel}) {
     final contact = contactForGroup(group);
+    final tail = deadlinePassed
+        ? 'If your plans suddenly change, message $contact as soon as possible.'
+        : 'You can change this anytime before $deadlineLabel with re-pick.';
     return 'You have been allocated to <b>$sessionLabel</b>, $timeLabel.\n\n'
-        'If your plans suddenly change, message $contact as soon as possible.';
+        '$tail';
   }
 
   /// Holiday prompt — middle week break.

@@ -376,12 +376,24 @@ class Flows {
 
     final avail0 = repo.getAvailability(w.sat0, userId);
     final avail1 = repo.getAvailability(w.sat1, userId);
-    final picks = <Slot>{};
-    if (avail0 != null && avail0.available) picks.addAll(avail0.slots);
-    if (avail1 != null && avail1.available) picks.addAll(avail1.slots);
-    if (picks.isNotEmpty) {
-      final lines = picks.map((s) => '• ${s.toString()}').join('\n');
-      sb.writeln('\n<b>Indicated</b> (this bundle):\n$lines');
+    final want = <Slot>{};
+    final avail = <Slot>{};
+    if (avail0 != null && avail0.available) {
+      want.addAll(avail0.wantSlots);
+      avail.addAll(avail0.slots);
+    }
+    if (avail1 != null && avail1.available) {
+      want.addAll(avail1.wantSlots);
+      avail.addAll(avail1.slots);
+    }
+    if (want.isNotEmpty || avail.isNotEmpty) {
+      sb.writeln('\n<b>Indicated</b> (this bundle):');
+      if (want.isNotEmpty) {
+        sb.writeln(want.map((s) => '🔒 ${s.toString()}').join('\n'));
+      }
+      if (avail.isNotEmpty) {
+        sb.writeln(avail.map((s) => '🟢 ${s.toString()}').join('\n'));
+      }
     } else {
       sb.writeln('\n<b>Indicated</b>: none yet for this bundle.');
     }
@@ -423,34 +435,10 @@ class Flows {
 
     final now = config.toLocal(Config.nowUtc());
     final w = RollingWindow.forDate(now);
-    final sb = StringBuffer()
-      ..writeln('📋 <b>This week\'s allocation</b>');
 
     // "This week": weekend-0 during its week, weekend-1 once we roll over.
     final sat = now.isBefore(w.sat1) ? w.sat0 : w.sat1;
-    final allocations = repo.allocationsForWeekend(sat);
-    if (allocations.isEmpty) {
-      sb.writeln('\nNo allocation published yet for ${_dateLabel(sat)}.');
-      await ctx.reply(sb.toString(), parseMode: ParseMode.html);
-      return;
-    }
-
-    final bySession = <int, List<String>>{};
-    for (final (u, s) in allocations) {
-      bySession.putIfAbsent(s.id, () => []).add(u.name);
-    }
-
-    final sessions = repo.sessionsForWeekend(sat)
-      ..sort((a, b) => a.start.compareTo(b.start));
-
-    sb.writeln();
-    for (final s in sessions) {
-      final names = bySession[s.id];
-      sb.writeln('• ${service.sessionLabel(s)}');
-      sb.writeln('   ${names == null || names.isEmpty ? '—' : names.join(', ')}');
-    }
-
-    await ctx.reply(sb.toString(), parseMode: ParseMode.html);
+    await ctx.reply(service.checkListText(sat), parseMode: ParseMode.html);
   }
 
   // ------------------------------------------------------------ text
@@ -559,16 +547,25 @@ class Flows {
       return;
     }
 
-    final picks = state.picksFor(userId);
-    if (!picks.remove(slot)) picks.add(slot);
+    final (want, available) = state.picksFor(userId);
+    // Toggle cycle: off ▫️ -> offered 🟢 -> booked 🔒 -> off.
+    if (want.contains(slot)) {
+      want.remove(slot);
+    } else if (available.contains(slot)) {
+      available.remove(slot);
+      want.add(slot);
+    } else {
+      available.add(slot);
+    }
 
-    final text = 'Your availability (tap to toggle):';
+    final text = 'Your availability — tap <b>once</b> to offer 🟢, '
+        '<b>twice</b> to book 🔒:';
     try {
       await ctx.editMessageText(
         text,
         replyMarkup: CycleService.buildKeyboard(
           w,
-          picks,
+          (want, available),
           now: now,
           holiday: CycleService.isHolidayWindow(repo, w),
           hasIndicated: repo.hasBundleResponse(sat0, userId),
@@ -612,10 +609,10 @@ class Flows {
     final user = repo.findUser(userId);
     if (user == null) return;
 
-    final picks = state.picksFor(userId).toSet();
+    final (want, available) = state.picksFor(userId);
     // Done with nothing selected means the same as "Not available": an
     // explicit "cannot make it" answer, never a "(none)" confirmation.
-    final unavailable = notAvailable || picks.isEmpty;
+    final unavailable = notAvailable || (want.isEmpty && available.isEmpty);
     // Save one row per weekend that is still open; locked weekends are left
     // alone (their allocation has already run or is about to).
     var saved = 0;
@@ -627,7 +624,10 @@ class Flows {
         bundleStart: sat0,
         slots: unavailable
             ? {}
-            : picks.where((s) => s.weekendIndex == wi).toSet(),
+            : available.where((s) => s.weekendIndex == wi).toSet(),
+        wantSlots: unavailable
+            ? {}
+            : want.where((s) => s.weekendIndex == wi).toSet(),
         available: !unavailable,
         updatedAt: now,
       ));
@@ -660,7 +660,8 @@ class Flows {
     await ctx.reply(
         unavailable
             ? messages.msg6()
-            : messages.msg3(picks, allocateAt: nextSharpHourLabel(now)),
+            : messages.msg3(want, available,
+                allocateAt: nextSharpHourLabel(now)),
         parseMode: ParseMode.html);
   }
 
@@ -671,16 +672,6 @@ class Flows {
     final hour12 = h % 12 == 0 ? 12 : h % 12;
     final ampm = h < 12 ? 'AM' : 'PM';
     return '$hour12:00 $ampm';
-  }
-
-  /// "Sat 15 Aug" — short weekday + date.
-  static String _dateLabel(DateTime d) {
-    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-    ];
-    return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
   }
 
   // ------------------------------------------------------------- helpers
