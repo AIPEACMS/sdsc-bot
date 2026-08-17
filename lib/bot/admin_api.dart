@@ -423,12 +423,21 @@ class AdminApi {
   /// Registers (or queues) a member by @handle, mirroring the /adduser
   /// outcome: already-registered → already member; pending → already queued;
   /// seen before → registered now; unseen → queued for first contact.
-  Future<(int, Object)> _addUser(String bodyText) async {    final body = _jsonBody(bodyText);
+  /// An optional `tier` ("member" | "check") registers/queues the user
+  /// directly as that tier — the console's "Add check" uses this instead of
+  /// adding a member and converting afterwards.
+  Future<(int, Object)> _addUser(String bodyText) async {
+    final body = _jsonBody(bodyText);
     final handle =
         (body['handle'] as String?)?.trim().replaceFirst('@', '') ?? '';
+    final tier = (body['tier'] as String?) ?? MemberTier.member;
     if (handle.isEmpty || handle.contains(' ')) {
       return (400, {'ok': false, 'error': 'expected {"handle": "@username"}'});
     }
+    if (tier != MemberTier.member && tier != MemberTier.check) {
+      return (400, {'ok': false, 'error': 'tier must be "member" or "check"'});
+    }
+    final isCheck = tier == MemberTier.check;
     final userId = repo.userIdByUsername(handle);
     if (userId != null && repo.findUser(userId) != null) {
       return (200, {'ok': true, 'message': '@$handle is already a member.'});
@@ -446,18 +455,26 @@ class AdminApi {
         name: '@$handle',
         experience: Experience.newbie,
         group: 'A',
+        memberTier: tier,
       ));
       return (200, {
         'ok': true,
-        'message': '@$handle added. They can now use /start to see their '
-            'commands.',
+        'message': isCheck
+            ? '@$handle added as a checker. They can now use /start to see '
+                'their commands.'
+            : '@$handle added. They can now use /start to see their commands.',
       });
     }
-    repo.addPendingUser(handle, isAdmin: false);
+    repo.addPendingUser(handle, isAdmin: false, tier: tier);
     return (200, {
       'ok': true,
-      'message': '@$handle queued — no need for them to message first. The '
-          'moment they message this bot, they are registered automatically.',
+      'message': isCheck
+          ? '@$handle queued as a checker — no need for them to message '
+              'first. The moment they message this bot, they are registered '
+              'automatically.'
+          : '@$handle queued — no need for them to message first. The '
+              'moment they message this bot, they are registered '
+              'automatically.',
     });
   }
 

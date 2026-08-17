@@ -101,7 +101,8 @@ CREATE TABLE IF NOT EXISTS seen_users (
 
 CREATE TABLE IF NOT EXISTS pending_users (
   username TEXT PRIMARY KEY,
-  is_admin INTEGER NOT NULL DEFAULT 0
+  is_admin INTEGER NOT NULL DEFAULT 0,
+  tier TEXT NOT NULL DEFAULT 'member'
 );
 
 CREATE TABLE IF NOT EXISTS sent_messages (
@@ -166,6 +167,14 @@ CREATE TABLE IF NOT EXISTS console_keys (
     // created before the split only have `slots`.
     try {
       db.execute("ALTER TABLE availability ADD COLUMN want_slots TEXT NOT NULL DEFAULT '[]'");
+    } catch (_) {
+      // column already present
+    }
+
+    // Pending users can be queued directly as a tier (e.g. `check` from the
+    // console's "Add check"), not only as plain members.
+    try {
+      db.execute("ALTER TABLE pending_users ADD COLUMN tier TEXT NOT NULL DEFAULT 'member'");
     } catch (_) {
       // column already present
     }

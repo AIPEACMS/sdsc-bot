@@ -703,6 +703,7 @@ class Flows {
   void _autoRegisterPending(Context ctx, int userId, String username) {
     if (!repo.isPendingUser(username)) return;
     final isAdmin = repo.pendingIsAdmin(username);
+    final tier = repo.pendingTier(username);
     repo.removePendingUser(username);
 
     final existing = repo.findUser(userId);
@@ -712,6 +713,7 @@ class Flows {
         name: '@$username',
         experience: Experience.newbie,
         group: '',
+        memberTier: tier,
       ));
       if (isAdmin) repo.updateAdmin(userId, true); // gets their own group
     } else if (isAdmin) {
