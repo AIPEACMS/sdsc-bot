@@ -100,10 +100,10 @@ class CycleService {
       repo.holidayOn(w.sat0) != null || repo.holidayOn(w.sat1) != null;
 
   /// Allocates one weekend's sessions from the weekend's availability rows,
-  /// persists allocations + streaks, then notifies. Runs dynamically (at the
-  /// next sharp hour after an indication) and re-optimizes the whole weekend
-  /// each time, so members whose assignment changed are re-notified and
-  /// members dropped by a re-optimization are told their slot is gone.
+  /// persists allocations, then notifies. Runs dynamically (at the next sharp
+  /// hour after an indication). Already-allocated members are locked in —
+  /// the run only fills the remaining seats with newly-indicated members, so
+  /// nobody is ever moved or un-allocated by a later indication.
   Future<void> allocateWeekend(DateTime sat) async {
     repo.ensureSessionsForWeekend(
       sat,
@@ -121,6 +121,10 @@ class CycleService {
         .toList();
     final users = {for (final u in activeUsers) u.id: u};
 
+    // Already-allocated members are locked in place.
+    final existing = repo.allocationsForWeekend(sat);
+    final locked = {for (final (u, s) in existing) u.id: s.id};
+
     final result = Allocator(
       ocbcCapacity: config.ocbcCapacity,
       prCapacity: config.prCapacity,
@@ -128,35 +132,21 @@ class CycleService {
       sessions: sessions,
       availability: availability,
       users: users,
+      locked: locked,
     );
 
-    // Previous allocation, for change detection across dynamic re-runs.
-    final previous = repo.allocationsForWeekend(sat);
-    final prevByUser = {for (final (u, s) in previous) u.id: s.id};
-
     repo.replaceAllocationsForWeekend(sat, result);
-
-    final sessionsById = {for (final s in sessions) s.id: s};
-    for (final (userId, sessionId) in result) {
-      final session = sessionsById[sessionId];
-      final user = users[userId];
-      if (session == null || user == null) continue;
-      final streak = session.location == Location.ocbc
-          ? user.ocbcStreak + 1
-          : 0;
-      repo.setOcbcStreak(userId, streak);
-    }
-
     repo.markWeekendAllocated(sat);
 
+    // Notify only the newly allocated — locked members were notified when
+    // they were allocated.
     var failures = 0;
-    final newIds = <int>{};
+    final sessionsById = {for (final s in sessions) s.id: s};
     for (final (userId, sessionId) in result) {
+      if (locked.containsKey(userId)) continue;
       final session = sessionsById[sessionId];
       final user = users[userId];
       if (session == null || user == null) continue;
-      newIds.add(userId);
-      if (prevByUser[userId] == sessionId) continue; // unchanged
       final label = sessionLabel(session);
       final time = '${_fmt(session.start)} to ${_fmt(session.end)}';
       try {
@@ -171,22 +161,20 @@ class CycleService {
         failures++;
       }
     }
-    // Members dropped by a re-optimization need to know their slot is gone.
-    for (final (u, s) in previous) {
-      if (newIds.contains(u.id)) continue;
-      try {
-        await bot.api.sendMessage(
-          ChatID(u.id),
-          messages.msgAllocationDropped(sessionLabel(s)),
-          parseMode: ParseMode.html,
-        );
-      } on HeldException {
-        // held: drop
-      } catch (_) {
-        failures++;
-      }
-    }
-    if (failures > 0) LogRing.log('allocate: $failures sends failed');
+    if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
+  }
+
+  /// Marks attendance and updates the OCBC streak: a present OCBC session
+  /// extends the run, a present PR session resets it. The streak counts
+  /// consecutive sessions attended, so the allocator bans the 3rd in a row.
+  void markAttendance(int userId, int sessionId, {required bool attended}) {
+    repo.setAttendanceState(userId, sessionId, attended: attended);
+    final session = repo.sessionById(sessionId);
+    final user = repo.findUser(userId);
+    if (session == null || user == null) return;
+    final streak =
+        session.location == Location.ocbc ? user.ocbcStreak + 1 : 0;
+    repo.setOcbcStreak(userId, streak);
   }
 
   /// Sunday/Monday attendance-marking reminders: for every allocated member

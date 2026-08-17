@@ -39,8 +39,17 @@ class User {
   final Experience experience;
   final String group; // 'A' or 'B'
   final bool isAdmin;
-  final int ocbcStreak; // consecutive OCBC allocations
+  final int ocbcStreak; // consecutive OCBC sessions attended
   final DateTime? registeredAt;
+
+  /// Real name, filled via the /start profile wizard.
+  final String fullName;
+
+  /// What the member wants to be called.
+  final String preferredName;
+
+  /// Matriculation number.
+  final String matricNo;
 
   /// Stored tier: 'member' | 'check' | 'old'. 'console'/'admin' are derived.
   final String memberTier;
@@ -53,6 +62,9 @@ class User {
     this.isAdmin = false,
     this.ocbcStreak = 0,
     this.registeredAt,
+    this.fullName = '',
+    this.preferredName = '',
+    this.matricNo = '',
     this.memberTier = MemberTier.member,
   });
 
@@ -62,6 +74,9 @@ class User {
     String? group,
     bool? isAdmin,
     int? ocbcStreak,
+    String? fullName,
+    String? preferredName,
+    String? matricNo,
     String? memberTier,
   }) {
     return User(
@@ -72,6 +87,9 @@ class User {
       isAdmin: isAdmin ?? this.isAdmin,
       ocbcStreak: ocbcStreak ?? this.ocbcStreak,
       registeredAt: registeredAt,
+      fullName: fullName ?? this.fullName,
+      preferredName: preferredName ?? this.preferredName,
+      matricNo: matricNo ?? this.matricNo,
       memberTier: memberTier ?? this.memberTier,
     );
   }
@@ -88,6 +106,9 @@ class User {
         registeredAt: row['created_at'] == null
             ? null
             : DateTime.tryParse(row['created_at'] as String),
+        fullName: (row['full_name'] as String?) ?? '',
+        preferredName: (row['preferred_name'] as String?) ?? '',
+        matricNo: (row['matric_no'] as String?) ?? '',
         memberTier: (row['member_tier'] as String?) ?? MemberTier.member,
       );
 }

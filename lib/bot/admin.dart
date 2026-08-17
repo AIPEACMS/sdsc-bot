@@ -198,7 +198,10 @@ class Admin {
       ...repo.availabilityForWeekend(w.sat0),
       ...repo.availabilityForWeekend(w.sat1),
     ].where((a) => activeIds.contains(a.userId));
-    final responders = avail.where((a) => a.available).length;
+    // One member responding to both weekends has two rows — count distinct
+    // responders, not rows.
+    final responderIds = <int>{for (final a in avail) a.userId};
+    final responders = responderIds.length;
     final pending = repo.reminderTargets(w.sat0);
 
     final sb = StringBuffer()
@@ -424,7 +427,7 @@ class Admin {
         .where((a) => a.userId == userId)
         .toList();
     if (current.isEmpty) {
-      repo.setAttendanceState(userId, sessionId, attended: true);
+      service.markAttendance(userId, sessionId, attended: true);
     } else if (current.first.attended) {
       repo.setAttendanceState(userId, sessionId, attended: false);
     } else {

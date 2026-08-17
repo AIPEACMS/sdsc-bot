@@ -145,6 +145,16 @@ CREATE TABLE IF NOT EXISTS console_keys (
       // column already present
     }
 
+    // Profile fields (full name, preferred name, matric no.) for databases
+    // created before they existed.
+    for (final col in ['full_name', 'preferred_name', 'matric_no']) {
+      try {
+        db.execute("ALTER TABLE users ADD COLUMN $col TEXT NOT NULL DEFAULT ''");
+      } catch (_) {
+        // column already present
+      }
+    }
+
     // Groups are now numeric (1, 2, ...) and led by admins. One-time data
     // migration from the legacy letter groups; idempotent.
     db.execute("UPDATE users SET group_id = '1' WHERE group_id = 'A'");

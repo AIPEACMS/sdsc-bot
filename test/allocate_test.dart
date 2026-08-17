@@ -66,9 +66,9 @@ void main() {
     expect(byUser[3], 2); // PR
   });
 
-  test('streak rule: streak-1 experienced yields to streak-0', () {
+  test('streak rule: streak-2 experienced yields to streak-0', () {
     final usersList = [
-      _user(1, Experience.experienced, streak: 1),
+      _user(1, Experience.experienced, streak: 2),
       _user(2, Experience.experienced),
       _user(3, Experience.newbie),
     ];
@@ -82,12 +82,12 @@ void main() {
       byUser[uid] = sid;
     }
     expect(byUser[2], 1); // OCBC (streak 0 preferred)
-    expect(byUser[1], 2); // streak-1 pushed to PR (no 2-in-a-row)
-    expect(byUser[3], 1); // newbie fills the 2nd OCBC seat over the streak-1
+    expect(byUser[1], 2); // streak-2 pushed to PR (no 3-in-a-row)
+    expect(byUser[3], 1); // newbie fills the 2nd OCBC seat over the streak-2
   });
 
   test('streak rule relaxed when no alternative', () {
-    final usersList = [_user(1, Experience.experienced, streak: 1)];
+    final usersList = [_user(1, Experience.experienced, streak: 2)];
     final result = allocator.run(
       sessions: _sessions(),
       availability: [_avail(1, {_am, _amPr})],
@@ -176,5 +176,53 @@ void main() {
     // Experienced stay on OCBC (one am, one pm); newbies on PR (one am, one pm).
     expect({byUser[1], byUser[2]}, {1, 3});
     expect({byUser[3], byUser[4]}, {2, 4});
+  });
+
+  test('locked members keep their session and their seat is reserved', () {
+    // User 1 is already allocated to am OCBC (session 1) and locked in.
+    // Two new experienced users arrive; OCBC cap 2 leaves exactly one seat.
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [
+        _avail(1, {_am, _amPr}),
+        _avail(2, {_am, _amPr}),
+        _avail(3, {_am, _amPr}),
+      ],
+      users: users([
+        _user(1, Experience.experienced),
+        _user(2, Experience.experienced),
+        _user(3, Experience.experienced),
+      ]),
+      locked: {1: 1},
+    );
+    final byUser = <int, int>{};
+    for (final (uid, sid) in result) {
+      byUser[uid] = sid;
+    }
+    expect(byUser[1], 1); // locked member never moves
+    expect(byUser[2], 1); // fills the remaining OCBC seat
+    expect(byUser[3], 2); // PR
+  });
+
+  test('balancing never moves a locked member', () {
+    // Users 1 and 2 are locked to the morning sessions. The balancing pass
+    // must move only the non-locked members to the empty afternoon slots.
+    const pmOcbc = Slot(0, 'sat', 'pm', 'ocbc');
+    const pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
+    final all = {_am, _amPr, pmOcbc, pmPr};
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [for (var i = 1; i <= 4; i++) _avail(i, all)],
+      users: users([for (var i = 1; i <= 4; i++) _user(i, Experience.experienced)]),
+      locked: {1: 1, 2: 2},
+    );
+    final byUser = <int, int>{};
+    for (final (uid, sid) in result) {
+      byUser[uid] = sid;
+    }
+    expect(byUser[1], 1); // locked: am OCBC, untouched
+    expect(byUser[2], 2); // locked: am PR, untouched
+    expect(byUser[3], 3); // non-locked moved to pm OCBC
+    expect(byUser[4], 4); // non-locked moved to pm PR
   });
 }

@@ -8,6 +8,9 @@ import 'package:sdsc_bot/bot/calendar_sync.dart';
 import 'package:sdsc_bot/bot/admin_api.dart';
 import 'package:sdsc_bot/bot/hold.dart';
 import 'package:sdsc_bot/bot/key_auth.dart';
+import 'package:sdsc_bot/bot/service.dart';
+import 'package:sdsc_bot/bot/state.dart';
+import 'package:televerse/televerse.dart' hide HttpClient;
 
 /// Deterministic 32-byte ed25519 seed for the test console key.
 final List<int> _seed = List<int>.generate(32, (i) => i + 13);
@@ -70,11 +73,21 @@ void main() {
     db = Database.open(config);
     repo = Repo(db);
     final gate = HoldGate(false);
+    // Attendance marking updates the OCBC streak via the cycle service, so
+    // wire one (its bot is never used for network calls in these tests).
+    final service = CycleService(
+      repo: repo,
+      config: config,
+      messages: Messages((g) => config.contactForGroup(g)),
+      state: BotState(),
+      bot: Bot.local('test-token', 'http://127.0.0.1:1'),
+    );
     api = AdminApi(
       repo: repo,
       config: config,
       calendarSync: CalendarSync(repo: repo, config: config),
       holdGate: gate,
+      service: service,
       token: token,
       port: 0,
     );
@@ -99,11 +112,13 @@ void main() {
     String path, {
     Object? body,
     bool authorized = true,
+    AdminApi? on,
   }) async {
+    final target = on ?? api;
     final client = HttpClient();
     try {
       final req = await client.openUrl(method, Uri.parse(
-          'http://127.0.0.1:${api.boundPort}$path'));
+          'http://127.0.0.1:${target.boundPort}$path'));
       if (authorized) {
         req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       }
@@ -673,18 +688,32 @@ void main() {
   // ------------------------------------------------------ cycle ops
 
   test('cycle ops require a wired service', () async {
-    final (p, pBody) = await call('POST', '/api/prompt');
-    expect(p, 400);
-    expect((pBody as Map<String, dynamic>)['error'], contains('not wired'));
+    // A bare instance without a cycle service must refuse cycle ops.
+    final bare = AdminApi(
+      repo: repo,
+      config: api.config,
+      calendarSync: CalendarSync(repo: repo, config: api.config),
+      holdGate: HoldGate(false),
+      token: token,
+      port: 0,
+    );
+    await bare.start();
+    try {
+      final (p, pBody) = await call('POST', '/api/prompt', on: bare);
+      expect(p, 400);
+      expect((pBody as Map<String, dynamic>)['error'], contains('not wired'));
 
-    final (r, _) = await call('POST', '/api/remind');
-    expect(r, 400);
-    final (a, _) = await call('POST', '/api/allocate');
-    expect(a, 400);
-    final (ask, _) = await call('POST', '/api/ask');
-    expect(ask, 400);
-    final (b, _) = await call('POST', '/api/broadcast');
-    expect(b, 400);
+      final (r, _) = await call('POST', '/api/remind', on: bare);
+      expect(r, 400);
+      final (a, _) = await call('POST', '/api/allocate', on: bare);
+      expect(a, 400);
+      final (ask, _) = await call('POST', '/api/ask', on: bare);
+      expect(ask, 400);
+      final (b, _) = await call('POST', '/api/broadcast', on: bare);
+      expect(b, 400);
+    } finally {
+      await bare.stop();
+    }
   });
 
   // ------------------------------------------------------- attendance

@@ -586,6 +586,10 @@ class AdminApi {
   /// Sets one member's attendance state for a session: 'present' | 'absent'
   /// | 'unmarked' (removes the mark — recoverable).
   Future<(int, Object)> _toggleAttendance(String bodyText) async {
+    final service = this.service;
+    if (service == null) {
+      return (400, {'ok': false, 'error': 'cycle service not wired'});
+    }
     final body = _jsonBody(bodyText);
     final sessionId = (body['sessionId'] as num?)?.toInt();
     final userId = (body['userId'] as num?)?.toInt();
@@ -602,7 +606,7 @@ class AdminApi {
     final state = (body['state'] as String?) ?? 'unmarked';
     switch (state) {
       case 'present':
-        repo.setAttendanceState(userId, sessionId, attended: true);
+        service.markAttendance(userId, sessionId, attended: true);
       case 'absent':
         repo.setAttendanceState(userId, sessionId, attended: false);
       case 'unmarked':
