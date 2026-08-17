@@ -7,14 +7,16 @@ typedef AllocationResult = List<(int userId, int sessionId)>;
 ///
 /// Rules:
 ///  - Experienced members are preferred for OCBC; new members for Pasir Ris.
-///  - A member must not be allocated to OCBC 2 weekends in a row
-///    (i.e. their [User.ocbcStreak] must not reach 2 unless there is no
-///    alternative).
+///  - A member must not be allocated to OCBC 3 sessions in a row
+///    (i.e. their [User.ocbcStreak] must not reach 3 unless there is no
+///    alternative). The streak counts consecutive OCBC sessions attended.
 ///  - Each member is allocated at most one session per weekend, at one of the
 ///    slots they marked available.
 ///  - OCBC and Pasir Ris both have per-slot capacities.
-///  - After the greedy fill, members are spread across the time slots of each
-///    location so no slot is overstuffed while another sits empty.
+///  - Already-allocated members ([locked]) are never moved: the run only
+///    fills the remaining seats with new candidates.
+///  - After the greedy fill, new members are spread across the time slots of
+///    each location so no slot is overstuffed while another sits empty.
 class Allocator {
   final int ocbcCapacity;
   final int prCapacity;
@@ -28,8 +30,11 @@ class Allocator {
     required List<Session> sessions,
     required List<Availability> availability,
     required Map<int, User> users,
+    Map<int, int> locked = const {}, // userId -> sessionId, already allocated
   }) {
-    final result = <(int, int)>[];
+    final result = <(int, int)>[
+      for (final e in locked.entries) (e.key, e.value),
+    ];
     final newStreaks = <int, int>{}; // userId -> updated streak
 
     int streakOf(int userId) {
@@ -53,7 +58,7 @@ class Allocator {
       return null;
     }
 
-    final taken = <int>{};
+    final taken = <int>{...locked.keys};
     for (final day in Slot.allDays) {
       for (final slot in Slot.allSlots) {
         final key = '$day:$slot';
@@ -94,15 +99,17 @@ class Allocator {
             return streakOf(a.id).compareTo(streakOf(b.id));
           });
 
-        var ocbcSeats = ocbcCapacity;
+        // Remaining seats: capacity minus locked members already in this slot.
+        var ocbcSeats = ocbcCapacity -
+            locked.values.where((sid) => sid == ocbc?.id).length;
         final ocbcTaken = <int>{};
 
-        // Pass 1: OCBC — prefer experienced, skip anyone already at streak 1
-        // (would be 2 weekends in a row).
+        // Pass 1: OCBC — prefer experienced, skip anyone already at streak 2
+        // (would be 3 sessions in a row).
         for (final user in ocbcSorted) {
           if (ocbcSeats == 0) break;
           final streak = streakOf(user.id);
-          if (streak >= 1) continue; // would be 2 in a row
+          if (streak >= 2) continue; // would be 3 in a row
           ocbcTaken.add(user.id);
           ocbcSeats--;
         }
@@ -142,18 +149,20 @@ class Allocator {
       }
     }
 
-    _balance(result, sessions, availability);
+    _balance(result, sessions, availability, locked: locked.keys.toSet());
     return result;
   }
 
   /// Spreads members across the time slots of each location so no slot is
   /// overstuffed while another sits empty. Only moves within the same
-  /// location, so the experience and OCBC-streak rules are unaffected.
+  /// location (experience and OCBC-streak rules are unaffected) and never
+  /// moves a locked (already-allocated) member.
   void _balance(
     List<(int, int)> result,
     List<Session> sessions,
-    List<Availability> availability,
-  ) {
+    List<Availability> availability, {
+    Set<int> locked = const {},
+  }) {
     final sessionMeta = <int, (String, String, String)>{
       for (final s in sessions) s.id: (s.day, s.slot, s.location.name),
     };
@@ -179,12 +188,14 @@ class Allocator {
         bool canMove(int uid, String to) =>
             picked[uid]?.contains((day, to, loc)) ?? false;
         while (am.length > pm.length + 1) {
-          final i = am.indexWhere((uid) => canMove(uid, 'pm'));
+          final i = am.indexWhere(
+              (uid) => !locked.contains(uid) && canMove(uid, 'pm'));
           if (i < 0) break;
           pm.add(am.removeAt(i));
         }
         while (pm.length > am.length + 1) {
-          final i = pm.indexWhere((uid) => canMove(uid, 'am'));
+          final i = pm.indexWhere(
+              (uid) => !locked.contains(uid) && canMove(uid, 'am'));
           if (i < 0) break;
           am.add(pm.removeAt(i));
         }

@@ -36,6 +36,7 @@ class Flows {
   void register() {
     commandBoth(bot, 'start', _onStart, label: 'start');
     commandBoth(bot, 'repick', _onRepick, label: 're-pick');
+    commandBoth(bot, 'setinfo', _onSetInfo, label: 'set-info');
     commandBoth(bot, 'mystatus', _onMyStatus, label: 'my-status');
     commandBoth(bot, 'check-status', _onCheckStatus, label: 'check-status');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
@@ -58,6 +59,12 @@ class Flows {
           await _consumePendingArg(ctx, userId, pending.command, text);
           return;
         }
+        // The 3-step profile wizard (full name → preferred name → matric no.).
+        final profileStep = state.profileStep[userId];
+        if (profileStep != null) {
+          await _consumeProfileStep(ctx, userId, profileStep, text);
+          return;
+        }
       }
       await next();
     });
@@ -78,6 +85,17 @@ class Flows {
         // Non-interactive label rows (e.g. the picker's weekend headers):
         // dismiss the button press instantly so Telegram shows no spinner.
         await ctx.answerCallbackQuery();
+        return;
+      }
+      if (head == 'pfcancel') {
+        // Abort the profile wizard, keeping whatever is already saved.
+        state.profileStep.remove(ctx.from!.id);
+        await ctx.answerCallbackQuery();
+        try {
+          await ctx.editMessageText('Cancelled — your profile is unchanged.');
+        } catch (_) {
+          // message may be gone; ignore
+        }
         return;
       }
       await next();
@@ -148,8 +166,12 @@ class Flows {
         ..writeln('\n<b>Console</b>')
         ..writeln('/hold — pause the bot: no messages at all')
         ..writeln('/unhold — resume sending')
-        ..writeln('\n<i>Set-date, reset-date, sync-calendar and account '
-            'management now live in the desktop console app.</i>');
+        ..writeln('/addadmin @handle — promote a member to admin')
+        ..writeln('/demote @handle — demote an admin')
+        ..writeln('/setdate | /resetdate — custom or calendar dates')
+        ..writeln('/sync-calendar — push the calendar YAML')
+        ..writeln('/addkey — register a console app key')
+        ..writeln('/keys | /rmkey — manage console keys');
     }
 
     if (retired) {
@@ -167,13 +189,17 @@ class Flows {
         ..writeln('/remind — remind non-responders now')
         ..writeln('/ask [telegram_id] — prompt one member')
         ..writeln('/confirm — mark attendance')
-        ..writeln('/setexp experienced|newbie — change a member\'s experience');
+        ..writeln('/setexp experienced|newbie — change a member\'s experience')
+        ..writeln('/allocate — run the allocation now')
+        ..writeln('/broadcast — message all members');
     }
 
     if (!retired) {
       sb
         ..writeln('\n<b>Member</b>')
-        ..writeln('/repick — update your availability')
+        ..writeln('/repick — update your availability (you are re-allocated '
+            'at the next sharp hour)')
+        ..writeln('/setinfo — update your name, preferred name and matric no.')
         ..writeln('/mystatus — your picks, allocation and attendance')
         ..writeln('\nUse the buttons above the keyboard to jump to a command. '
             'Type /grid to switch which grid you see (console only).');
@@ -184,6 +210,80 @@ class Flows {
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(_gridFor(userId)),
     );
+
+    // First-time profile: collect full name / preferred name / matric no.
+    // Only prompted until complete; /setinfo re-opens it later.
+    if (!retired &&
+        (user.fullName.isEmpty ||
+            user.preferredName.isEmpty ||
+            user.matricNo.isEmpty)) {
+      await _startProfileWizard(ctx, userId, user);
+    }
+  }
+
+  // ----------------------------------------------------------- /setinfo
+
+  /// Re-opens the 3-step profile wizard (full name → preferred name →
+  /// matric no.). If any field is already filled, the first prompt carries a
+  /// Cancel button so the member can abort without losing their info.
+  Future<void> _onSetInfo(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+    final user = repo.findUser(userId);
+    if (user == null || !_isActive(user)) return;
+    await _startProfileWizard(ctx, userId, user);
+  }
+
+  Future<void> _startProfileWizard(Context ctx, int userId, User user) async {
+    state.profileStep[userId] = 0;
+    final hasInfo = user.fullName.isNotEmpty ||
+        user.preferredName.isNotEmpty ||
+        user.matricNo.isNotEmpty;
+    await ctx.reply(
+      '1/3 — ${_profilePrompt(0)}',
+      replyMarkup:
+          hasInfo ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
+    );
+  }
+
+  static String _profilePrompt(int step) => switch (step) {
+        0 => 'What is your full name?',
+        1 => 'What is your preferred name?',
+        2 => 'What is your matric no.?',
+        _ => '',
+      };
+
+  Future<void> _consumeProfileStep(
+      Context ctx, int userId, int step, String text) async {
+    final value = text.trim();
+    if (value.isEmpty) {
+      await ctx.reply('That cannot be empty — please type it again.');
+      return; // stay on the same step
+    }
+    switch (step) {
+      case 0:
+        repo.updateProfileInfo(userId, fullName: value);
+      case 1:
+        repo.updateProfileInfo(userId, preferredName: value);
+      case 2:
+        repo.updateProfileInfo(userId, matricNo: value);
+    }
+    if (step < 2) {
+      state.profileStep[userId] = step + 1;
+      final user = repo.findUser(userId);
+      final hasInfo = user != null &&
+          (user.fullName.isNotEmpty ||
+              user.preferredName.isNotEmpty ||
+              user.matricNo.isNotEmpty);
+      await ctx.reply(
+        '${step + 2}/3 — ${_profilePrompt(step + 1)}',
+        replyMarkup:
+            hasInfo ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
+      );
+    } else {
+      state.profileStep.remove(userId);
+      await ctx.reply('✅ Profile saved.');
+    }
   }
 
   // ------------------------------------------------------------- /grid
@@ -540,6 +640,10 @@ class Flows {
         available: !unavailable,
         updatedAt: now,
       ));
+      // Repicking moves the member out of the allocation pool: their
+      // previous allocation is revoked and re-decided at the next sharp
+      // hour together with the rest of the current availability.
+      repo.removeAllocationForUser(userId, sat);
       saved++;
     }
     state.forgetAvailability(userId);

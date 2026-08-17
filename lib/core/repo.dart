@@ -102,15 +102,18 @@ class Repo {
   User upsertUser(User user) {
     raw.execute(
       '''
-INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier)
-VALUES (?, ?, ?, ?, ?, ?, ?)
+INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier, full_name, preferred_name, matric_no)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   experience = excluded.experience,
   group_id = excluded.group_id,
   is_admin = excluded.is_admin,
   ocbc_streak = excluded.ocbc_streak,
-  member_tier = excluded.member_tier
+  member_tier = excluded.member_tier,
+  full_name = excluded.full_name,
+  preferred_name = excluded.preferred_name,
+  matric_no = excluded.matric_no
 ''',
       [
         user.id,
@@ -120,6 +123,9 @@ ON CONFLICT(id) DO UPDATE SET
         user.isAdmin ? 1 : 0,
         user.ocbcStreak,
         user.memberTier,
+        user.fullName,
+        user.preferredName,
+        user.matricNo,
       ],
     );
     return findUser(user.id)!;
@@ -141,6 +147,32 @@ ON CONFLICT(id) DO UPDATE SET
 
   void updateName(int id, String name) {
     raw.execute('UPDATE users SET name = ? WHERE id = ?', [name, id]);
+  }
+
+  /// Updates the profile fields collected by the /start and /setinfo wizards.
+  void updateProfileInfo(
+    int id, {
+    String? fullName,
+    String? preferredName,
+    String? matricNo,
+  }) {
+    final sets = <String>[];
+    final args = <Object>[];
+    if (fullName != null) {
+      sets.add('full_name = ?');
+      args.add(fullName);
+    }
+    if (preferredName != null) {
+      sets.add('preferred_name = ?');
+      args.add(preferredName);
+    }
+    if (matricNo != null) {
+      sets.add('matric_no = ?');
+      args.add(matricNo);
+    }
+    if (sets.isEmpty) return;
+    args.add(id);
+    raw.execute('UPDATE users SET ${sets.join(', ')} WHERE id = ?', args);
   }
 
   void setOcbcStreak(int id, int streak) {
@@ -626,6 +658,17 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
       tx.execute('ROLLBACK');
       rethrow;
     }
+  }
+
+  /// Revokes a member's allocation for one weekend (used when they repick:
+  /// they leave the allocation pool and are re-decided at the next sharp
+  /// hour).
+  void removeAllocationForUser(int userId, DateTime sat) {
+    raw.execute(
+      'DELETE FROM allocations WHERE user_id = ? AND session_id IN '
+      '(SELECT id FROM sessions WHERE weekend_start = ?)',
+      [userId, _dayKey(sat)],
+    );
   }
 
   List<(User, Session)> allocationsForWeekend(DateTime sat) {

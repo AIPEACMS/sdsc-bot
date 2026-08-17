@@ -5,6 +5,36 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.7] - 2026-08-17
+
+### Changed
+
+- **Early birds are locked in.** A dynamic run no longer re-optimizes members
+  who are already allocated — it only fills the remaining seats with
+  newly-indicated members. Nobody is moved or un-allocated by a later
+  indication (corrects the 1.8.6 whole-weekend re-optimization).
+- **/repick revokes your allocation.** Repicking moves you out of the
+  allocation pool; you are re-decided at the next sharp hour together with
+  the current availability.
+- **OCBC rotation is 3 sessions, counted by attendance.** A member is not
+  allocated to OCBC 3 sessions in a row (corrects the 1.8.6 2-week rule).
+  The streak now counts consecutive sessions attended: marking a member
+  present at OCBC extends it, present at Pasir Ris resets it.
+
+### Added
+
+- **Profile fields.** Members are prompted (via /start, or /setinfo) for
+  their full name, preferred name and matric no. — three quick steps, with a
+  Cancel button once anything is saved.
+
+### Fixed
+
+- **/status counts responders correctly.** A member who responded to both
+  weekends was counted twice ("responded 4/2"); it now counts distinct
+  members.
+- **/start help texts updated** to the current command set (including
+  /setinfo, /allocate, /broadcast).
+
 ## [1.8.6] - 2026-08-16
 
 ### Changed

@@ -66,12 +66,6 @@ class Messages {
         'If your plans suddenly change, message $contact as soon as possible.';
   }
 
-  /// Notice that a previous allocation was revoked by a re-optimization.
-  String msgAllocationDropped(String sessionLabel) {
-    return '⚠️ Your allocation to <b>$sessionLabel</b> was revoked — the '
-        'allocation was re-optimized with newer availability.';
-  }
-
   /// Holiday prompt — middle week break.
   String msg5A(String group) {
     return 'Hi! It is the week of a break, but we still have a session on if '
