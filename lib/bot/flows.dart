@@ -387,7 +387,7 @@ class Flows {
       avail.addAll(avail1.slots);
     }
     if (want.isNotEmpty || avail.isNotEmpty) {
-      sb.writeln('\n<b>Indicated</b> (this bundle):');
+      sb.writeln('\n<b>Indicated</b> (this bundle) — 🔒 booked · 🟢 backup:');
       if (want.isNotEmpty) {
         sb.writeln(want.map((s) => '🔒 ${s.toString()}').join('\n'));
       }
@@ -558,8 +558,10 @@ class Flows {
       available.add(slot);
     }
 
-    final text = 'Your availability — tap <b>once</b> to offer 🟢, '
-        '<b>twice</b> to book 🔒:';
+    final text = 'Your availability — tap <b>once</b> = backup 🟢, '
+        '<b>twice</b> = booked 🔒, <b>again</b> = off.\n\n'
+        'You\'ll be allocated to <b>every</b> session you book 🔒 '
+        '(one per time slot), plus <b>one</b> of your 🟢 backups.';
     try {
       await ctx.editMessageText(
         text,

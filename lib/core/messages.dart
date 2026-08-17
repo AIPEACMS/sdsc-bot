@@ -12,9 +12,12 @@ class Messages {
     final contact = contactForGroup(group);
     return 'Hi! It is time to let us know your availability for the next 2 '
         'weekends.\n\n'
-        'Tap a session <b>once</b> to offer it 🟢 — you can attend it if '
-        'needed. Tap it <b>twice</b> to book it 🔒 — you want to attend it. '
-        'Tap again to unselect. Then press <b>Done</b>.\n\n'
+        'Tap a session <b>once</b> to mark it a backup 🟢 — you can attend '
+        'it if needed. Tap it <b>twice</b> to book it 🔒 — you want to '
+        'attend it.\n\n'
+        'Every session you book 🔒 is allocated to you (one per time slot), '
+        'and you\'ll also get <b>one</b> of your 🟢 backups.\n\n'
+        'Tap a third time to unselect, then press <b>Done</b>.\n\n'
         'If you cannot make it at all, press <b>Not available</b> instead — '
         'no pressure at all.\n\n'
         'Questions? Message $contact.';
@@ -26,8 +29,9 @@ class Messages {
         'weekends.\n\n'
         'We noticed you have not attended the past 2 weeks — it would be '
         'great to see you again!\n\n'
-        'Tap a session <b>once</b> to offer it 🟢, or <b>twice</b> to book '
-        'it 🔒. Then press <b>Done</b>.';
+        'Tap a session <b>once</b> to mark it a backup 🟢, or <b>twice</b> '
+        'to book it 🔒 — every 🔒 you book is allocated to you (one per time '
+        'slot), plus <b>one</b> of your 🟢 backups. Then press <b>Done</b>.';
   }
 
   /// Reminder for members who have not responded.
@@ -35,10 +39,12 @@ class Messages {
     final contact = contactForGroup(group);
     return 'Hi! Just a reminder: we have not heard from you yet about the '
         'next 2 weekends.\n\n'
-        'Tap a session <b>once</b> to offer it 🟢 (you can attend it if '
-        'needed), or <b>twice</b> to book it 🔒 (you want to attend it). '
-        'Then press <b>Done</b>, or press <b>Not available</b> if you cannot '
-        'make it. Questions? Message $contact.';
+        'Tap a session <b>once</b> to mark it a backup 🟢 (you can attend it '
+        'if needed), or <b>twice</b> to book it 🔒 (you want to attend it). '
+        'Every 🔒 you book is allocated to you (one per time slot), plus '
+        '<b>one</b> of your 🟢 backups. Then press <b>Done</b>, or press '
+        '<b>Not available</b> if you cannot make it. Questions? Message '
+        '$contact.';
   }
 
   /// Confirmation echoing the chosen availability: [want] slots are the 🔒
@@ -53,7 +59,8 @@ class Messages {
     final alloc = allocateAt == null
         ? ''
         : '\n\n<b>You will get allocated at $allocateAt</b> later';
-    return 'Thank you! Here is what you told us:\n$list\n\n'
+    return 'Thank you! Here is what you told us '
+        '(🔒 booked · 🟢 backup):\n$list\n\n'
         'Availability locks on the Friday before each weekend. '
         'Changed your mind? Send /repick to update before then.$alloc';
   }

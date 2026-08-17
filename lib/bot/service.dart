@@ -402,8 +402,10 @@ class CycleService {
   static String _fmt(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
-  String _hint() => 'Tap a session <b>once</b> to offer it 🟢, or '
-      '<b>twice</b> to book it 🔒. Not able to attend? '
+  String _hint() => 'Tap a session <b>once</b> to mark it a backup 🟢 (you '
+      'can attend if needed), or <b>twice</b> to book it 🔒. You\'ll get '
+      '<b>every</b> 🔒 you book (one per time slot), plus <b>one</b> of your '
+      '🟢 backups. Tap again to unselect. Not able to attend? '
       'Tap <b>Not available</b>.';
 
   /// Builds the availability inline keyboard for the window's two weekends.
