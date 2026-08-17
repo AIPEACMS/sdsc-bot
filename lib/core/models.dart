@@ -51,6 +51,9 @@ class User {
   /// Matriculation number.
   final String matricNo;
 
+  /// School email, filled via the /start profile wizard.
+  final String schoolEmail;
+
   /// Stored tier: 'member' | 'check' | 'old'. 'console'/'admin' are derived.
   final String memberTier;
 
@@ -65,6 +68,7 @@ class User {
     this.fullName = '',
     this.preferredName = '',
     this.matricNo = '',
+    this.schoolEmail = '',
     this.memberTier = MemberTier.member,
   });
 
@@ -77,6 +81,7 @@ class User {
     String? fullName,
     String? preferredName,
     String? matricNo,
+    String? schoolEmail,
     String? memberTier,
   }) {
     return User(
@@ -90,6 +95,7 @@ class User {
       fullName: fullName ?? this.fullName,
       preferredName: preferredName ?? this.preferredName,
       matricNo: matricNo ?? this.matricNo,
+      schoolEmail: schoolEmail ?? this.schoolEmail,
       memberTier: memberTier ?? this.memberTier,
     );
   }
@@ -109,6 +115,7 @@ class User {
         fullName: (row['full_name'] as String?) ?? '',
         preferredName: (row['preferred_name'] as String?) ?? '',
         matricNo: (row['matric_no'] as String?) ?? '',
+        schoolEmail: (row['school_email'] as String?) ?? '',
         memberTier: (row['member_tier'] as String?) ?? MemberTier.member,
       );
 }

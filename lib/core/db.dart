@@ -145,9 +145,14 @@ CREATE TABLE IF NOT EXISTS console_keys (
       // column already present
     }
 
-    // Profile fields (full name, preferred name, matric no.) for databases
-    // created before they existed.
-    for (final col in ['full_name', 'preferred_name', 'matric_no']) {
+    // Profile fields (full name, preferred name, matric no., school email)
+    // for databases created before they existed.
+    for (final col in [
+      'full_name',
+      'preferred_name',
+      'matric_no',
+      'school_email',
+    ]) {
       try {
         db.execute("ALTER TABLE users ADD COLUMN $col TEXT NOT NULL DEFAULT ''");
       } catch (_) {

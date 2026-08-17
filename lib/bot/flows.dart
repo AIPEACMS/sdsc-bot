@@ -59,7 +59,8 @@ class Flows {
           await _consumePendingArg(ctx, userId, pending.command, text);
           return;
         }
-        // The 3-step profile wizard (full name → preferred name → matric no.).
+        // The 4-step profile wizard (full name → preferred name → matric
+        // no. → school email).
         final profileStep = state.profileStep[userId];
         if (profileStep != null) {
           await _consumeProfileStep(ctx, userId, profileStep, text);
@@ -199,7 +200,8 @@ class Flows {
         ..writeln('\n<b>Member</b>')
         ..writeln('/repick — update your availability (you are re-allocated '
             'at the next sharp hour)')
-        ..writeln('/setinfo — update your name, preferred name and matric no.')
+        ..writeln('/setinfo — update your name, preferred name, matric no. '
+            'and school email')
         ..writeln('/mystatus — your picks, allocation and attendance')
         ..writeln('\nUse the buttons above the keyboard to jump to a command. '
             'Type /grid to switch which grid you see (console only).');
@@ -211,21 +213,23 @@ class Flows {
       replyMarkup: RoleKeyboard.build(_gridFor(userId)),
     );
 
-    // First-time profile: collect full name / preferred name / matric no.
-    // Only prompted until complete; /setinfo re-opens it later.
+    // First-time profile: collect full name / preferred name / matric no. /
+    // school email. Only prompted until complete; /setinfo re-opens it later.
     if (!retired &&
         (user.fullName.isEmpty ||
             user.preferredName.isEmpty ||
-            user.matricNo.isEmpty)) {
+            user.matricNo.isEmpty ||
+            user.schoolEmail.isEmpty)) {
       await _startProfileWizard(ctx, userId, user);
     }
   }
 
   // ----------------------------------------------------------- /setinfo
 
-  /// Re-opens the 3-step profile wizard (full name → preferred name →
-  /// matric no.). If any field is already filled, the first prompt carries a
-  /// Cancel button so the member can abort without losing their info.
+  /// Re-opens the 4-step profile wizard (full name → preferred name →
+  /// matric no. → school email). If any field is already filled, the first
+  /// prompt carries a Cancel button so the member can abort without losing
+  /// their info.
   Future<void> _onSetInfo(Context ctx) async {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
@@ -234,13 +238,16 @@ class Flows {
     await _startProfileWizard(ctx, userId, user);
   }
 
+  static const int _profileSteps = 4;
+
   Future<void> _startProfileWizard(Context ctx, int userId, User user) async {
     state.profileStep[userId] = 0;
     final hasInfo = user.fullName.isNotEmpty ||
         user.preferredName.isNotEmpty ||
-        user.matricNo.isNotEmpty;
+        user.matricNo.isNotEmpty ||
+        user.schoolEmail.isNotEmpty;
     await ctx.reply(
-      '1/3 — ${_profilePrompt(0)}',
+      '1/$_profileSteps — ${_profilePrompt(0)}',
       replyMarkup:
           hasInfo ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
     );
@@ -250,6 +257,7 @@ class Flows {
         0 => 'What is your full name?',
         1 => 'What is your preferred name?',
         2 => 'What is your matric no.?',
+        3 => 'What is your school email?',
         _ => '',
       };
 
@@ -267,16 +275,19 @@ class Flows {
         repo.updateProfileInfo(userId, preferredName: value);
       case 2:
         repo.updateProfileInfo(userId, matricNo: value);
+      case 3:
+        repo.updateProfileInfo(userId, schoolEmail: value);
     }
-    if (step < 2) {
+    if (step < _profileSteps - 1) {
       state.profileStep[userId] = step + 1;
       final user = repo.findUser(userId);
       final hasInfo = user != null &&
           (user.fullName.isNotEmpty ||
               user.preferredName.isNotEmpty ||
-              user.matricNo.isNotEmpty);
+              user.matricNo.isNotEmpty ||
+              user.schoolEmail.isNotEmpty);
       await ctx.reply(
-        '${step + 2}/3 — ${_profilePrompt(step + 1)}',
+        '${step + 2}/$_profileSteps — ${_profilePrompt(step + 1)}',
         replyMarkup:
             hasInfo ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
       );
