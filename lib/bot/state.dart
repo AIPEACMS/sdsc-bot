@@ -34,6 +34,11 @@ class BotState {
   /// name → matric no. → school email). Value = the next step index (0..3).
   final Map<int, int> profileStep = {};
 
+  /// Whether the member had profile fields saved *before* the wizard started
+  /// (drives the Cancel button — only shown when re-running /setinfo over
+  /// existing data, never mid-walk over freshly typed answers).
+  final Map<int, bool> profileCancel = {};
+
   void forgetAvailability(int userId) => availabilityPicks.remove(userId);
 
   Set<Slot> picksFor(int userId) =>

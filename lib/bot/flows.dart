@@ -91,6 +91,7 @@ class Flows {
       if (head == 'pfcancel') {
         // Abort the profile wizard, keeping whatever is already saved.
         state.profileStep.remove(ctx.from!.id);
+        state.profileCancel.remove(ctx.from!.id);
         await ctx.answerCallbackQuery();
         try {
           await ctx.editMessageText('Cancelled — your profile is unchanged.');
@@ -242,10 +243,14 @@ class Flows {
 
   Future<void> _startProfileWizard(Context ctx, int userId, User user) async {
     state.profileStep[userId] = 0;
+    // Decided once, from the profile the member had BEFORE this wizard run:
+    // re-running /setinfo over existing data offers Cancel; a fresh walk
+    // (nothing saved yet) never does — even after the first answer.
     final hasInfo = user.fullName.isNotEmpty ||
         user.preferredName.isNotEmpty ||
         user.matricNo.isNotEmpty ||
         user.schoolEmail.isNotEmpty;
+    state.profileCancel[userId] = hasInfo;
     await ctx.reply(
       '1/$_profileSteps — ${_profilePrompt(0)}',
       replyMarkup:
@@ -280,19 +285,15 @@ class Flows {
     }
     if (step < _profileSteps - 1) {
       state.profileStep[userId] = step + 1;
-      final user = repo.findUser(userId);
-      final hasInfo = user != null &&
-          (user.fullName.isNotEmpty ||
-              user.preferredName.isNotEmpty ||
-              user.matricNo.isNotEmpty ||
-              user.schoolEmail.isNotEmpty);
+      final cancel = state.profileCancel[userId] ?? false;
       await ctx.reply(
         '${step + 2}/$_profileSteps — ${_profilePrompt(step + 1)}',
         replyMarkup:
-            hasInfo ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
+            cancel ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
       );
     } else {
       state.profileStep.remove(userId);
+      state.profileCancel.remove(userId);
       await ctx.reply('✅ Profile saved.');
     }
   }
