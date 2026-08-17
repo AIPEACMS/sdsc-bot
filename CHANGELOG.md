@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.10.2] - 2026-08-17
+
+### Changed
+
+- **No more duplicated instructions.** The picker mechanics (tap once =
+  backup 🟢, twice = booked 🔒, every 🔒 allocated plus one 🟢) now live in
+  one place — the hint shown under every picker — instead of being repeated
+  in the prompt and reminder texts. The prompts now carry only context
+  (greeting, not-available, contact).
+
 ## [1.10.1] - 2026-08-17
 
 ### Changed

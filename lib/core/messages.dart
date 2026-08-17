@@ -7,17 +7,13 @@ class Messages {
 
   const Messages(this.contactForGroup);
 
-  /// Initial availability prompt.
+  /// Initial availability prompt. The picker mechanics (tap once = backup,
+  /// twice = booked, allocation outcome) live in the hint shown under this —
+  /// see CycleService._hint — so the prompt itself only sets context.
   String msg1(String group) {
     final contact = contactForGroup(group);
     return 'Hi! It is time to let us know your availability for the next 2 '
         'weekends.\n\n'
-        'Tap a session <b>once</b> to mark it a backup 🟢 — you can attend '
-        'it if needed. Tap it <b>twice</b> to book it 🔒 — you want to '
-        'attend it.\n\n'
-        'Every session you book 🔒 is allocated to you (one per time slot), '
-        'and you\'ll also get <b>one</b> of your 🟢 backups.\n\n'
-        'Tap a third time to unselect, then press <b>Done</b>.\n\n'
         'If you cannot make it at all, press <b>Not available</b> instead — '
         'no pressure at all.\n\n'
         'Questions? Message $contact.';
@@ -29,9 +25,8 @@ class Messages {
         'weekends.\n\n'
         'We noticed you have not attended the past 2 weeks — it would be '
         'great to see you again!\n\n'
-        'Tap a session <b>once</b> to mark it a backup 🟢, or <b>twice</b> '
-        'to book it 🔒 — every 🔒 you book is allocated to you (one per time '
-        'slot), plus <b>one</b> of your 🟢 backups. Then press <b>Done</b>.';
+        'If you cannot make it at all, press <b>Not available</b> — no '
+        'pressure at all.';
   }
 
   /// Reminder for members who have not responded.
@@ -39,12 +34,8 @@ class Messages {
     final contact = contactForGroup(group);
     return 'Hi! Just a reminder: we have not heard from you yet about the '
         'next 2 weekends.\n\n'
-        'Tap a session <b>once</b> to mark it a backup 🟢 (you can attend it '
-        'if needed), or <b>twice</b> to book it 🔒 (you want to attend it). '
-        'Every 🔒 you book is allocated to you (one per time slot), plus '
-        '<b>one</b> of your 🟢 backups. Then press <b>Done</b>, or press '
-        '<b>Not available</b> if you cannot make it. Questions? Message '
-        '$contact.';
+        'If you cannot make it at all, press <b>Not available</b> — no '
+        'pressure. Questions? Message $contact.';
   }
 
   /// Confirmation echoing the chosen availability: [want] slots are the 🔒
