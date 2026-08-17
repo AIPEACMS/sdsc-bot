@@ -660,7 +660,7 @@ void main() {
       }));
     }
 
-    // /setinfo opens step 1 of 3.
+    // /setinfo opens step 1 of 4.
     await cmd(1, '/setinfo', entities: [
       {'offset': 0, 'length': 8, 'type': 'bot_command'},
     ]);
@@ -677,6 +677,10 @@ void main() {
         isTrue);
 
     await cmd(4, 'U1234567A');
+    expect(sent.any((s) => (s['text'] as String).contains('school email')),
+        isTrue);
+
+    await cmd(5, 'alice@e.ntu.edu.sg');
 
     await bot.stop();
     await startFuture;
@@ -686,6 +690,7 @@ void main() {
     expect(user.fullName, 'Alice Tan');
     expect(user.preferredName, 'Ali');
     expect(user.matricNo, 'U1234567A');
+    expect(user.schoolEmail, 'alice@e.ntu.edu.sg');
     expect(state.profileStep.containsKey(42), isFalse);
     expect(
         sent.any((s) => (s['text'] as String).contains('Profile saved')),
@@ -787,7 +792,7 @@ void main() {
           'message_id': 1,
           'date': 1,
           'chat': {'id': 42, 'type': 'private'},
-          'text': '1/3 — What is your full name?',
+          'text': '1/4 — What is your full name?',
         },
         'data': 'pfcancel|0',
       },
@@ -889,7 +894,7 @@ void main() {
     // nothing saved yet).
     final texts = sent.map((s) => s['text'] as String).toList();
     expect(texts.any((t) => t.contains('/repick')), isTrue);
-    expect(texts.any((t) => t.contains('1/3') && t.contains('full name')),
+    expect(texts.any((t) => t.contains('1/4') && t.contains('full name')),
         isTrue);
   });
 }

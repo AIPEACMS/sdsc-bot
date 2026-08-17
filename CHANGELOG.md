@@ -5,6 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.8] - 2026-08-17
+
+### Added
+
+- **The profile wizard now also asks for the school email** — a 4th step,
+  after the matric no., collected by /start and /setinfo like the rest of
+  the profile.
+
 ## [1.8.7] - 2026-08-17
 
 ### Changed

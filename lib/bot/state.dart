@@ -30,8 +30,8 @@ class BotState {
   /// Users waiting for a text argument (e.g. the message to broadcast).
   final Map<int, PendingArg> pendingArg = {};
 
-  /// Users mid-way through the 3-step profile wizard (full name → preferred
-  /// name → matric no.). Value = the next step index (0..2).
+  /// Users mid-way through the 4-step profile wizard (full name → preferred
+  /// name → matric no. → school email). Value = the next step index (0..3).
   final Map<int, int> profileStep = {};
 
   void forgetAvailability(int userId) => availabilityPicks.remove(userId);

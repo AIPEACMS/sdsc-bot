@@ -102,8 +102,8 @@ class Repo {
   User upsertUser(User user) {
     raw.execute(
       '''
-INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier, full_name, preferred_name, matric_no)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier, full_name, preferred_name, matric_no, school_email)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   experience = excluded.experience,
@@ -113,7 +113,8 @@ ON CONFLICT(id) DO UPDATE SET
   member_tier = excluded.member_tier,
   full_name = excluded.full_name,
   preferred_name = excluded.preferred_name,
-  matric_no = excluded.matric_no
+  matric_no = excluded.matric_no,
+  school_email = excluded.school_email
 ''',
       [
         user.id,
@@ -126,6 +127,7 @@ ON CONFLICT(id) DO UPDATE SET
         user.fullName,
         user.preferredName,
         user.matricNo,
+        user.schoolEmail,
       ],
     );
     return findUser(user.id)!;
@@ -155,6 +157,7 @@ ON CONFLICT(id) DO UPDATE SET
     String? fullName,
     String? preferredName,
     String? matricNo,
+    String? schoolEmail,
   }) {
     final sets = <String>[];
     final args = <Object>[];
@@ -169,6 +172,10 @@ ON CONFLICT(id) DO UPDATE SET
     if (matricNo != null) {
       sets.add('matric_no = ?');
       args.add(matricNo);
+    }
+    if (schoolEmail != null) {
+      sets.add('school_email = ?');
+      args.add(schoolEmail);
     }
     if (sets.isEmpty) return;
     args.add(id);
