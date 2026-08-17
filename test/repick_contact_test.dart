@@ -897,7 +897,7 @@ void main() {
     // The member help is sent, then the first profile prompt (no Cancel,
     // nothing saved yet).
     final texts = sent.map((s) => s['text'] as String).toList();
-    expect(texts.any((t) => t.contains('/repick')), isTrue);
+    expect(texts.any((t) => t.contains('re-pick')), isTrue);
     expect(texts.any((t) => t.contains('1/4') && t.contains('full name')),
         isTrue);
   });

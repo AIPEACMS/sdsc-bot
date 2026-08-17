@@ -124,7 +124,7 @@ class RoleKeyboard {
     return Keyboard(keyboard: rows)
         .resized()
         .persistent()
-        .placeholder('Tap a button, or type /help for the full list');
+        .placeholder('Tap a button below, or type /start to see your options');
   }
 }
 

@@ -40,7 +40,6 @@ class Flows {
     commandBoth(bot, 'mystatus', _onMyStatus, label: 'my-status');
     commandBoth(bot, 'check-status', _onCheckStatus, label: 'check-status');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
-    commandBoth(bot, 'help', _onHelp, label: 'help');
 
     // Bookkeeping middleware: records seen users and routes pending-input
     // text, then ALWAYS continues the chain so command handlers registered
@@ -166,8 +165,8 @@ class Flows {
     if (isConsole) {
       sb
         ..writeln('\n<b>Console</b>')
-        ..writeln('/hold — pause the bot: no messages at all')
-        ..writeln('/unhold — resume sending')
+        ..writeln('hold — pause the bot: no messages at all')
+        ..writeln('unhold — resume sending')
         ..writeln('/addadmin @handle — promote a member to admin')
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/setdate | /resetdate — custom or calendar dates')
@@ -184,14 +183,14 @@ class Flows {
     if (isAdmin) {
       sb
         ..writeln('\n<b>Admin</b>')
-        ..writeln('/adduser @handle — add a member (they can then use /start)')
-        ..writeln('/status — cycle state and responders')
-        ..writeln('/users — registered members')
-        ..writeln('/prompt — send availability prompts now')
-        ..writeln('/remind — remind non-responders now')
-        ..writeln('/ask [telegram_id] — prompt one member')
-        ..writeln('/confirm — mark attendance')
-        ..writeln('/setexp experienced|newbie — change a member\'s experience')
+        ..writeln('add-user @handle — add a member (they can then use /start)')
+        ..writeln('status — cycle state and responders')
+        ..writeln('users — registered members')
+        ..writeln('prompt — send availability prompts now')
+        ..writeln('remind — remind non-responders now')
+        ..writeln('ask [telegram_id] — prompt one member')
+        ..writeln('mark-attend — mark attendance')
+        ..writeln('set-exp experienced|newbie — change a member\'s experience')
         ..writeln('/allocate — run the allocation now')
         ..writeln('/broadcast — message all members');
     }
@@ -199,11 +198,11 @@ class Flows {
     if (!retired) {
       sb
         ..writeln('\n<b>Member</b>')
-        ..writeln('/repick — update your availability (you are re-allocated '
+        ..writeln('re-pick — update your availability (you are re-allocated '
             'at the next sharp hour)')
-        ..writeln('/setinfo — update your name, preferred name, matric no. '
+        ..writeln('set-info — update your name, preferred name, matric no. '
             'and school email')
-        ..writeln('/mystatus — your picks, allocation and attendance')
+        ..writeln('my-status — your picks, allocation and attendance')
         ..writeln('\nUse the buttons above the keyboard to jump to a command. '
             'Type /grid to switch which grid you see (console only).');
     }
@@ -325,26 +324,6 @@ class Flows {
       'grid, or /resetgrid to return to your own console grid.',
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(next),
-    );
-  }
-
-  /// Returns to the console's own grid.
-  Future<void> _onHelp(Context ctx) async {
-    final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
-    if (config.isConsole(userId)) {
-      state.gridPreview.remove(userId);
-      await ctx.reply(
-        'Back to your console grid.',
-        replyMarkup: RoleKeyboard.build('console'),
-      );
-      return;
-    }
-    final user = repo.findUser(userId);
-    if (user == null) return;
-    await ctx.reply(
-      'Your grid is shown above the keyboard.',
-      replyMarkup: RoleKeyboard.build(_gridFor(userId)),
     );
   }
 

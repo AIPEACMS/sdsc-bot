@@ -773,6 +773,46 @@ WHERE user_id = ? AND attended = 1 AND confirmed_at >= ?
     return (rows.first['c'] as int) > 0;
   }
 
+  /// The number of consecutive session weekends up to [latestSat] in which
+  /// [userId] had no positive attendance, counting backward from [latestSat].
+  /// An attended weekend resets the streak; holiday weeks neither count nor
+  /// reset; weekends before the member registered do not count.
+  int consecutiveAbsentWeeks(int userId, DateTime latestSat) {
+    final weekends = raw
+        .select(
+          'SELECT DISTINCT weekend_start FROM sessions '
+          'WHERE weekend_start <= ? ORDER BY weekend_start DESC',
+          [_dayKey(latestSat)],
+        )
+        .map((r) => DateTime.parse(r['weekend_start'] as String))
+        .toList();
+    if (weekends.isEmpty) return 0;
+
+    final attended = raw
+        .select(
+          'SELECT DISTINCT s.weekend_start FROM attendance a '
+          'JOIN sessions s ON s.id = a.session_id '
+          'WHERE a.user_id = ? AND a.attended = 1',
+          [userId],
+        )
+        .map((r) => DateTime.parse(r['weekend_start'] as String))
+        .toSet();
+
+    final registeredAt = findUser(userId)?.registeredAt;
+
+    var streak = 0;
+    for (final sat in weekends) {
+      // A week the member had no chance to attend (before they joined).
+      if (registeredAt != null && !sat.isAfter(registeredAt)) break;
+      // Attended → the streak ends here.
+      if (attended.contains(sat)) break;
+      // Holiday weeks neither count nor reset the streak.
+      if (holidayOn(sat) != null) continue;
+      streak++;
+    }
+    return streak;
+  }
+
   List<Attendance> attendanceForSession(int sessionId) {
     final rows = raw.select(
       'SELECT * FROM attendance WHERE session_id = ?',

@@ -96,6 +96,7 @@ class Scheduler {
       }
       if (_sameDay(today, monday) && now.hour >= 8) {
         await service.remindAttendanceMarking(weekendSat, today);
+        await service.remindAbsentMembers(today);
       }
     } catch (e) {
       // Scheduling failures should not kill the bot.
