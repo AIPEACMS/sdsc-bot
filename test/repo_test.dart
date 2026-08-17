@@ -328,4 +328,56 @@ void main() {
     // Different user is not deduped.
     expect(repo.messageSentOnDay(2, 'prompt', day), false);
   });
+
+  test('consecutiveAbsentWeeks counts non-holiday weeks since last attendance',
+      () {
+    // Four consecutive session weekends: Aug 1, 8, 15, 22 2026.
+    final sats = [
+      DateTime(2026, 8, 1),
+      DateTime(2026, 8, 8),
+      DateTime(2026, 8, 15),
+      DateTime(2026, 8, 22),
+    ];
+    for (final sat in sats) {
+      repo.ensureSessionsForWeekend(
+        sat,
+        {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+        tzOffsetHours: 8,
+      );
+    }
+    final latestSat = DateTime(2026, 8, 22);
+
+    void backdate(int id, String createdAt) {
+      repo.raw.execute(
+          'UPDATE users SET created_at = ? WHERE id = ?', [createdAt, id]);
+    }
+
+    // Registered long before the first weekend, never attended.
+    addUser(1);
+    backdate(1, '2026-07-01 00:00:00');
+    expect(repo.consecutiveAbsentWeeks(1, latestSat), 4);
+
+    // Attended Aug 8 → the streak restarts after that weekend.
+    addUser(2);
+    backdate(2, '2026-07-01 00:00:00');
+    final aug8 = repo.sessionsForWeekend(DateTime(2026, 8, 8)).first;
+    repo.setAttendanceState(2, aug8.id, attended: true);
+    expect(repo.consecutiveAbsentWeeks(2, latestSat), 2);
+
+    // Registered mid-cycle (Aug 10): weeks before that do not count.
+    addUser(3);
+    backdate(3, '2026-08-10 00:00:00');
+    expect(repo.consecutiveAbsentWeeks(3, latestSat), 2);
+
+    // Holiday week (Aug 10-16) is skipped: neither counts nor resets.
+    repo.addHoliday(DateTime(2026, 8, 10), HolidayKind.middle);
+    expect(repo.consecutiveAbsentWeeks(1, latestSat), 3);
+    expect(repo.consecutiveAbsentWeeks(2, latestSat), 1);
+    expect(repo.consecutiveAbsentWeeks(3, latestSat), 1);
+
+    // No sessions at all → 0.
+    addUser(4);
+    backdate(4, '2026-07-01 00:00:00');
+    expect(repo.consecutiveAbsentWeeks(4, DateTime(2026, 6, 1)), 0);
+  });
 }

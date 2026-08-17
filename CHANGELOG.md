@@ -5,7 +5,28 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.8.9] - 2026-08-17
+## [1.9.0] - 2026-08-17
+
+### Added
+
+- **Monday absence alert.** Every Monday, the group admin is reminded when a
+  member has not attended for 4+ consecutive weeks, and is asked to reach
+  out personally (the alert explicitly says not to just use the automated
+  prompt). It repeats each Monday while the streak holds and stops once the
+  member attends. Holiday/break weeks neither count nor reset the streak;
+  members who joined recently are only flagged once 4 weeks have passed.
+
+### Changed
+
+- **The /start help now matches the button grid.** Commands that have a grid
+  button are listed by their button label (hold, add-user, mark-attend,
+  re-pick, …) instead of the slash form; commands without a grid button keep
+  their slash form. The slash commands themselves all still work.
+
+### Removed
+
+- **The /help command.** It was not a real help command (only a grid reset),
+  and the button-grid hint pointing at it has been removed.
 
 ### Fixed
 

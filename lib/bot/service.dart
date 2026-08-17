@@ -224,6 +224,48 @@ class CycleService {
         '${_dayShort(sat)} — console: please chase the admins');
   }
 
+  /// Monday: for every active member who has not attended for 4+ consecutive
+  /// weeks, remind their group admin to reach out personally. Repeats each
+  /// Monday while the streak holds; any attendance resets it.
+  Future<void> remindAbsentMembers(DateTime monday) async {
+    final latestSat = monday.subtract(const Duration(days: 2));
+    final byAdmin = <int, List<String>>{};
+    var absentTotal = 0;
+    for (final user in repo.activeUsers()) {
+      if (config.isConsole(user.id)) continue; // the console is the operator
+      final streak = repo.consecutiveAbsentWeeks(user.id, latestSat);
+      if (streak < 4) continue;
+      final admin = repo.groupAdmin(user.group);
+      if (admin == null) continue; // no group → nobody responsible
+      absentTotal++;
+      byAdmin
+          .putIfAbsent(admin.id, () => [])
+          .add('${user.name} — $streak weeks');
+    }
+    if (byAdmin.isEmpty) return;
+
+    for (final entry in byAdmin.entries) {
+      if (repo.messageSentOnDay(entry.key, 'absent', monday)) continue;
+      final list = entry.value.take(6).join('\n');
+      final more = entry.value.length > 6
+          ? '\n… and ${entry.value.length - 6} more'
+          : '';
+      try {
+        await bot.api.sendMessage(
+          ChatID(entry.key),
+          messages.msgAbsent(list, more: more),
+          parseMode: ParseMode.html,
+        );
+        repo.markMessageSent(entry.key, 'absent', monday);
+      } catch (_) {
+        // admin unreachable; the next Monday retries
+      }
+    }
+    LogRing.log(
+        'absent: $absentTotal members absent 4+ weeks on '
+        '${_dayShort(monday)} — console: please chase the admins');
+  }
+
   /// Sends (or edits an existing) availability keyboard message to [user].
   Future<void> showAvailability(
     User user,

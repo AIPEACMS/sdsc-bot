@@ -88,4 +88,15 @@ class Messages {
     return 'Thank you for volunteering with us! Enjoy your holiday — '
         'we will see you next semester!';
   }
+
+  /// Monday absence alert to a group admin: member(s) who have not attended
+  /// for 4+ consecutive weeks. The admin is asked to reach out personally —
+  /// /ask only sends an automated bot prompt, not a personal contact.
+  String msgAbsent(String list, {String more = ''}) {
+    return '⚠️ <b>Members not attending</b>\n\n'
+        '$list$more\n\n'
+        'Please reach out to them personally to check in — a quick private '
+        'message goes a long way. Don\'t just use /ask: that sends an '
+        'automated bot prompt, not a personal contact.';
+  }
 }
