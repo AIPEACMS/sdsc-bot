@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.8.9] - 2026-08-17
+
+### Fixed
+
+- **The profile wizard's Cancel button no longer appears mid-walk.** It
+  showed up as soon as the member typed their first answer; it is now only
+  offered when re-running /setinfo over already-saved profile data, where
+  cancelling actually protects something.
+
 ## [1.8.8] - 2026-08-17
 
 ### Added

@@ -671,6 +671,10 @@ void main() {
     await cmd(2, 'Alice Tan');
     expect(sent.any((s) => (s['text'] as String).contains('preferred name')),
         isTrue);
+    // A fresh walk offers no Cancel — not even after the first answer
+    // (it only appears when re-running /setinfo over existing data).
+    final step2 = sent.last;
+    expect(step2['reply_markup'], isNull);
 
     await cmd(3, 'Ali');
     expect(sent.any((s) => (s['text'] as String).contains('matric no.')),
