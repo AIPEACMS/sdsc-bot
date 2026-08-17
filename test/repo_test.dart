@@ -260,6 +260,14 @@ void main() {
     expect(repo.pendingIsAdmin('carol'), true);
   });
 
+  test('pending tier round-trips and defaults to member', () {
+    expect(repo.pendingTier('dave'), MemberTier.member); // never queued
+    repo.addPendingUser('dave', isAdmin: false);
+    expect(repo.pendingTier('dave'), MemberTier.member);
+    repo.addPendingUser('dave', isAdmin: false, tier: MemberTier.check);
+    expect(repo.pendingTier('dave'), MemberTier.check);
+  });
+
   test('updateAdmin toggles the admin flag', () {
     addUser(7);
     expect(repo.findUser(7)!.isAdmin, false);

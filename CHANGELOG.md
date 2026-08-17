@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.10.3] - 2026-08-17
+
+### Added
+
+- **Add a checker directly.** The console's "Add check" registers (or queues
+  for first contact) a user straight into the check tier — no more
+  add-member-then-convert. The admin API's add-user endpoint accepts an
+  optional tier, and queued users keep their tier until auto-registration.
+
 ## [1.10.2] - 2026-08-17
 
 ### Changed

@@ -408,16 +408,19 @@ ORDER BY s.username
   // -------------------------------------------------------- pending users
 
   /// A handle added by an admin before the user has ever messaged the bot.
-  /// The user is auto-registered (with admin rights if [isAdmin]) the first
-  /// time they contact the bot.
-  void addPendingUser(String handle, {required bool isAdmin}) {
+  /// The user is auto-registered (with admin rights if [isAdmin], and with
+  /// [tier] — e.g. `check` from the console's "Add check") the first time
+  /// they contact the bot.
+  void addPendingUser(String handle,
+      {required bool isAdmin, String tier = MemberTier.member}) {
     raw.execute(
       '''
-INSERT INTO pending_users (username, is_admin) VALUES (?, ?)
+INSERT INTO pending_users (username, is_admin, tier) VALUES (?, ?, ?)
 ON CONFLICT(username) DO UPDATE SET
-  is_admin = MAX(pending_users.is_admin, excluded.is_admin)
+  is_admin = MAX(pending_users.is_admin, excluded.is_admin),
+  tier = excluded.tier
 ''',
-      [handle.replaceFirst('@', '').toLowerCase(), isAdmin ? 1 : 0],
+      [handle.replaceFirst('@', '').toLowerCase(), isAdmin ? 1 : 0, tier],
     );
   }
 
@@ -435,6 +438,15 @@ ON CONFLICT(username) DO UPDATE SET
       [handle.replaceFirst('@', '').toLowerCase()],
     );
     return rows.isNotEmpty && (rows.first['is_admin'] as int) == 1;
+  }
+
+  /// The tier a pending user was queued with ('member' by default).
+  String pendingTier(String handle) {
+    final rows = raw.select(
+      'SELECT tier FROM pending_users WHERE username = ?',
+      [handle.replaceFirst('@', '').toLowerCase()],
+    );
+    return rows.isEmpty ? MemberTier.member : rows.first['tier'] as String;
   }
 
   void removePendingUser(String handle) {

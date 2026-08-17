@@ -685,6 +685,30 @@ void main() {
     expect(bad, 400);
   });
 
+  test('POST /api/users adds a user directly as check tier', () async {
+    // A seen user is registered immediately as a checker.
+    repo.upsertSeenUser(303, 'carol');
+    final (s, sBody) = await call('POST', '/api/users',
+        body: {'handle': '@carol', 'tier': 'check'});
+    expect(s, 200);
+    expect((sBody as Map<String, dynamic>)['message'],
+        contains('added as a checker'));
+    expect(repo.findUser(303)!.memberTier, MemberTier.check);
+
+    // An unseen user is queued as a checker; the tier survives registration.
+    final (q, qBody) = await call('POST', '/api/users',
+        body: {'handle': '@dave', 'tier': 'check'});
+    expect(q, 200);
+    expect((qBody as Map<String, dynamic>)['message'],
+        contains('queued as a checker'));
+    expect(repo.pendingTier('dave'), MemberTier.check);
+
+    // A bad tier is rejected.
+    final (bad, _) = await call('POST', '/api/users',
+        body: {'handle': '@eve', 'tier': 'admin'});
+    expect(bad, 400);
+  });
+
   // ------------------------------------------------------ cycle ops
 
   test('cycle ops require a wired service', () async {
