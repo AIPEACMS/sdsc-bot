@@ -88,6 +88,14 @@ class Scheduler {
       // availability indication (see scheduleDynamicAllocation). The Friday
       // batch is deprecated and no longer fires here.
 
+      // Catch-up: the sharp-hour run armed by an indication is a one-shot
+      // timer, so a restart between the indication and the sharp hour drops
+      // it. Re-optimize the open weekends on every tick (startup + 12h
+      // safety net) so a pending allocation is never lost. Idempotent —
+      // already-allocated members are locked in and only newly-allocated
+      // members are notified.
+      await _runDynamicAllocation();
+
       // Friday 21:00: push the current weekend's full allocation to the
       // `check` tier — a final confirmation list, independent of their
       // on-demand status button.
