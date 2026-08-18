@@ -5,6 +5,17 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.10.4] - 2026-08-18
+
+### Fixed
+
+- **Allocation no longer lost to a restart.** The dynamic allocation run is
+  armed as a one-shot timer at the next sharp hour after an availability
+  change — a restart in between dropped it silently, leaving re-picked
+  members unallocated until their next change. The scheduler now re-optimizes
+  the open weekends on every tick (startup + 12h safety net), so a pending
+  allocation always lands.
+
 ## [1.10.3] - 2026-08-17
 
 ### Added
