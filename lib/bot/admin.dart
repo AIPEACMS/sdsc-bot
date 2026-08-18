@@ -218,6 +218,16 @@ class Admin {
     if (pending.isNotEmpty) {
       sb.writeln('⏳ Pending: ${pending.map((u) => u.name).join(', ')}');
     }
+
+    // The full allocation table for both weekends of the bundle — the same
+    // per-session list the check tier sees, so admins can check who is on
+    // what session without the console app.
+    sb.writeln();
+    sb.write(service.checkListText(w.sat0,
+        title: '📋 <b>Allocation · ${_day(w.sat0)}</b>'));
+    sb.writeln();
+    sb.write(service.checkListText(w.sat1,
+        title: '📋 <b>Allocation · ${_day(w.sat1)}</b>'));
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
 

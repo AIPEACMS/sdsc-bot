@@ -40,6 +40,7 @@ class Flows {
     commandBoth(bot, 'mystatus', _onMyStatus, label: 'my-status');
     commandBoth(bot, 'check-status', _onCheckStatus, label: 'check-status');
     commandBoth(bot, 'grid', _onGrid, label: 'grid');
+    commandBoth(bot, 'resetgrid', _onResetGrid, label: 'reset-grid');
 
     // Bookkeeping middleware: records seen users and routes pending-input
     // text, then ALWAYS continues the chain so command handlers registered
@@ -299,8 +300,9 @@ class Flows {
 
   // ------------------------------------------------------------- /grid
 
-  /// Console-only: cycle through the console/admin/member grids to preview
-  /// what each role sees. Type /grid again to step to the next grid.
+  /// Console-only: cycle through the console/admin/check/member grids to
+  /// preview what each role sees. Type /grid again to step to the next grid,
+  /// or /resetgrid to return to the console's own grid.
   Future<void> _onGrid(Context ctx) async {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
@@ -313,7 +315,7 @@ class Flows {
       return;
     }
 
-    const order = ['console', 'admin', 'member'];
+    const order = ['console', 'admin', 'check', 'member'];
     final current = state.gridPreview[userId] ?? 'console';
     final next = order[(order.indexOf(current) + 1) % order.length];
     state.gridPreview[userId] = next;
@@ -325,6 +327,23 @@ class Flows {
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(next),
     );
+  }
+
+  /// Console-only: drop the grid preview and return to the console's own
+  /// grid.
+  Future<void> _onResetGrid(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+
+    if (!config.isConsole(userId)) {
+      await ctx.reply('Only the console can reset the grid preview.',
+          replyMarkup: RoleKeyboard.build(_gridFor(userId)));
+      return;
+    }
+
+    state.gridPreview.remove(userId);
+    await ctx.reply('Back to your console grid.',
+        replyMarkup: RoleKeyboard.build('console'));
   }
 
   /// Which grid to show: the console's preview if set, otherwise the
@@ -422,13 +441,16 @@ class Flows {
   // ---------------------------------------------------- /check-status
 
   /// The `check` tier's only command: print the current weekend's allocation.
+  /// The console is allowed too (it may preview the check grid via /grid and
+  /// must be able to actually test the output).
   Future<void> _onCheckStatus(Context ctx) async {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     if (user == null) return;
-    final tier = MemberTier.of(user, isConsole: config.isConsole(userId));
-    if (tier != MemberTier.check) {
+    final isConsoleUser = config.isConsole(userId);
+    final tier = MemberTier.of(user, isConsole: isConsoleUser);
+    if (tier != MemberTier.check && !isConsoleUser) {
       await ctx.reply('Only checkers can view the weekly allocation.');
       return;
     }

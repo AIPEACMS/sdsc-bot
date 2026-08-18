@@ -26,7 +26,7 @@ class BotState {
   final Map<int, (int chatId, int messageId)> availabilityMessages = {};
 
   /// The console's grid preview: which role's grid is currently shown
-  /// ('console' | 'admin' | 'member'). Absent = console's own grid.
+  /// ('console' | 'admin' | 'check' | 'member'). Absent = console's own grid.
   final Map<int, String> gridPreview = {};
 
   /// Users waiting for a text argument (e.g. the message to broadcast).

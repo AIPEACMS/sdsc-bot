@@ -5,6 +5,24 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.11.0] - 2026-08-18
+
+### Added
+
+- **`/resetgrid`** — returns the console to its own grid after previewing
+  another role's grid (previously mentioned in the /grid hint but missing).
+
+### Changed
+
+- **`/grid` preview now includes the check grid.** The console can cycle
+  console → admin → check → member to see what each role's buttons look like.
+- **The console can run `/check-status`** while previewing the check grid, so
+  the checker's output is actually testable from the console.
+- **`/status` shows the full allocation table** for both weekends of the
+  current bundle (per-session member lists, same format as the check tier's
+  report) — admins no longer need the console app to see who is on what
+  session.
+
 ## [1.10.4] - 2026-08-18
 
 ### Fixed
