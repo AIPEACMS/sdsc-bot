@@ -284,8 +284,10 @@ class CycleService {
 
   /// The full allocation list for one weekend — the `check` tier's status
   /// report, reused by the on-demand button and the Friday-evening push.
-  String checkListText(DateTime sat) {
-    final sb = StringBuffer()..writeln('📋 <b>This week\'s allocation</b>');
+  /// [title] overrides the heading (e.g. per-weekend headings in /status).
+  String checkListText(DateTime sat, {String? title}) {
+    final sb = StringBuffer()
+      ..writeln(title ?? '📋 <b>This week\'s allocation</b>');
     final allocations = repo.allocationsForWeekend(sat);
     if (allocations.isEmpty) {
       sb.writeln('\nNo allocation published yet for ${_dayShort(sat)}.');
