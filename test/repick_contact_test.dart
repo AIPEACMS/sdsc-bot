@@ -22,6 +22,9 @@ void main() {
   late Messages messages;
 
   setUp(() {
+    // These tests exercise the 15/22 August window. Keep that window stable
+    // instead of depending on the machine's current date.
+    Config.setDebugNow(DateTime.utc(2026, 8, 17));
     tmp = Directory.systemTemp.createTempSync('sdsc_repick_');
     config = Config(
       botToken: 'test',
@@ -49,6 +52,7 @@ void main() {
   });
 
   tearDown(() {
+    Config.setDebugNow(null);
     db.close();
     tmp.deleteSync(recursive: true);
   });
