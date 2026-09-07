@@ -278,15 +278,16 @@ void main() {
         preferredName: 'Allen',
         schoolEmail: 'allen@example.edu',
         matricNo: 'A1234567X');
+    final group = repo.findUser(2)!.group;
 
     await sendText(2, '/groupstatus');
-    expect(sent.last['text'], contains('Group 1 status'));
+    expect(sent.last['text'], contains('Group $group status'));
     expect(sent.last['text'], contains('Allen @admin'));
     expect(sent.last['text'], isNot(contains('@checker')));
 
     await sendText(2, '/groupusers');
     final text = sent.last['text'] as String;
-    expect(text, contains('Group 1 users'));
+    expect(text, contains('Group $group users'));
     expect(text, contains('Full name: Allen Tan'));
     expect(text, contains('Preferred name: Allen'));
     expect(text, contains('School email: allen@example.edu'));
