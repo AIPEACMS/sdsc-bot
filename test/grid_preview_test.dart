@@ -6,7 +6,9 @@ import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
 
 import 'package:sdsc_bot/bot/admin.dart';
+import 'package:sdsc_bot/bot/console.dart';
 import 'package:sdsc_bot/bot/flows.dart';
+import 'package:sdsc_bot/bot/hold.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import 'package:sdsc_bot/core/config.dart';
@@ -27,6 +29,7 @@ void main() {
   late CycleService service;
   late Flows flows;
   late Admin admin;
+  late Console console;
   late List<Map<String, dynamic>> sent;
   late HttpServer server;
   late Bot bot;
@@ -113,8 +116,16 @@ void main() {
       state: state,
       service: service,
     );
+    console = Console(
+      bot: bot,
+      repo: repo,
+      config: config,
+      state: state,
+      holdGate: HoldGate(false),
+    );
     flows.register();
     admin.register();
+    console.register();
 
     // Console (1), an admin (2), and a checker (3).
     repo.upsertUser(User(
@@ -199,7 +210,8 @@ void main() {
   test('/grid cycles console → admin → check → member for the console', () async {
     await sendText(1, '/grid');
     expect(sent.last['text'], contains('Preview: admin grid'));
-    expect(keyboardTexts(sent.last), contains('status'));
+    expect(keyboardTexts(sent.last), containsAll(
+        ['all-status', 'group-status', 'all-users', 'group-users']));
 
     await sendText(1, '/grid');
     expect(sent.last['text'], contains('Preview: check grid'));
@@ -211,7 +223,7 @@ void main() {
 
     await sendText(1, '/grid');
     expect(sent.last['text'], contains('Preview: console grid'));
-    expect(keyboardTexts(sent.last), contains('hold'));
+    expect(keyboardTexts(sent.last), containsAll(['hold', 'full-info']));
   });
 
   test('/grid is rejected for non-console users', () async {
@@ -250,13 +262,79 @@ void main() {
   });
 
   test('/status appends the allocation table for both weekends', () async {
+    repo.updateProfileInfo(2, preferredName: 'Allen');
     await sendText(2, '/status');
     final text = sent.last['text'] as String;
-    expect(text, contains('SDSC status'));
+    expect(text, contains('All members status'));
     expect(text, contains('Responded:'));
     expect(text, contains('Allocation · '));
-    expect(text, contains('@admin')); // sat0 allocation
+    expect(text, contains('Allen @admin')); // sat0 allocation
     expect(text, contains('@checker')); // sat1 allocation
+  });
+
+  test('/groupstatus and /groupusers stay in the caller group', () async {
+    repo.updateProfileInfo(2,
+        fullName: 'Allen Tan',
+        preferredName: 'Allen',
+        schoolEmail: 'allen@example.edu',
+        matricNo: 'A1234567X');
+
+    await sendText(2, '/groupstatus');
+    expect(sent.last['text'], contains('Group 1 status'));
+    expect(sent.last['text'], contains('Allen @admin'));
+    expect(sent.last['text'], isNot(contains('@checker')));
+
+    await sendText(2, '/groupusers');
+    final text = sent.last['text'] as String;
+    expect(text, contains('Group 1 users'));
+    expect(text, contains('Full name: Allen Tan'));
+    expect(text, contains('Preferred name: Allen'));
+    expect(text, contains('School email: allen@example.edu'));
+    expect(text, contains('Matric number: A1234567X'));
+    expect(text, isNot(contains('@checker')));
+  });
+
+  test('/fullinfo shows profile information without attendance', () async {
+    repo.updateProfileInfo(2,
+        fullName: 'Allen Tan',
+        preferredName: 'Allen',
+        schoolEmail: 'allen@example.edu',
+        matricNo: 'A1234567X');
+
+    await sendText(1, '/fullinfo');
+    final text = sent.last['text'] as String;
+    expect(text, contains('All profile information'));
+    expect(text, contains('Allen @admin'));
+    expect(text, contains('School email: allen@example.edu'));
+    expect(text, isNot(contains('ocbc ×')));
+  });
+
+  test('/mystatus shows profile fields and dated unavailable responses', () async {
+    repo.updateProfileInfo(2,
+        fullName: 'Allen Tan',
+        preferredName: 'Allen',
+        schoolEmail: 'allen@example.edu',
+        matricNo: 'A1234567X');
+    final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
+    repo.setAvailability(Availability(
+      weekendStart: w.sat0,
+      userId: 2,
+      bundleStart: w.sat0,
+      slots: const {},
+      available: false,
+      updatedAt: Config.nowUtc(),
+    ));
+
+    await sendText(2, '/mystatus');
+    final text = sent.last['text'] as String;
+    expect(text, contains('Bundle: "'));
+    expect(text, contains('Full name: Allen Tan'));
+    expect(text, contains('Preferred name: Allen'));
+    expect(text, contains('School email: allen@example.edu'));
+    expect(text, contains('Matric number: A1234567X'));
+    expect(text, contains('Indicated not available'));
+    expect(text, isNot(contains('Weekend 1')));
+    expect(text, isNot(contains('this bundle')));
   });
 }
 

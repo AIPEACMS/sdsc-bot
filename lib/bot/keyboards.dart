@@ -68,8 +68,10 @@ class RoleKeyboard {
 
   static const List<GridButton> adminButtons = [
     GridButton('add-user', '/adduser', RoleColor.admin),
-    GridButton('status', '/status', RoleColor.admin),
-    GridButton('users', '/users', RoleColor.admin),
+    GridButton('all-status', '/status', RoleColor.admin),
+    GridButton('group-status', '/groupstatus', RoleColor.admin),
+    GridButton('all-users', '/users', RoleColor.admin),
+    GridButton('group-users', '/groupusers', RoleColor.admin),
     GridButton('prompt', '/prompt', RoleColor.admin),
     GridButton('remind', '/remind', RoleColor.admin),
     GridButton('ask', '/ask', RoleColor.admin),
@@ -83,6 +85,7 @@ class RoleKeyboard {
   static const List<GridButton> consoleButtons = [
     GridButton('hold', '/hold', RoleColor.console),
     GridButton('unhold', '/unhold', RoleColor.console),
+    GridButton('full-info', '/fullinfo', RoleColor.console),
     ...adminButtons,
   ];
 
@@ -127,4 +130,3 @@ class RoleKeyboard {
         .placeholder('Tap a button below, or type /start to see your options');
   }
 }
-

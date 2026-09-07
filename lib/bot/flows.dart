@@ -183,6 +183,7 @@ class Flows {
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/setdate | /resetdate — custom or calendar dates')
         ..writeln('/sync-calendar — push the calendar YAML')
+        ..writeln('full-info — every user\'s saved profile information')
         ..writeln('/addkey — register a console app key')
         ..writeln('/keys | /rmkey — manage console keys');
     }
@@ -196,8 +197,10 @@ class Flows {
       sb
         ..writeln('\n<b>Admin</b>')
         ..writeln('add-user @handle — add a member (they can then use /start)')
-        ..writeln('status — cycle state and responders')
-        ..writeln('users — registered members')
+        ..writeln('all-status — cycle state and responders')
+        ..writeln('group-status — your group\'s cycle state and responders')
+        ..writeln('all-users — registered members')
+        ..writeln('group-users — your group\'s member details')
         ..writeln('prompt — send availability prompts now')
         ..writeln('remind — remind non-responders now')
         ..writeln('ask [telegram_id] — prompt one member')
@@ -426,7 +429,14 @@ class Flows {
     if (user == null || !_isActive(user)) return;
     final w = _currentWindow(ctx);
 
-    final sb = StringBuffer()..writeln('📋 <b>Your status</b>');
+    final sb = StringBuffer()
+      ..writeln('📋 <b>Your status</b>')
+      ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"')
+      ..writeln('\n<b>Your information</b>')
+      ..writeln('Full name: ${_html(user.fullName)}')
+      ..writeln('Preferred name: ${_html(user.preferredName)}')
+      ..writeln('School email: ${_html(user.schoolEmail)}')
+      ..writeln('Matric number: ${_html(user.matricNo)}');
 
     final avail0 = repo.getAvailability(w.sat0, userId);
     final avail1 = repo.getAvailability(w.sat1, userId);
@@ -440,16 +450,23 @@ class Flows {
       want.addAll(avail1.wantSlots);
       avail.addAll(avail1.slots);
     }
+    final unavailableDates = [
+      if (avail0 != null && !avail0.available) _day(w.sat0),
+      if (avail1 != null && !avail1.available) _day(w.sat1),
+    ];
     if (want.isNotEmpty || avail.isNotEmpty) {
-      sb.writeln('\n<b>Indicated</b> (this bundle) — 🔒 booked · 🟢 backup:');
+      sb.writeln('\n<b>Indicated</b> — 🔒 booked · 🟢 backup:');
       if (want.isNotEmpty) {
-        sb.writeln(want.map((s) => '🔒 ${s.toString()}').join('\n'));
+        sb.writeln(want.map((s) => '🔒 ${_slotLabel(s, w)}').join('\n'));
       }
       if (avail.isNotEmpty) {
-        sb.writeln(avail.map((s) => '🟢 ${s.toString()}').join('\n'));
+        sb.writeln(avail.map((s) => '🟢 ${_slotLabel(s, w)}').join('\n'));
       }
+    } else if (unavailableDates.isNotEmpty) {
+      sb.writeln('\n<b>Indicated not available</b>: '
+          '${unavailableDates.join(', ')}.');
     } else {
-      sb.writeln('\n<b>Indicated</b>: none yet for this bundle.');
+      sb.writeln('\n<b>Indicated</b>: none yet.');
     }
 
     final allocated = [
@@ -472,6 +489,27 @@ class Flows {
 
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
+
+  static String _slotLabel(Slot slot, RollingWindow w) {
+    final date = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
+    final location = slot.location == 'ocbc' ? 'OCBC' : 'Pasir Ris';
+    final day = slot.day == 'sat' ? 'Sat' : 'Sun';
+    final time = slot.slot == 'am' ? 'AM' : 'PM';
+    return '$day ${_day(date)} · $location · $time';
+  }
+
+  static String _day(DateTime date) {
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${date.day} ${months[date.month - 1]}';
+  }
+
+  static String _html(String text) => text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
 
   // ---------------------------------------------------- /check-status
 

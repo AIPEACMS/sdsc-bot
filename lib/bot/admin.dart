@@ -30,8 +30,12 @@ class Admin {
 
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
-    commandBoth(bot, state, 'status', _guard(_status), label: 'status');
-    commandBoth(bot, state, 'users', _guard(_users), label: 'users');
+    commandBoth(bot, state, 'status', _guard(_status), label: 'all-status');
+    commandBoth(bot, state, 'groupstatus', _guard(_groupStatus),
+        label: 'group-status');
+    commandBoth(bot, state, 'users', _guard(_users), label: 'all-users');
+    commandBoth(bot, state, 'groupusers', _guard(_groupUsers),
+        label: 'group-users');
     commandBoth(bot, state, 'prompt', _guard(_promptConfirm), label: 'prompt');
     commandBoth(bot, state, 'remind', _guard(_remindConfirm), label: 'remind');
     commandBoth(bot, state, 'allocate',
@@ -192,9 +196,11 @@ class Admin {
 
   // ----------------------------------------------------------- /status
 
-  Future<void> _status(Context ctx) async {
+  Future<void> _status(Context ctx, {String? group}) async {
     final w = _window(ctx);
-    final users = repo.activeUsers();
+    final users = repo.activeUsers()
+        .where((user) => group == null || user.group == group)
+        .toList();
     final activeIds = {for (final u in users) u.id};
     final avail = [
       ...repo.availabilityForWeekend(w.sat0),
@@ -204,11 +210,13 @@ class Admin {
     // responders, not rows.
     final responderIds = <int>{for (final a in avail) a.userId};
     final responders = responderIds.length;
-    final pending = repo.reminderTargets(w.sat0);
+    final pending = repo.reminderTargets(w.sat0)
+        .where((user) => group == null || user.group == group)
+        .toList();
 
     final sb = StringBuffer()
-      ..writeln('📊 <b>SDSC status</b>')
-      ..writeln('Bundle: ${_day(w.sat0)} & ${_day(w.sat1)}')
+      ..writeln('📊 <b>${group == null ? 'All members' : 'Group $group'} status</b>')
+      ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"')
       ..writeln('Prompt: ${_day(w.promptDay)}  |  '
           'Reminder: ${_day(w.reminderDay)}  |  '
           'Lock W1: ${_day(w.deadline0)}  |  '
@@ -218,7 +226,7 @@ class Admin {
           '(+${pending.length} pending)');
 
     if (pending.isNotEmpty) {
-      sb.writeln('⏳ Pending: ${pending.map((u) => u.name).join(', ')}');
+      sb.writeln('⏳ Pending: ${pending.map(_displayName).join(', ')}');
     }
 
     // The full allocation table for both weekends of the bundle — the same
@@ -226,17 +234,29 @@ class Admin {
     // what session without the console app.
     sb.writeln();
     sb.write(service.checkListText(w.sat0,
-        title: '📋 <b>Allocation · ${_day(w.sat0)}</b>'));
+        title: '📋 <b>Allocation · ${_day(w.sat0)}</b>',
+        userIds: activeIds));
     sb.writeln();
     sb.write(service.checkListText(w.sat1,
-        title: '📋 <b>Allocation · ${_day(w.sat1)}</b>'));
+        title: '📋 <b>Allocation · ${_day(w.sat1)}</b>',
+        userIds: activeIds));
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
 
-  Future<void> _users(Context ctx) async {
+  Future<void> _groupStatus(Context ctx) async {
+    final group = _adminGroup(ctx);
+    if (group.isEmpty) {
+      await ctx.reply('You are not assigned to a group.');
+      return;
+    }
+    await _status(ctx, group: group);
+  }
+
+  Future<void> _users(Context ctx, {String? group, bool fullInfo = false}) async {
     final users = repo.allUsers().where((u) {
       // The console shows only while still a member (or admin); once demoted
       // out of membership entirely, they disappear from the list.
+      if (group != null && u.group != group) return false;
       if (!config.isConsole(u.id)) return true;
       return u.isAdmin || MemberTier.isActive(u.memberTier);
     }).toList();
@@ -247,15 +267,47 @@ class Admin {
           : MemberTier.of(u, isConsole: false);
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
       final stats = repo.attendanceStats(u.id);
-      return '• <b>${u.name}</b> ($tier, '
+      final profile = fullInfo
+          ? '\n   Full name: ${_field(u.fullName)}'
+              '\n   Preferred name: ${_field(u.preferredName)}'
+              '\n   School email: ${_field(u.schoolEmail)}'
+              '\n   Matric number: ${_field(u.matricNo)}'
+          : '';
+      return '• <b>${_displayName(u)}</b>$profile\n   ($tier, '
           'group ${u.group.isEmpty ? 'none' : u.group}, '
           '$exp, ocbc × ${stats.ocbc}, pr × ${stats.pasirRis})';
     });
     await ctx.reply(
-      '<b>Registered users (${users.length})</b>\n${lines.join('\n')}',
+      '<b>${group == null ? 'All users' : 'Group $group users'} '
+      '(${users.length})</b>\n${lines.join('\n')}',
       parseMode: ParseMode.html,
     );
   }
+
+  Future<void> _groupUsers(Context ctx) async {
+    final group = _adminGroup(ctx);
+    if (group.isEmpty) {
+      await ctx.reply('You are not assigned to a group.');
+      return;
+    }
+    await _users(ctx, group: group, fullInfo: true);
+  }
+
+  static String _displayName(User user) {
+    final human = user.preferredName.isNotEmpty
+        ? user.preferredName
+        : user.fullName;
+    if (human.isEmpty) return _html(user.name);
+    return '${_html(human)} ${_html(user.name)}';
+  }
+
+  static String _field(String value) =>
+      value.isEmpty ? '—' : _html(value);
+
+  static String _html(String text) => text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
 
   // ------------------------------------------------- /prompt /remind confirm
 
