@@ -194,8 +194,14 @@ void main() {
     expect(before, isNot(contains('@leader')));
   });
 
-  test('not-available confirmation says by Friday', () {
-    expect(messages.msg6(), contains('by Friday'));
+  test('availability confirmations refer to the working re-pick label', () {
+    final available = messages.msg3(const [], const []);
+    final unavailable = messages.msg6();
+
+    expect(available, contains('re-pick'));
+    expect(available, isNot(contains('/repick')));
+    expect(unavailable, contains('re-pick'));
+    expect(unavailable, isNot(contains('/repick')));
   });
 
   test('available confirmation announces the sharp allocation hour', () {
@@ -372,6 +378,8 @@ void main() {
     final texts = sent.map((s) => s['text'] as String).toList();
     expect(texts.any((t) => t.contains('previous availability is kept')),
         isTrue);
+    expect(texts.any((t) => t.contains('Send re-pick')), isTrue);
+    expect(texts.any((t) => t.contains('/repick')), isFalse);
   });
 
   test('toggling a slot keeps the picker anchored to the bundle start',

@@ -4,6 +4,7 @@ import 'package:televerse/telegram.dart' hide Location, User;
 import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
+import '../core/log.dart';
 import '../core/messages.dart';
 import 'command_both.dart';
 import 'keyboards.dart';
@@ -364,14 +365,18 @@ class Flows {
 
   Future<void> _onRepick(Context ctx) async {
     final userId = ctx.from!.id;
+    LogRing.log('repick $userId: handler entered');
     final user = repo.findUser(userId);
     if (user == null || !_isActive(user)) {
       // Silent for unadded and non-active (check/old) users.
+      LogRing.log('repick $userId: ignored (not an active member)');
       return;
     }
     final window = _currentWindow(ctx);
     state.forgetAvailability(userId);
+    LogRing.log('repick $userId: opening availability picker');
     await service.showAvailability(user, window, messages.msg1(user.group));
+    LogRing.log('repick $userId: availability picker completed');
   }
 
   /// True for members/admins/console — anyone with availability duties.
@@ -615,7 +620,7 @@ class Flows {
       // message may be gone; ignore
     }
     await ctx.reply('Your previous availability is kept. '
-        'Changed your mind? Send /repick to update by Friday.');
+        'Changed your mind? Send re-pick to update by Friday.');
   }
 
   Future<void> _saveAvailability(
