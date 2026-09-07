@@ -40,6 +40,7 @@ class Console {
         label: 'sync-calendar');
     commandBoth(bot, state, 'hold', _guard(_holdConfirm), label: 'hold');
     commandBoth(bot, state, 'unhold', _guard(_unholdConfirm), label: 'unhold');
+    commandBoth(bot, state, 'fullinfo', _guard(_fullInfo), label: 'full-info');
     commandBoth(bot, state, 'addkey', _guard(_addKey), label: 'add-key');
     commandBoth(bot, state, 'keys', _guard(_keys), label: 'keys');
     commandBoth(bot, state, 'rmkey', _guard(_rmKey), label: 'rm-key');
@@ -190,6 +191,42 @@ class Console {
     repo.updateAdmin(userId, false);
     await ctx.reply('✅ You stepped down as admin. You remain the console.');
   }
+
+  // ---------------------------------------------------------- /fullinfo
+
+  Future<void> _fullInfo(Context ctx) async {
+    final users = repo.allUsers()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    if (users.isEmpty) {
+      await ctx.reply('No registered users.');
+      return;
+    }
+    final lines = users.map((user) =>
+        '• <b>${_displayName(user)}</b>\n'
+        '   Full name: ${_field(user.fullName)}\n'
+        '   Preferred name: ${_field(user.preferredName)}\n'
+        '   School email: ${_field(user.schoolEmail)}\n'
+        '   Matric number: ${_field(user.matricNo)}');
+    await ctx.reply(
+      '<b>All profile information (${users.length})</b>\n${lines.join('\n')}',
+      parseMode: ParseMode.html,
+    );
+  }
+
+  static String _displayName(User user) {
+    final human = user.preferredName.isNotEmpty
+        ? user.preferredName
+        : user.fullName;
+    if (human.isEmpty) return _html(user.name);
+    return '${_html(human)} ${_html(user.name)}';
+  }
+
+  static String _field(String value) => value.isEmpty ? '—' : _html(value);
+
+  static String _html(String text) => text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
 
   // ------------------------------------------------------ /sync-calendar
 

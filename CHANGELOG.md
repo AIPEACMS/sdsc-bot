@@ -5,6 +5,25 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.12.0] - 2026-09-07
+
+### Added
+
+- **Group admin views.** Admins can now use `group-status` and `group-users`
+  to see only their own group's responses, allocations, and member details.
+- **Console profile directory.** The console's `full-info` view lists every
+  user's saved profile information without attendance statistics.
+
+### Changed
+
+- **Clearer status views.** The admin grid now labels global views as
+  `all-status` and `all-users`; status and allocation lists use a member's
+  preferred name with their handle when available.
+- **More useful member status.** `my-status` now shows the saved full name,
+  preferred name, school email, and matric number; it names both bundle dates,
+  uses concrete dates for selected slots, and distinguishes no response from
+  dates explicitly marked unavailable.
+
 ## [1.11.3] - 2026-09-07
 
 ### Fixed

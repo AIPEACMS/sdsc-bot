@@ -101,12 +101,13 @@ void main() {
     expect(RoleKeyboard.gridButtons('old'), isEmpty);
   });
 
-  test('console keeps exactly two extra buttons: hold + unhold', () {
+  test('console keeps its three extra buttons', () {
     final console = RoleKeyboard.consoleButtons.toSet();
     final admin = RoleKeyboard.adminButtons.toSet();
     final consoleOnly = console.difference(admin);
-    expect(consoleOnly.map((b) => b.command), hasLength(2));
-    expect(consoleOnly.map((b) => b.command), containsAll(['/hold', '/unhold']));
+    expect(consoleOnly.map((b) => b.command), hasLength(3));
+    expect(consoleOnly.map((b) => b.command),
+        containsAll(['/hold', '/unhold', '/fullinfo']));
   });
 
   test('admin grid no longer has set-group', () {

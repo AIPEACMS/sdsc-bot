@@ -285,7 +285,10 @@ class CycleService {
   /// The full allocation list for one weekend — the `check` tier's status
   /// report, reused by the on-demand button and the Friday-evening push.
   /// [title] overrides the heading (e.g. per-weekend headings in /status).
-  String checkListText(DateTime sat, {String? title}) {
+  String checkListText(DateTime sat, {
+    String? title,
+    Set<int>? userIds,
+  }) {
     final sb = StringBuffer()
       ..writeln(title ?? '📋 <b>This week\'s allocation</b>');
     final allocations = repo.allocationsForWeekend(sat);
@@ -296,7 +299,8 @@ class CycleService {
 
     final bySession = <int, List<String>>{};
     for (final (u, s) in allocations) {
-      bySession.putIfAbsent(s.id, () => []).add(u.name);
+      if (userIds != null && !userIds.contains(u.id)) continue;
+      bySession.putIfAbsent(s.id, () => []).add(_displayName(u));
     }
 
     final sessions = repo.sessionsForWeekend(sat)
@@ -498,4 +502,17 @@ class CycleService {
   static String _satKey(DateTime sat) =>
       '${sat.year}-${sat.month.toString().padLeft(2, '0')}-'
       '${sat.day.toString().padLeft(2, '0')}';
+
+  static String _displayName(User user) {
+    final human = user.preferredName.isNotEmpty
+        ? user.preferredName
+        : user.fullName;
+    if (human.isEmpty) return _html(user.name);
+    return '${_html(human)} ${_html(user.name)}';
+  }
+
+  static String _html(String text) => text
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
 }
