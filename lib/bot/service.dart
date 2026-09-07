@@ -350,20 +350,25 @@ class CycleService {
       hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
     );
 
+    final pickerText = '$text\n\n${_hint()}';
     final existing = state.availabilityMessages[user.id];
     if (existing != null) {
       try {
         await bot.api.editMessageText(
           ChatID(existing.$1),
           existing.$2,
-          '$text\n\n${_hint()}',
+          pickerText,
           parseMode: ParseMode.html,
           replyMarkup: keyboard,
         );
+        LogRing.log('availability ${user.id}: picker edited: '
+            '${_logText(pickerText)}');
         return;
       } on HeldException {
+        LogRing.log('availability ${user.id}: picker edit dropped (held)');
         return; // held: block & drop, treated as delivered
-      } catch (_) {
+      } catch (error) {
+        LogRing.log('availability ${user.id}: picker edit failed: $error');
         state.availabilityMessages.remove(user.id);
       }
     }
@@ -371,15 +376,28 @@ class CycleService {
     try {
       final msg = await bot.api.sendMessage(
         ChatID(user.id),
-        '$text\n\n${_hint()}',
+        pickerText,
         parseMode: ParseMode.html,
         replyMarkup: keyboard,
       );
       state.availabilityMessages[user.id] = (user.id, msg.messageId);
+      LogRing.log('availability ${user.id}: picker sent: '
+          '${_logText(pickerText)}');
     } on HeldException {
       // held: block & drop, treated as delivered so the prompt/reminder
       // flags still advance and nothing is replayed on unhold.
+      LogRing.log('availability ${user.id}: picker send dropped (held)');
+    } catch (error) {
+      LogRing.log('availability ${user.id}: picker send failed: $error');
+      rethrow;
     }
+  }
+
+  static String _logText(String text) {
+    final singleLine = text.replaceAll(RegExp(r'\s+'), ' ');
+    return singleLine.length <= 160
+        ? singleLine
+        : '${singleLine.substring(0, 160)}…';
   }
 
   String sessionLabel(Session s) {

@@ -110,7 +110,7 @@ class Admin {
   Future<void> onAddUserText(Context ctx, int userId, String text) async {
     final handle = text.trim().replaceFirst('@', '');
     if (handle.isEmpty || handle.contains(' ')) {
-      await ctx.reply('That is not a valid handle. Try again, or /cancel.');
+      await ctx.reply('That is not a valid handle. Try again, or tap Cancel.');
       return;
     }
     _pendingAddUser[userId] = handle;
@@ -543,7 +543,7 @@ class Admin {
       final userId = ctx.from!.id;
       state.pendingArg[userId] = PendingArg('broadcast');
       await ctx.reply(
-        '📢 Send me the message to broadcast to all members, or /cancel.',
+        '📢 Send me the message to broadcast to all members, or tap Cancel.',
         replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
       );
       return;

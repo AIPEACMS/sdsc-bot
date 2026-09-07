@@ -53,14 +53,14 @@ class Messages {
     return 'Thank you! Here is what you told us '
         '(🔒 booked · 🟢 backup):\n$list\n\n'
         'Availability locks on the Friday before each weekend. '
-        'Changed your mind? Send /repick to update before then.$alloc';
+        'Changed your mind? Send re-pick to update before then.$alloc';
   }
 
   /// Confirmation when the member indicated they are not available.
   String msg6() {
     return 'No worries — you are all set for the next 2 weeks. '
         'We will prompt you again for the following cycle!\n\n'
-        'Changed your mind? Send /repick to update by Friday.';
+        'Changed your mind? Send re-pick to update by Friday.';
   }
 
   /// Allocation notice. `session` is e.g. "OCBC @ Pasir Ris" placeholder —

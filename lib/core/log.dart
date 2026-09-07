@@ -1,3 +1,5 @@
+import 'dart:io';
+
 /// In-memory log ring buffer. Everything the bot prints is also kept here so
 /// the admin HTTP API can serve recent log lines to the console app.
 ///
@@ -25,8 +27,7 @@ class LogRing {
     final entry = '${at.toIso8601String()}  $line';
     _lines.add((at: at, text: entry));
     _prune();
-    // ignore: avoid_print
-    print(entry);
+    stdout.writeln(entry);
   }
 
   static void _prune() {

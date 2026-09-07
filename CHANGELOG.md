@@ -5,6 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.11.1] - 2026-09-07
+
+### Fixed
+
+- **Working command labels in prompts.** Availability prompts now say
+  `re-pick`, and cancellation prompts say to tap Cancel, rather than exposing
+  obsolete slash commands that do not respond.
+
 ## [1.11.0] - 2026-08-18
 
 ### Added
