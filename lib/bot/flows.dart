@@ -35,14 +35,6 @@ class Flows {
   });
 
   void register() {
-    commandBoth(bot, 'start', _onStart, label: 'start');
-    commandBoth(bot, 'repick', _onRepick, label: 're-pick');
-    commandBoth(bot, 'setinfo', _onSetInfo, label: 'set-info');
-    commandBoth(bot, 'mystatus', _onMyStatus, label: 'my-status');
-    commandBoth(bot, 'check-status', _onCheckStatus, label: 'check-status');
-    commandBoth(bot, 'grid', _onGrid, label: 'grid');
-    commandBoth(bot, 'resetgrid', _onResetGrid, label: 'reset-grid');
-
     // Bookkeeping middleware: records seen users and routes pending-input
     // text, then ALWAYS continues the chain so command handlers registered
     // later (admin, console, grid-button hears) still receive the update.
@@ -51,6 +43,12 @@ class Flows {
       if (text != null) {
         final userId = ctx.from!.id;
         _recordSeen(ctx, userId);
+
+        if (state.isValidCommandText(text)) {
+          await _dismissInteractiveMessages(userId);
+          await next();
+          return;
+        }
 
         // A user mid-wizard (e.g. "type the message to broadcast"): their
         // next text is the argument. Consume it here and stop the chain.
@@ -93,6 +91,7 @@ class Flows {
         // Abort the profile wizard, keeping whatever is already saved.
         state.profileStep.remove(ctx.from!.id);
         state.profileCancel.remove(ctx.from!.id);
+        state.clearInteractiveMessages(ctx.from!.id);
         await ctx.answerCallbackQuery();
         try {
           await ctx.editMessageText('Cancelled — your profile is unchanged.');
@@ -103,6 +102,17 @@ class Flows {
       }
       await next();
     });
+
+    // Register commands after the bookkeeping middleware. This lets a valid
+    // command cancel a pending text flow before its handler runs.
+    commandBoth(bot, state, 'start', _onStart, label: 'start');
+    commandBoth(bot, state, 'repick', _onRepick, label: 're-pick');
+    commandBoth(bot, state, 'setinfo', _onSetInfo, label: 'set-info');
+    commandBoth(bot, state, 'mystatus', _onMyStatus, label: 'my-status');
+    commandBoth(bot, state, 'check-status', _onCheckStatus,
+        label: 'check-status');
+    commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
+    commandBoth(bot, state, 'resetgrid', _onResetGrid, label: 'reset-grid');
   }
 
   // ------------------------------------------------------------- /start
@@ -252,11 +262,12 @@ class Flows {
         user.matricNo.isNotEmpty ||
         user.schoolEmail.isNotEmpty;
     state.profileCancel[userId] = hasInfo;
-    await ctx.reply(
+    final message = await ctx.reply(
       '1/$_profileSteps — ${_profilePrompt(0)}',
       replyMarkup:
           hasInfo ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
     );
+    state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
   static String _profilePrompt(int step) => switch (step) {
@@ -287,14 +298,16 @@ class Flows {
     if (step < _profileSteps - 1) {
       state.profileStep[userId] = step + 1;
       final cancel = state.profileCancel[userId] ?? false;
-      await ctx.reply(
+      final message = await ctx.reply(
         '${step + 2}/$_profileSteps — ${_profilePrompt(step + 1)}',
         replyMarkup:
             cancel ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
       );
+      state.trackInteractiveMessage(userId, userId, message.messageId);
     } else {
       state.profileStep.remove(userId);
       state.profileCancel.remove(userId);
+      state.clearInteractiveMessages(userId);
       await ctx.reply('✅ Profile saved.');
     }
   }
@@ -377,6 +390,23 @@ class Flows {
     LogRing.log('repick $userId: opening availability picker');
     await service.showAvailability(user, window, messages.msg1(user.group));
     LogRing.log('repick $userId: availability picker completed');
+  }
+
+  Future<void> _dismissInteractiveMessages(int userId) async {
+    state.forgetAvailability(userId);
+    state.cancelInputFlow(userId);
+    for (final (chatId, messageId) in state.takeInteractiveMessages(userId)) {
+      try {
+        await bot.api.editMessageText(
+          ChatID(chatId),
+          messageId,
+          'Closed — use your latest command.',
+        );
+      } catch (_) {
+        // The message may already be gone or have been closed by a callback.
+      }
+    }
+    state.availabilityMessages.remove(userId);
   }
 
   /// True for members/admins/console — anyone with availability duties.
@@ -614,6 +644,7 @@ class Flows {
     await ctx.answerCallbackQuery();
     if (parts.length < 2) return;
     state.forgetAvailability(userId);
+    state.clearInteractiveMessages(userId);
     try {
       await ctx.editMessageText('Cancelled — your previous answer is kept.');
     } catch (_) {
@@ -630,6 +661,7 @@ class Flows {
     bool notAvailable,
   ) async {
     await ctx.answerCallbackQuery();
+    state.clearInteractiveMessages(userId);
     final sat0 = DateTime.tryParse(sat0Raw);
     if (sat0 == null) return;
     final w = RollingWindow.fromSat0(sat0);

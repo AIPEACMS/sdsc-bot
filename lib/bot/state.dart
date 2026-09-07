@@ -25,6 +25,14 @@ class BotState {
   /// new /repick or prompt replaces the old keyboard instead of stacking.
   final Map<int, (int chatId, int messageId)> availabilityMessages = {};
 
+  /// Inline controls that should be closed when a user starts another valid
+  /// command, so unfinished flows do not leave active-looking message blocks.
+  final Map<int, List<(int chatId, int messageId)>> interactiveMessages = {};
+
+  /// Command names and slash-free grid labels registered with this bot.
+  final Set<String> _commands = {};
+  final Set<String> _labels = {};
+
   /// The console's grid preview: which role's grid is currently shown
   /// ('console' | 'admin' | 'check' | 'member'). Absent = console's own grid.
   final Map<int, String> gridPreview = {};
@@ -41,7 +49,38 @@ class BotState {
   /// existing data, never mid-walk over freshly typed answers).
   final Map<int, bool> profileCancel = {};
 
+  void registerCommand(String command, String label) {
+    _commands.add(command);
+    _labels.add(label);
+  }
+
+  bool isValidCommandText(String text) {
+    final trimmed = text.trim();
+    if (trimmed.startsWith('/')) {
+      final token = trimmed.split(RegExp(r'\s+')).first.substring(1);
+      return _commands.contains(token.split('@').first);
+    }
+    return _labels.contains(trimmed);
+  }
+
+  void trackInteractiveMessage(int userId, int chatId, int messageId) {
+    final messages = interactiveMessages.putIfAbsent(userId, () => []);
+    final message = (chatId, messageId);
+    if (!messages.contains(message)) messages.add(message);
+  }
+
+  List<(int chatId, int messageId)> takeInteractiveMessages(int userId) =>
+      interactiveMessages.remove(userId) ?? [];
+
+  void clearInteractiveMessages(int userId) => interactiveMessages.remove(userId);
+
   void forgetAvailability(int userId) => availabilityPicks.remove(userId);
+
+  void cancelInputFlow(int userId) {
+    pendingArg.remove(userId);
+    profileStep.remove(userId);
+    profileCancel.remove(userId);
+  }
 
   /// The in-progress (want, available) pick sets for [userId], creating them
   /// if absent.

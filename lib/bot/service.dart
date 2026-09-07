@@ -381,6 +381,7 @@ class CycleService {
         replyMarkup: keyboard,
       );
       state.availabilityMessages[user.id] = (user.id, msg.messageId);
+      state.trackInteractiveMessage(user.id, user.id, msg.messageId);
       LogRing.log('availability ${user.id}: picker sent: '
           '${_logText(pickerText)}');
     } on HeldException {
