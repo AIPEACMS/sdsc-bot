@@ -32,17 +32,17 @@ class Console {
   });
 
   void register() {
-    commandBoth(bot, 'addadmin', _guard(_addAdmin), label: 'add-admin');
-    commandBoth(bot, 'setdate', _guard(_setDate), label: 'set-date');
-    commandBoth(bot, 'resetdate', _guard(_resetDate), label: 'reset-date');
-    commandBoth(bot, 'demote', _guard(_demote), label: 'demote');
-    commandBoth(bot, 'sync-calendar', _guard(_syncCalendar),
+    commandBoth(bot, state, 'addadmin', _guard(_addAdmin), label: 'add-admin');
+    commandBoth(bot, state, 'setdate', _guard(_setDate), label: 'set-date');
+    commandBoth(bot, state, 'resetdate', _guard(_resetDate), label: 'reset-date');
+    commandBoth(bot, state, 'demote', _guard(_demote), label: 'demote');
+    commandBoth(bot, state, 'sync-calendar', _guard(_syncCalendar),
         label: 'sync-calendar');
-    commandBoth(bot, 'hold', _guard(_holdConfirm), label: 'hold');
-    commandBoth(bot, 'unhold', _guard(_unholdConfirm), label: 'unhold');
-    commandBoth(bot, 'addkey', _guard(_addKey), label: 'add-key');
-    commandBoth(bot, 'keys', _guard(_keys), label: 'keys');
-    commandBoth(bot, 'rmkey', _guard(_rmKey), label: 'rm-key');
+    commandBoth(bot, state, 'hold', _guard(_holdConfirm), label: 'hold');
+    commandBoth(bot, state, 'unhold', _guard(_unholdConfirm), label: 'unhold');
+    commandBoth(bot, state, 'addkey', _guard(_addKey), label: 'add-key');
+    commandBoth(bot, state, 'keys', _guard(_keys), label: 'keys');
+    commandBoth(bot, state, 'rmkey', _guard(_rmKey), label: 'rm-key');
 
     // Hold/unhold callbacks, console only.
     bot.use((ctx, next) async {
@@ -128,12 +128,13 @@ class Console {
     if (args.isEmpty) {
       final userId = ctx.from!.id;
       state.pendingArg[userId] = PendingArg('setdate');
-      await ctx.reply(
+      final message = await ctx.reply(
         '📅 Send the date as <b>YYYY-MM-DD</b>, optionally with a time '
         '(YYYY-MM-DD HH:MM), or tap Cancel.',
         parseMode: ParseMode.html,
         replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
       );
+      state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
     }
     await _applyDate(ctx, args.join(' '));
@@ -203,10 +204,11 @@ class Console {
     if (args.isEmpty) {
       final userId = ctx.from!.id;
       state.pendingArg[userId] = PendingArg('synccalendar');
-      await ctx.reply(
+      final message = await ctx.reply(
         '📆 Paste the academic-calendar YAML, or tap Cancel.',
         replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
       );
+      state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
     }
     await _applyCalendarYaml(ctx, args.join(' '));

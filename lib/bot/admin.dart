@@ -29,24 +29,24 @@ class Admin {
   });
 
   void register() {
-    commandBoth(bot, 'adduser', _guard(_addUser), label: 'add-user');
-    commandBoth(bot, 'status', _guard(_status), label: 'status');
-    commandBoth(bot, 'users', _guard(_users), label: 'users');
-    commandBoth(bot, 'prompt', _guard(_promptConfirm), label: 'prompt');
-    commandBoth(bot, 'remind', _guard(_remindConfirm), label: 'remind');
-    commandBoth(bot, 'allocate',
+    commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
+    commandBoth(bot, state, 'status', _guard(_status), label: 'status');
+    commandBoth(bot, state, 'users', _guard(_users), label: 'users');
+    commandBoth(bot, state, 'prompt', _guard(_promptConfirm), label: 'prompt');
+    commandBoth(bot, state, 'remind', _guard(_remindConfirm), label: 'remind');
+    commandBoth(bot, state, 'allocate',
         _guard((ctx) async {
           final w = _window(ctx);
           await service.allocateWeekend(w.sat0);
           await service.allocateWeekend(w.sat1);
         }),
         label: 'allocate');
-    commandBoth(bot, 'ask', _guard(_ask), label: 'ask');
-    commandBoth(bot, 'confirm', _guard(_confirm), label: 'mark-attend');
-    commandBoth(bot, 'setexp',
+    commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
+    commandBoth(bot, state, 'confirm', _guard(_confirm), label: 'mark-attend');
+    commandBoth(bot, state, 'setexp',
         _guard((ctx) => _pickUser(ctx, 'setexp')),
         label: 'set-exp');
-    commandBoth(bot, 'broadcast', _guard(_broadcast), label: 'announce');
+    commandBoth(bot, state, 'broadcast', _guard(_broadcast), label: 'announce');
 
     // Callback middleware: handles admin prefixes, continues otherwise.
     bot.use((ctx, next) async {
@@ -95,11 +95,12 @@ class Admin {
     if (args.isEmpty) {
       final userId = ctx.from!.id;
       state.pendingArg[userId] = PendingArg('adduser');
-      await ctx.reply(
+      final message = await ctx.reply(
         '➕ Send me the handle to add (e.g. <b>@username</b>), or tap Cancel.',
         parseMode: ParseMode.html,
         replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
       );
+      state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
     }
     await ctx.reply(_addOutcome(args.first, isAdmin: false));
@@ -114,11 +115,12 @@ class Admin {
       return;
     }
     _pendingAddUser[userId] = handle;
-    await ctx.reply(
+    final message = await ctx.reply(
       'Add <b>@$handle</b>?',
       parseMode: ParseMode.html,
       replyMarkup: Pickers.confirm('adduser'),
     );
+    state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
   /// The handle awaiting confirmation per admin, from the /adduser wizard.
@@ -542,10 +544,11 @@ class Admin {
     if (text == null || text.trim().isEmpty) {
       final userId = ctx.from!.id;
       state.pendingArg[userId] = PendingArg('broadcast');
-      await ctx.reply(
+      final message = await ctx.reply(
         '📢 Send me the message to broadcast to all members, or tap Cancel.',
         replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
       );
+      state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
     }
     await _confirmBroadcast(ctx, text.trim());
@@ -561,11 +564,12 @@ class Admin {
 
   Future<void> _confirmBroadcast(Context ctx, String text) async {
     final preview = text.length > 200 ? '${text.substring(0, 200)}…' : text;
-    await ctx.reply(
+    final message = await ctx.reply(
       '📢 Send this to all members?\n\n<i>$preview</i>',
       parseMode: ParseMode.html,
       replyMarkup: Pickers.confirm('bcast'),
     );
+    state.trackInteractiveMessage(ctx.from!.id, ctx.from!.id, message.messageId);
   }
 
   Future<void> _doBroadcast(Context ctx, String text) async {

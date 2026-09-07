@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.11.3] - 2026-09-07
+
+### Fixed
+
+- **Unfinished controls close when starting another command.** A valid command
+  now dismisses the prior availability picker or input prompt instead of
+  leaving it active-looking, and command labels are no longer saved as wizard
+  answers.
+
 ## [1.11.1] - 2026-09-07
 
 ### Fixed
