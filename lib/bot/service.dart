@@ -99,56 +99,77 @@ class CycleService {
   static bool isHolidayWindow(Repo repo, RollingWindow w) =>
       repo.holidayOn(w.sat0) != null || repo.holidayOn(w.sat1) != null;
 
-  /// Allocates one weekend's sessions from the weekend's availability rows,
-  /// persists allocations, then notifies. Runs dynamically (at the next sharp
-  /// hour after an indication). Already-allocated members are locked in —
-  /// the run only fills the remaining sessions with newly-indicated members,
-  /// so nobody is ever moved or un-allocated by a later indication.
-  Future<void> allocateWeekend(DateTime sat) async {
-    repo.ensureSessionsForWeekend(
-      sat,
-      config.slotTimes,
-      tzOffsetHours: config.timezoneOffsetHours,
-    );
-    final sessions = repo.sessionsForWeekend(sat);
+  /// Allocates both weekends of [window] as one bundle. Every booked pick is
+  /// honored, but a member receives at most one backup pick across both dates.
+  /// Already-selected backups are retained in chronological order so an older
+  /// per-weekend run is reconciled down to one backup without moving it.
+  Future<void> allocateBundle(RollingWindow window) async {
+    final weekends = [window.sat0, window.sat1];
+    for (final sat in weekends) {
+      repo.ensureSessionsForWeekend(
+        sat,
+        config.slotTimes,
+        tzOffsetHours: config.timezoneOffsetHours,
+      );
+    }
+    final sessions = [
+      for (final sat in weekends) ...repo.sessionsForWeekend(sat),
+    ];
     // Only active users can be allocated; check/old users have no availability
     // and stale availability rows must not make them candidates.
     final activeUsers = repo.activeUsers();
     final activeIds = {for (final u in activeUsers) u.id};
-    final availability = repo
-        .availabilityForWeekend(sat)
+    final availability = [
+      for (final sat in weekends) ...repo.availabilityForWeekend(sat),
+    ]
         .where((a) => activeIds.contains(a.userId))
         .toList();
     final users = {for (final u in activeUsers) u.id: u};
 
-    // Already-allocated members are locked in place (every session they hold).
-    final existing = repo.allocationsForWeekend(sat);
-    final locked = [for (final (u, s) in existing) (u.id, s.id)];
+    final existing = [
+      for (final sat in weekends) ...repo.allocationsForWeekend(sat),
+    ]..sort((a, b) => a.$2.start.compareTo(b.$2.start));
+    final locked = <(int, int)>[];
+    final lockedBackupUserIds = <int>{};
+    for (final (user, session) in existing) {
+      final row = availability.where((a) =>
+          a.userId == user.id && a.weekendStart == session.weekendStart).firstOrNull;
+      final isBackup = row?.slots.any((slot) => _matches(session, slot)) ?? false;
+      if (!isBackup || lockedBackupUserIds.add(user.id)) {
+        locked.add((user.id, session.id));
+      }
+    }
 
     final result = const Allocator().run(
       sessions: sessions,
       availability: availability,
       locked: locked,
+      lockedBackupUserIds: lockedBackupUserIds,
     );
 
-    repo.replaceAllocationsForWeekend(sat, result);
-    repo.markWeekendAllocated(sat);
+    final sessionsById = {for (final s in sessions) s.id: s};
+    for (final sat in weekends) {
+      final weekendResult = result.where((entry) {
+        final session = sessionsById[entry.$2];
+        return session?.weekendStart == sat;
+      }).toList();
+      repo.replaceAllocationsForWeekend(sat, weekendResult);
+      repo.markWeekendAllocated(sat);
+    }
 
     // Before the weekend's Friday deadline the member can still re-pick;
     // after it they must message the contact instead.
     final now = config.toLocal(Config.nowUtc());
-    final deadline = RollingWindow.fromSat0(sat).deadlineFor(sat);
-    final deadlinePassed = !now.isBefore(deadline);
-
     // Notify only the newly allocated — locked members were notified when
     // they were allocated.
     var failures = 0;
-    final sessionsById = {for (final s in sessions) s.id: s};
     for (final (userId, sessionId) in result) {
       if (locked.any((l) => l.$1 == userId && l.$2 == sessionId)) continue;
       final session = sessionsById[sessionId];
       final user = users[userId];
       if (session == null || user == null) continue;
+      final deadline = window.deadlineFor(session.weekendStart);
+      final deadlinePassed = !now.isBefore(deadline);
       final label = sessionLabel(session);
       final time = '${_fmt(session.start)} to ${_fmt(session.end)}';
       try {
@@ -171,6 +192,11 @@ class CycleService {
     }
     if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
   }
+
+  static bool _matches(Session session, Slot slot) =>
+      session.day == slot.day &&
+      session.slot == slot.slot &&
+      session.location.name == slot.location;
 
   /// 12h "H:MM AM/PM" for human-facing deadlines (e.g. "6:00 PM").
   String _fmt12h(DateTime dt) {

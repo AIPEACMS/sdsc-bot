@@ -164,8 +164,9 @@ class Scheduler {
     try {
       final now = config.toLocal(Config.nowUtc());
       final w = RollingWindow.forDate(now);
-      if (now.isBefore(w.sat0)) await service.allocateWeekend(w.sat0);
-      if (now.isBefore(w.sat1)) await service.allocateWeekend(w.sat1);
+      if (now.isBefore(w.sat0) || now.isBefore(w.sat1)) {
+        await service.allocateBundle(w);
+      }
       LogRing.log('dynamic allocation run');
     } catch (e) {
       LogRing.log('dynamic allocation error: $e');

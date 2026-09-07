@@ -400,10 +400,10 @@ class Flows {
     state.cancelInputFlow(userId);
     for (final (chatId, messageId) in state.takeInteractiveMessages(userId)) {
       try {
-        await bot.api.editMessageText(
+        await bot.api.editMessageReplyMarkup(
           ChatID(chatId),
           messageId,
-          'Closed — use your latest command.',
+          replyMarkup: null,
         );
       } catch (_) {
         // The message may already be gone or have been closed by a callback.
@@ -430,13 +430,13 @@ class Flows {
     final w = _currentWindow(ctx);
 
     final sb = StringBuffer()
-      ..writeln('📋 <b>Your status</b>')
-      ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"')
-      ..writeln('\n<b>Your information</b>')
+      ..writeln('👤 <b>Your information</b>')
       ..writeln('Full name: ${_html(user.fullName)}')
       ..writeln('Preferred name: ${_html(user.preferredName)}')
       ..writeln('School email: ${_html(user.schoolEmail)}')
-      ..writeln('Matric number: ${_html(user.matricNo)}');
+      ..writeln('Matric number: ${_html(user.matricNo)}')
+      ..writeln('\n📋 <b>Your status</b>')
+      ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"');
 
     final avail0 = repo.getAvailability(w.sat0, userId);
     final avail1 = repo.getAvailability(w.sat1, userId);

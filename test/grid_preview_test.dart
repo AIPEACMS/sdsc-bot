@@ -31,6 +31,7 @@ void main() {
   late Admin admin;
   late Console console;
   late List<Map<String, dynamic>> sent;
+  late List<Map<String, dynamic>> edited;
   late HttpServer server;
   late Bot bot;
 
@@ -60,6 +61,7 @@ void main() {
     state = BotState();
 
     sent = <Map<String, dynamic>>[];
+    edited = <Map<String, dynamic>>[];
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final path = req.uri.path;
@@ -87,6 +89,10 @@ void main() {
             'text': body['text'],
           },
         });
+      } else if (path.endsWith('/editMessageReplyMarkup')) {
+        final body = jsonDecode(await utf8.decoder.bind(req).join());
+        edited.add(body as Map<String, dynamic>);
+        await _json(req, {'ok': true, 'result': true});
       } else {
         await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
       }
@@ -336,6 +342,50 @@ void main() {
     expect(text, contains('Indicated not available'));
     expect(text, isNot(contains('Weekend 1')));
     expect(text, isNot(contains('this bundle')));
+  });
+
+  test('a new command removes old picker buttons without replacing its text',
+      () async {
+    await sendText(2, '/repick');
+    expect(sent.last['reply_markup'], isNotNull);
+
+    await sendText(2, '/mystatus');
+
+    expect(edited, hasLength(1));
+    expect(edited.single['reply_markup'], isNull);
+    expect(sent.last['text'], startsWith('👤 <b>Your information</b>'));
+  });
+
+  test('bundle allocation retains only one existing backup per member',
+      () async {
+    final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
+    final first = repo.sessionsForWeekend(w.sat0).first;
+    final second = repo.sessionsForWeekend(w.sat1).last;
+    repo.setAvailability(Availability(
+      weekendStart: w.sat0,
+      userId: 2,
+      bundleStart: w.sat0,
+      slots: {const Slot(0, 'sat', 'am', 'ocbc')},
+      available: true,
+      updatedAt: Config.nowUtc(),
+    ));
+    repo.setAvailability(Availability(
+      weekendStart: w.sat1,
+      userId: 2,
+      bundleStart: w.sat0,
+      slots: {const Slot(1, 'sat', 'pm', 'pasirRis')},
+      available: true,
+      updatedAt: Config.nowUtc(),
+    ));
+    repo.replaceAllocationsForWeekend(w.sat1, [(2, second.id)]);
+
+    await service.allocateBundle(w);
+
+    final allocations = [
+      ...repo.allocationsForWeekend(w.sat0),
+      ...repo.allocationsForWeekend(w.sat1),
+    ].where((entry) => entry.$1.id == 2).toList();
+    expect(allocations.map((entry) => entry.$2.id), [first.id]);
   });
 }
 
