@@ -79,6 +79,36 @@ void main() {
     expect(result.where((e) => e.$1 == 1).length, 1);
   });
 
+  test('backup picks across both bundle weekends allocate only once', () {
+    final w1Sessions = _sessions()
+        .map((s) => Session(
+              id: s.id + 10,
+              weekendStart: DateTime(2026, 8, 15),
+              day: s.day,
+              slot: s.slot,
+              location: s.location,
+              start: s.start.add(const Duration(days: 7)),
+              end: s.end.add(const Duration(days: 7)),
+            ))
+        .toList();
+    final result = allocator.run(
+      sessions: [..._sessions(), ...w1Sessions],
+      availability: [
+        _avail(1, slots: {_am}),
+        Availability(
+          weekendStart: DateTime(2026, 8, 15),
+          userId: 1,
+          bundleStart: DateTime(2026, 8, 8),
+          slots: {_am1},
+          available: true,
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+      ],
+    );
+    expect(result.where((entry) => entry.$1 == 1).map((entry) => entry.$2),
+        [1]);
+  });
+
   test('want sessions plus one available session in a free time slot', () {
     // User wants am OCBC and offers pm OCBC + pm PR: gets am OCBC (want) and
     // one of the pm offers.

@@ -5,6 +5,21 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.12.2] - 2026-09-07
+
+### Fixed
+
+- **One backup allocation per bundle.** A member with backup picks on both
+  bundle weekends now receives one backup allocation total; restarting the bot
+  also reconciles an existing duplicate down to the earlier allocation.
+- **Preserved dismissed picker messages.** Starting another command now removes
+  the prior picker's buttons without replacing its text with a closure message.
+
+### Changed
+
+- **Profile-first member status.** `my-status` now presents saved information
+  before the availability, allocation, and attendance status.
+
 ## [1.12.1] - 2026-09-07
 
 ### Fixed

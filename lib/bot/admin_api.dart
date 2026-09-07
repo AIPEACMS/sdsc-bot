@@ -498,8 +498,7 @@ class AdminApi {
         LogRing.log('admin API: reminders sent');
         return (200, {'ok': true, 'op': op});
       case 'allocate':
-        await service.allocateWeekend(w.sat0);
-        await service.allocateWeekend(w.sat1);
+        await service.allocateBundle(w);
         LogRing.log('admin API: allocation run');
         return (200, {'ok': true, 'op': op});
     }

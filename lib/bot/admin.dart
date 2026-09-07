@@ -41,8 +41,7 @@ class Admin {
     commandBoth(bot, state, 'allocate',
         _guard((ctx) async {
           final w = _window(ctx);
-          await service.allocateWeekend(w.sat0);
-          await service.allocateWeekend(w.sat1);
+          await service.allocateBundle(w);
         }),
         label: 'allocate');
     commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
