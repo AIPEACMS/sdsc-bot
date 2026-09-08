@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS sent_messages (
   user_id INTEGER NOT NULL REFERENCES users(id),
   kind TEXT NOT NULL,
   day TEXT NOT NULL,
+  sent_at TEXT NOT NULL,
   UNIQUE(user_id, kind, day)
 );
 
@@ -177,6 +178,16 @@ CREATE TABLE IF NOT EXISTS console_keys (
       db.execute("ALTER TABLE pending_users ADD COLUMN tier TEXT NOT NULL DEFAULT 'member'");
     } catch (_) {
       // column already present
+    }
+
+    // Exact send time is audit data, not part of the daily deduplication key.
+    // Historical rows predate this column, so their timestamp remains unknown.
+    final sentMessageColumns = db
+        .select('PRAGMA table_info(sent_messages)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (!sentMessageColumns.contains('sent_at')) {
+      db.execute('ALTER TABLE sent_messages ADD COLUMN sent_at TEXT');
     }
 
     // Groups are now numeric (1, 2, ...) and led by admins. One-time data

@@ -470,12 +470,34 @@ ON CONFLICT(username) DO UPDATE SET
     return (rows.first['c'] as int) > 0;
   }
 
-  void markMessageSent(int userId, String kind, DateTime day) {
-    raw.execute(
-      'INSERT OR IGNORE INTO sent_messages (user_id, kind, day) '
-      'VALUES (?, ?, ?)',
+  /// The Singapore-time timestamp at which a deduplicated outbound message
+  /// was accepted by Telegram. Null means the historical row predates this
+  /// audit field.
+  String? messageSentAtOnDay(int userId, String kind, DateTime day) {
+    final rows = raw.select(
+      'SELECT sent_at FROM sent_messages '
+      'WHERE user_id = ? AND kind = ? AND day = ?',
       [userId, kind, _dayKey(day)],
     );
+    if (rows.isEmpty) return null;
+    return rows.first['sent_at'] as String?;
+  }
+
+  void markMessageSent(int userId, String kind, DateTime day) {
+    raw.execute(
+      'INSERT OR IGNORE INTO sent_messages (user_id, kind, day, sent_at) '
+      'VALUES (?, ?, ?, ?)',
+      [userId, kind, _dayKey(day), _sgtNow()],
+    );
+  }
+
+  static String _sgtNow() {
+    final now = DateTime.now().toUtc().add(const Duration(hours: 8));
+    String two(int value) => value.toString().padLeft(2, '0');
+    String three(int value) => value.toString().padLeft(3, '0');
+    return '${now.year}-${two(now.month)}-${two(now.day)} '
+        '${two(now.hour)}:${two(now.minute)}:${two(now.second)}.'
+        '${three(now.millisecond)}+08:00';
   }
 
   // ------------------------------------------------------------ rolling window

@@ -5,6 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.12.4] - 2026-09-08
+
+### Added
+
+- **Exact outbound-message audit time.** New prompt, reminder, checklist, and
+  attendance message records retain a non-key Singapore-time `sent_at` value
+  alongside their existing daily deduplication entry.
+
 ## [1.12.3] - 2026-09-08
 
 ### Fixed
