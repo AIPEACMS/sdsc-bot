@@ -336,6 +336,8 @@ void main() {
     expect(repo.messageSentOnDay(1, 'prompt', day), false);
     repo.markMessageSent(1, 'prompt', day);
     expect(repo.messageSentOnDay(1, 'prompt', day), true);
+    expect(repo.messageSentAtOnDay(1, 'prompt', day),
+        matches(RegExp(r'\+08:00$')));
     // Different kind or different day is not deduped.
     expect(repo.messageSentOnDay(1, 'reminder', day), false);
     expect(repo.messageSentOnDay(1, 'prompt', day.add(const Duration(days: 1))),
