@@ -30,6 +30,7 @@ void main() {
   late Flows flows;
   late Admin admin;
   late Console console;
+  late HoldGate holdGate;
   late List<Map<String, dynamic>> sent;
   late List<Map<String, dynamic>> edited;
   late HttpServer server;
@@ -122,12 +123,13 @@ void main() {
       state: state,
       service: service,
     );
+    holdGate = HoldGate(false);
     console = Console(
       bot: bot,
       repo: repo,
       config: config,
       state: state,
-      holdGate: HoldGate(false),
+      holdGate: holdGate,
     );
     flows.register();
     admin.register();
@@ -314,6 +316,17 @@ void main() {
     expect(text, contains('Allen @admin'));
     expect(text, contains('School email: allen@example.edu'));
     expect(text, isNot(contains('ocbc ×')));
+  });
+
+  test('/unhold immediately reopens the held bot', () async {
+    repo.setHeld(true);
+    holdGate.held = true;
+
+    await sendText(1, '/unhold');
+
+    expect(repo.isHeld(), isFalse);
+    expect(holdGate.isHeld, isFalse);
+    expect(sent.last['text'], contains('Bot unheld'));
   });
 
   test('/mystatus shows profile fields and dated unavailable responses', () async {

@@ -284,12 +284,19 @@ class Console {
   }
 
   Future<void> _unholdConfirm(Context ctx) async {
+    // A held bot cannot deliver a confirmation keyboard: the transformer drops
+    // every send/edit call while the gate is closed. Unhold is therefore an
+    // immediate console-only recovery command.
+    if (holdGate.isHeld) {
+      repo.setHeld(false);
+      holdGate.held = false;
+      await ctx.reply('✅ <b>Bot unheld.</b> It can send again.',
+          parseMode: ParseMode.html);
+      return;
+    }
     await ctx.reply(
-      '▶️ <b>Unhold the bot?</b>\n\n'
-      'It will start sending again. Anything dropped while held is gone — '
-      'nothing is replayed.',
+      '✅ <b>Bot is already unheld.</b>',
       parseMode: ParseMode.html,
-      replyMarkup: Pickers.confirm('unhold'),
     );
   }
 
