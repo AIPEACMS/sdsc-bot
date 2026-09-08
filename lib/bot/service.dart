@@ -45,12 +45,14 @@ class CycleService {
     // makes sense when the member could actually have attended: they joined
     // more than 2 weeks ago, and the semester containing the sessions has
     // been running for at least 2 weeks.
-    final joinedRecently = user.registeredAt == null ||
+    final joinedRecently =
+        user.registeredAt == null ||
         Config.nowUtc().difference(user.registeredAt!.toUtc()) <
             const Duration(days: 14);
     final year = repo.latestCalendarYear();
     final sem = year?.semesterAt(w.sat0);
-    final semesterMature = sem?.firstStart != null &&
+    final semesterMature =
+        sem?.firstStart != null &&
         w.sat0.difference(sem!.firstStart!) >= const Duration(days: 14);
     if (!joinedRecently &&
         semesterMature &&
@@ -59,6 +61,24 @@ class CycleService {
     }
     return messages.msg1(user.group);
   }
+
+  /// The holiday a member has opted out of for this availability window.
+  Holiday? optedOutHolidayFor(User user, RollingWindow w) {
+    final holiday = repo.holidayOn(w.sat0) ?? repo.holidayOn(w.sat1);
+    if (holiday != null && repo.hasHolidayOptout(user.id, holiday.weekStart)) {
+      return holiday;
+    }
+    return null;
+  }
+
+  /// Reminder text for [user], or null when they opted out of the holiday.
+  String? reminderFor(User user, RollingWindow w) =>
+      optedOutHolidayFor(user, w) == null ? messages.msg2(user.group) : null;
+
+  /// Human-readable period for an opted-out holiday, Monday through Sunday.
+  String holidayPeriod(Holiday holiday) =>
+      '${_dayShort(holiday.weekStart)} to '
+      '${_dayShort(holiday.weekStart.add(const Duration(days: 6)))}';
 
   /// Sends the availability picker for [window] to every prompt target.
   Future<void> sendPrompts(RollingWindow w) async {
@@ -86,7 +106,9 @@ class CycleService {
     for (final user in repo.reminderTargets(w.sat0)) {
       try {
         if (repo.messageSentOnDay(user.id, 'reminder', today)) continue;
-        await showAvailability(user, w, messages.msg2(user.group));
+        final text = reminderFor(user, w);
+        if (text == null) continue;
+        await showAvailability(user, w, text);
         repo.markMessageSent(user.id, 'reminder', today);
       } catch (_) {
         failures++;
@@ -121,9 +143,7 @@ class CycleService {
     final activeIds = {for (final u in activeUsers) u.id};
     final availability = [
       for (final sat in weekends) ...repo.availabilityForWeekend(sat),
-    ]
-        .where((a) => activeIds.contains(a.userId))
-        .toList();
+    ].where((a) => activeIds.contains(a.userId)).toList();
     final users = {for (final u in activeUsers) u.id: u};
 
     final existing = [
@@ -132,9 +152,14 @@ class CycleService {
     final locked = <(int, int)>[];
     final lockedBackupUserIds = <int>{};
     for (final (user, session) in existing) {
-      final row = availability.where((a) =>
-          a.userId == user.id && a.weekendStart == session.weekendStart).firstOrNull;
-      final isBackup = row?.slots.any((slot) => _matches(session, slot)) ?? false;
+      final row = availability
+          .where(
+            (a) =>
+                a.userId == user.id && a.weekendStart == session.weekendStart,
+          )
+          .firstOrNull;
+      final isBackup =
+          row?.slots.any((slot) => _matches(session, slot)) ?? false;
       if (!isBackup || lockedBackupUserIds.add(user.id)) {
         locked.add((user.id, session.id));
       }
@@ -214,8 +239,7 @@ class CycleService {
     final session = repo.sessionById(sessionId);
     final user = repo.findUser(userId);
     if (session == null || user == null) return;
-    final streak =
-        session.location == Location.ocbc ? user.ocbcStreak + 1 : 0;
+    final streak = session.location == Location.ocbc ? user.ocbcStreak + 1 : 0;
     repo.setOcbcStreak(userId, streak);
   }
 
@@ -227,10 +251,13 @@ class CycleService {
     var unmarkedTotal = 0;
     final byAdmin = <int, List<String>>{};
     for (final s in sessions) {
-      final allocations =
-          repo.allocationsForWeekend(sat).where((a) => a.$2.id == s.id);
-      final marked =
-          repo.attendanceForSession(s.id).map((a) => a.userId).toSet();
+      final allocations = repo
+          .allocationsForWeekend(sat)
+          .where((a) => a.$2.id == s.id);
+      final marked = repo
+          .attendanceForSession(s.id)
+          .map((a) => a.userId)
+          .toSet();
       for (final (user, _) in allocations) {
         if (marked.contains(user.id)) continue;
         unmarkedTotal++;
@@ -253,7 +280,7 @@ class CycleService {
         await bot.api.sendMessage(
           ChatID(entry.key),
           '⏰ <b>Mark attendance</b> — still unmarked:\n$list$more\n\n'
-              'Mark it in the console or with /confirm.',
+          'Mark it in the console or with /confirm.',
           parseMode: ParseMode.html,
         );
         repo.markMessageSent(entry.key, 'attmark', day);
@@ -262,8 +289,9 @@ class CycleService {
       }
     }
     LogRing.log(
-        'attmark: $unmarkedTotal unmarked members on '
-        '${_dayShort(sat)} — console: please chase the admins');
+      'attmark: $unmarkedTotal unmarked members on '
+      '${_dayShort(sat)} — console: please chase the admins',
+    );
   }
 
   /// Monday: for every active member who has not attended for 4+ consecutive
@@ -304,17 +332,15 @@ class CycleService {
       }
     }
     LogRing.log(
-        'absent: $absentTotal members absent 4+ weeks on '
-        '${_dayShort(monday)} — console: please chase the admins');
+      'absent: $absentTotal members absent 4+ weeks on '
+      '${_dayShort(monday)} — console: please chase the admins',
+    );
   }
 
   /// The full allocation list for one weekend — the `check` tier's status
   /// report, reused by the on-demand button and the Friday-evening push.
   /// [title] overrides the heading (e.g. per-weekend headings in /status).
-  String checkListText(DateTime sat, {
-    String? title,
-    Set<int>? userIds,
-  }) {
+  String checkListText(DateTime sat, {String? title, Set<int>? userIds}) {
     final sb = StringBuffer()
       ..writeln(title ?? '📋 <b>This week\'s allocation</b>');
     final allocations = repo.allocationsForWeekend(sat);
@@ -336,7 +362,9 @@ class CycleService {
     for (final s in sessions) {
       final names = bySession[s.id];
       sb.writeln('• ${sessionLabel(s)}');
-      sb.writeln('   ${names == null || names.isEmpty ? '—' : names.join(', ')}');
+      sb.writeln(
+        '   ${names == null || names.isEmpty ? '—' : names.join(', ')}',
+      );
     }
     return sb.toString();
   }
@@ -366,11 +394,7 @@ class CycleService {
   }
 
   /// Sends (or edits an existing) availability keyboard message to [user].
-  Future<void> showAvailability(
-    User user,
-    RollingWindow w,
-    String text,
-  ) async {
+  Future<void> showAvailability(User user, RollingWindow w, String text) async {
     final picked = state.picksFor(user.id);
     final keyboard = buildKeyboard(
       w,
@@ -391,8 +415,10 @@ class CycleService {
           parseMode: ParseMode.html,
           replyMarkup: keyboard,
         );
-        LogRing.log('availability ${user.id}: picker edited: '
-            '${_logText(pickerText)}');
+        LogRing.log(
+          'availability ${user.id}: picker edited: '
+          '${_logText(pickerText)}',
+        );
         return;
       } on HeldException {
         LogRing.log('availability ${user.id}: picker edit dropped (held)');
@@ -412,8 +438,10 @@ class CycleService {
       );
       state.availabilityMessages[user.id] = (user.id, msg.messageId);
       state.trackInteractiveMessage(user.id, user.id, msg.messageId);
-      LogRing.log('availability ${user.id}: picker sent: '
-          '${_logText(pickerText)}');
+      LogRing.log(
+        'availability ${user.id}: picker sent: '
+        '${_logText(pickerText)}',
+      );
     } on HeldException {
       // held: block & drop, treated as delivered so the prompt/reminder
       // flags still advance and nothing is replayed on unhold.
@@ -440,15 +468,24 @@ class CycleService {
 
   static String _day(DateTime d) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${d.day} ${months[d.month - 1]}';
   }
 
   static String _dayShort(DateTime d) =>
-      '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
+      '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
 
   static String _fmt(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
@@ -456,7 +493,8 @@ class CycleService {
   /// The single mechanical explanation shown under every picker (prompt,
   /// reminder and repick all pass through [showAvailability]). The prompt
   /// texts themselves stay free of mechanics to avoid duplication.
-  String _hint() => 'Tap a session <b>once</b> = backup 🟢 (you can attend '
+  String _hint() =>
+      'Tap a session <b>once</b> = backup 🟢 (you can attend '
       'if needed), or <b>twice</b> = booked 🔒. You\'ll get <b>every</b> 🔒 '
       'you book (one per time slot), plus <b>one</b> of your 🟢 backups. '
       'Tap again to unselect.';
@@ -482,9 +520,7 @@ class CycleService {
       // A non-interactive header naming the date, so the picker says which
       // weekend each slot belongs to. No arbitrary week numbers — the
       // calendar may have breaks between weeks.
-      kb = kb
-          .text('Sat ${_day(sat)}', 'noop|$wi')
-          .row();
+      kb = kb.text('Sat ${_day(sat)}', 'noop|$wi').row();
       for (final day in Slot.allDays) {
         final dayLabel = day == 'sat' ? 'Sat' : 'Sun';
         for (final slot in Slot.allSlots) {
@@ -494,8 +530,8 @@ class CycleService {
             final mark = want.any((s) => s.encode() == key)
                 ? '🔒'
                 : available.any((s) => s.encode() == key)
-                    ? '🟢'
-                    : '▫️';
+                ? '🟢'
+                : '▫️';
             final locLabel = loc == 'ocbc' ? 'OCBC' : 'PR';
             // The callback carries the BUNDLE's first Saturday (not the
             // clicked weekend) so a toggle re-renders the same anchored
@@ -515,9 +551,10 @@ class CycleService {
         .row()
         .text('❌ Not available', 'no|${_satKey(w.sat0)}');
     if (holiday) {
-      kb = kb
-          .row()
-          .text('🔕 Skip me this holiday', 'holidayout|${_satKey(w.sat0)}');
+      kb = kb.row().text(
+        '🔕 Skip me this holiday',
+        'holidayout|${_satKey(w.sat0)}',
+      );
     }
     if (hasIndicated) {
       kb = kb.row().text('❌ Cancel', 'cancel|${_satKey(w.sat0)}');

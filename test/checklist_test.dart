@@ -29,7 +29,7 @@ void main() {
       ocbcCapacity: 2,
       prCapacity: 20,
       slotTimes: const {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      promptHour: 8,
+      promptHour: 18,
       reminderHour: 18,
       deadlineHour: 18,
       allocationHour: 9,
@@ -49,22 +49,23 @@ void main() {
   });
 
   void add(int id, String name, String group, {String tier = 'member'}) {
-    repo.upsertUser(User(
-      id: id,
-      name: name,
-      experience: Experience.newbie,
-      group: group,
-      memberTier: tier,
-    ));
+    repo.upsertUser(
+      User(
+        id: id,
+        name: name,
+        experience: Experience.newbie,
+        group: group,
+        memberTier: tier,
+      ),
+    );
   }
 
   test('checkListText formats the weekend allocation by session', () {
     final sat = DateTime(2026, 8, 15);
-    repo.ensureSessionsForWeekend(
-      sat,
-      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      tzOffsetHours: 8,
-    );
+    repo.ensureSessionsForWeekend(sat, {
+      'am': ('09:00', '12:00'),
+      'pm': ('13:00', '17:00'),
+    }, tzOffsetHours: 8);
     add(1, 'Console', '1');
     add(2, 'Admin 2', '1');
     add(5, 'Member 5', '1');
@@ -92,72 +93,76 @@ void main() {
     expect(empty, contains('No allocation published yet'));
   });
 
-  test('sendCheckList pushes to check-tier users only, deduped per day',
-      () async {
-    final sent = <Map<String, dynamic>>[];
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    server.listen((req) async {
-      final path = req.uri.path;
-      if (path.endsWith('/sendMessage')) {
-        final body = jsonDecode(await utf8.decoder.bind(req).join());
-        sent.add(body as Map<String, dynamic>);
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'message_id': 1,
-            'date': 1,
-            'chat': {'id': body['chat_id'], 'type': 'private'},
-            'text': body['text'],
-          },
-        });
-      } else {
-        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+  test(
+    'sendCheckList pushes to check-tier users only, deduped per day',
+    () async {
+      final sent = <Map<String, dynamic>>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((req) async {
+        final path = req.uri.path;
+        if (path.endsWith('/sendMessage')) {
+          final body = jsonDecode(await utf8.decoder.bind(req).join());
+          sent.add(body as Map<String, dynamic>);
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'message_id': 1,
+              'date': 1,
+              'chat': {'id': body['chat_id'], 'type': 'private'},
+              'text': body['text'],
+            },
+          });
+        } else {
+          await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+        }
+      });
+
+      final sat = DateTime(2026, 8, 15);
+      repo.ensureSessionsForWeekend(sat, {
+        'am': ('09:00', '12:00'),
+        'pm': ('13:00', '17:00'),
+      }, tzOffsetHours: 8);
+      add(1, 'Console', '1'); // console: not check tier
+      add(2, 'Admin 2', '1'); // admin: not check tier
+      add(3, 'Checker 3', '1', tier: 'check');
+      add(4, 'Checker 4', '2', tier: 'check');
+      add(5, 'Member 5', '1'); // member: not check tier
+      final sessions = repo.sessionsForWeekend(sat);
+      repo.replaceAllocationsForWeekend(sat, [(5, sessions.first.id)]);
+
+      final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+      final service = CycleService(
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: BotState(),
+        bot: bot,
+      );
+
+      await service.sendCheckList(sat);
+
+      // Exactly the two check-tier users, both with the allocation list.
+      expect(sent.length, 2);
+      final chatIds = sent.map((s) => s['chat_id']).toSet();
+      expect(chatIds, {3, 4});
+      for (final s in sent) {
+        expect(s['text'] as String, contains('Member 5'));
       }
-    });
 
-    final sat = DateTime(2026, 8, 15);
-    repo.ensureSessionsForWeekend(
-      sat,
-      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      tzOffsetHours: 8,
-    );
-    add(1, 'Console', '1'); // console: not check tier
-    add(2, 'Admin 2', '1'); // admin: not check tier
-    add(3, 'Checker 3', '1', tier: 'check');
-    add(4, 'Checker 4', '2', tier: 'check');
-    add(5, 'Member 5', '1'); // member: not check tier
-    final sessions = repo.sessionsForWeekend(sat);
-    repo.replaceAllocationsForWeekend(sat, [(5, sessions.first.id)]);
+      // Same day: deduped, no second push.
+      await service.sendCheckList(sat);
+      expect(sent.length, 2);
 
-    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
-    final service = CycleService(
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: BotState(),
-      bot: bot,
-    );
-
-    await service.sendCheckList(sat);
-
-    // Exactly the two check-tier users, both with the allocation list.
-    expect(sent.length, 2);
-    final chatIds = sent.map((s) => s['chat_id']).toSet();
-    expect(chatIds, {3, 4});
-    for (final s in sent) {
-      expect(s['text'] as String, contains('Member 5'));
-    }
-
-    // Same day: deduped, no second push.
-    await service.sendCheckList(sat);
-    expect(sent.length, 2);
-
-    await server.close(force: true);
-  });
+      await server.close(force: true);
+    },
+  );
 }
 
-Future<void> _json(HttpRequest req, Map<String, dynamic> body,
-    {int status = 200}) async {
+Future<void> _json(
+  HttpRequest req,
+  Map<String, dynamic> body, {
+  int status = 200,
+}) async {
   req.response
     ..statusCode = status
     ..headers.contentType = ContentType.json;

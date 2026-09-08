@@ -10,25 +10,24 @@ void main() {
 
   setUp(() {
     tmp = Directory.systemTemp.createTempSync('sdsc_test_');
-    db = Database.open(Config(
-      botToken: 'test',
-      dbPath: '${tmp.path}/test.db',
-      consoleId: 1,
-      groupAContact: 'TBD',
-      groupBContact: 'TBD',
-      ocbcCapacity: 2,
-      prCapacity: 20,
-      slotTimes: {
-        'am': ('09:00', '12:00'),
-        'pm': ('13:00', '17:00'),
-      },
-      promptHour: 8,
-      reminderHour: 18,
-      deadlineHour: 18,
-      allocationHour: 9,
-      bailHour: 12,
-      timezoneOffsetHours: 8,
-    ));
+    db = Database.open(
+      Config(
+        botToken: 'test',
+        dbPath: '${tmp.path}/test.db',
+        consoleId: 1,
+        groupAContact: 'TBD',
+        groupBContact: 'TBD',
+        ocbcCapacity: 2,
+        prCapacity: 20,
+        slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+        promptHour: 18,
+        reminderHour: 18,
+        deadlineHour: 18,
+        allocationHour: 9,
+        bailHour: 12,
+        timezoneOffsetHours: 8,
+      ),
+    );
     repo = Repo(db);
   });
 
@@ -37,7 +36,11 @@ void main() {
     tmp.deleteSync(recursive: true);
   });
 
-  User addUser(int id, {Experience exp = Experience.newbie, String group = 'A'}) {
+  User addUser(
+    int id, {
+    Experience exp = Experience.newbie,
+    String group = 'A',
+  }) {
     final u = User(
       id: id,
       name: 'Member $id',
@@ -56,9 +59,9 @@ void main() {
 
     expect(w.sat0, DateTime(2026, 8, 15)); // weekend 0 = this week's Saturday
     expect(w.sat1, DateTime(2026, 8, 22)); // weekend 1 = next week's Saturday
-    // Prompt Mon 08:00, reminder Thu 18:00, deadline0 Fri 18:00 (this week),
+    // Prompt Mon 18:00, reminder Thu 18:00, deadline0 Fri 18:00 (this week),
     // deadline1 Fri 18:00 (next week).
-    expect(w.promptDay, DateTime(2026, 8, 10, 8));
+    expect(w.promptDay, DateTime(2026, 8, 10, 18));
     expect(w.reminderDay, DateTime(2026, 8, 13, 18));
     expect(w.deadline0, DateTime(2026, 8, 14, 18));
     expect(w.deadline1, DateTime(2026, 8, 21, 18));
@@ -71,23 +74,27 @@ void main() {
     expect(w.locked(w.sat0, DateTime(2026, 8, 13, 12)), false);
     expect(w.locked(w.sat0, DateTime(2026, 8, 14, 18)), true);
     expect(w.locked(w.sat0, DateTime(2026, 8, 15, 9)), true);
-    expect(w.locked(w.sat1, DateTime(2026, 8, 14, 18)), false); // next week open
+    expect(
+      w.locked(w.sat1, DateTime(2026, 8, 14, 18)),
+      false,
+    ); // next week open
   });
 
   test('sessions are created once and idempotently per weekend', () {
     final sat = DateTime(2026, 8, 15);
-    repo.ensureSessionsForWeekend(
-      sat,
-      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      tzOffsetHours: 8,
-    );
-    expect(repo.sessionsForWeekend(sat).length, 4); // Saturday: 2 slots x 2 locations
+    repo.ensureSessionsForWeekend(sat, {
+      'am': ('09:00', '12:00'),
+      'pm': ('13:00', '17:00'),
+    }, tzOffsetHours: 8);
+    expect(
+      repo.sessionsForWeekend(sat).length,
+      4,
+    ); // Saturday: 2 slots x 2 locations
 
-    repo.ensureSessionsForWeekend(
-      sat,
-      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      tzOffsetHours: 8,
-    );
+    repo.ensureSessionsForWeekend(sat, {
+      'am': ('09:00', '12:00'),
+      'pm': ('13:00', '17:00'),
+    }, tzOffsetHours: 8);
     expect(repo.sessionsForWeekend(sat).length, 4);
   });
 
@@ -98,18 +105,20 @@ void main() {
 
     final sat = DateTime(2026, 8, 15);
     for (final id in [1, 2, 3]) {
-      repo.setAvailability(Availability(
-        weekendStart: sat,
-        userId: id,
-        bundleStart: sat,
-        slots: {
-          const Slot(0, 'sat', 'am', 'ocbc'),
-          const Slot(0, 'sat', 'am', 'pasirRis'),
-        },
-        wantSlots: {const Slot(0, 'sat', 'pm', 'ocbc')},
-        available: true,
-        updatedAt: DateTime(2026, 8, 12),
-      ));
+      repo.setAvailability(
+        Availability(
+          weekendStart: sat,
+          userId: id,
+          bundleStart: sat,
+          slots: {
+            const Slot(0, 'sat', 'am', 'ocbc'),
+            const Slot(0, 'sat', 'am', 'pasirRis'),
+          },
+          wantSlots: {const Slot(0, 'sat', 'pm', 'ocbc')},
+          available: true,
+          updatedAt: DateTime(2026, 8, 12),
+        ),
+      );
     }
 
     // want_slots round-trips through the store.
@@ -120,11 +129,10 @@ void main() {
       const Slot(0, 'sat', 'am', 'pasirRis'),
     });
 
-    repo.ensureSessionsForWeekend(
-      sat,
-      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      tzOffsetHours: 8,
-    );
+    repo.ensureSessionsForWeekend(sat, {
+      'am': ('09:00', '12:00'),
+      'pm': ('13:00', '17:00'),
+    }, tzOffsetHours: 8);
     final sessions = repo.sessionsForWeekend(sat);
 
     final result = const Allocator().run(
@@ -160,22 +168,26 @@ void main() {
     final sat = DateTime(2026, 8, 15);
     // User 2 answered the current bundle; user 3 answered last week's bundle
     // (quiet — not bothered for 2 weeks).
-    repo.setAvailability(Availability(
-      weekendStart: sat,
-      userId: 2,
-      bundleStart: sat,
-      slots: {const Slot(0, 'sat', 'am', 'ocbc')},
-      available: true,
-      updatedAt: DateTime(2026, 8, 11),
-    ));
-    repo.setAvailability(Availability(
-      weekendStart: sat.subtract(const Duration(days: 7)),
-      userId: 3,
-      bundleStart: sat.subtract(const Duration(days: 7)),
-      slots: {const Slot(0, 'sat', 'am', 'ocbc')},
-      available: true,
-      updatedAt: DateTime(2026, 8, 4),
-    ));
+    repo.setAvailability(
+      Availability(
+        weekendStart: sat,
+        userId: 2,
+        bundleStart: sat,
+        slots: {const Slot(0, 'sat', 'am', 'ocbc')},
+        available: true,
+        updatedAt: DateTime(2026, 8, 11),
+      ),
+    );
+    repo.setAvailability(
+      Availability(
+        weekendStart: sat.subtract(const Duration(days: 7)),
+        userId: 3,
+        bundleStart: sat.subtract(const Duration(days: 7)),
+        slots: {const Slot(0, 'sat', 'am', 'ocbc')},
+        available: true,
+        updatedAt: DateTime(2026, 8, 4),
+      ),
+    );
     final pending = repo.reminderTargets(sat);
     expect(pending.map((u) => u.id), [1]);
     expect(repo.isQuiet(3, sat), true);
@@ -202,11 +214,10 @@ void main() {
     addUser(1);
     addUser(2);
     final sat = DateTime(2026, 8, 15);
-    repo.ensureSessionsForWeekend(
-      sat,
-      {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      tzOffsetHours: 8,
-    );
+    repo.ensureSessionsForWeekend(sat, {
+      'am': ('09:00', '12:00'),
+      'pm': ('13:00', '17:00'),
+    }, tzOffsetHours: 8);
     final sessions = repo.sessionsForWeekend(sat);
     final ocbc = sessions.firstWhere((s) => s.location == Location.ocbc);
     final pr = sessions.firstWhere((s) => s.location == Location.pasirRis);
@@ -336,65 +347,72 @@ void main() {
     expect(repo.messageSentOnDay(1, 'prompt', day), false);
     repo.markMessageSent(1, 'prompt', day);
     expect(repo.messageSentOnDay(1, 'prompt', day), true);
-    expect(repo.messageSentAtOnDay(1, 'prompt', day),
-        matches(RegExp(r'\+08:00$')));
+    expect(
+      repo.messageSentAtOnDay(1, 'prompt', day),
+      matches(RegExp(r'\+08:00$')),
+    );
     // Different kind or different day is not deduped.
     expect(repo.messageSentOnDay(1, 'reminder', day), false);
-    expect(repo.messageSentOnDay(1, 'prompt', day.add(const Duration(days: 1))),
-        false);
+    expect(
+      repo.messageSentOnDay(1, 'prompt', day.add(const Duration(days: 1))),
+      false,
+    );
     // Different user is not deduped.
     expect(repo.messageSentOnDay(2, 'prompt', day), false);
   });
 
-  test('consecutiveAbsentWeeks counts non-holiday weeks since last attendance',
-      () {
-    // Four consecutive session weekends: Aug 1, 8, 15, 22 2026.
-    final sats = [
-      DateTime(2026, 8, 1),
-      DateTime(2026, 8, 8),
-      DateTime(2026, 8, 15),
-      DateTime(2026, 8, 22),
-    ];
-    for (final sat in sats) {
-      repo.ensureSessionsForWeekend(
-        sat,
-        {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-        tzOffsetHours: 8,
-      );
-    }
-    final latestSat = DateTime(2026, 8, 22);
+  test(
+    'consecutiveAbsentWeeks counts non-holiday weeks since last attendance',
+    () {
+      // Four consecutive session weekends: Aug 1, 8, 15, 22 2026.
+      final sats = [
+        DateTime(2026, 8, 1),
+        DateTime(2026, 8, 8),
+        DateTime(2026, 8, 15),
+        DateTime(2026, 8, 22),
+      ];
+      for (final sat in sats) {
+        repo.ensureSessionsForWeekend(sat, {
+          'am': ('09:00', '12:00'),
+          'pm': ('13:00', '17:00'),
+        }, tzOffsetHours: 8);
+      }
+      final latestSat = DateTime(2026, 8, 22);
 
-    void backdate(int id, String createdAt) {
-      repo.raw.execute(
-          'UPDATE users SET created_at = ? WHERE id = ?', [createdAt, id]);
-    }
+      void backdate(int id, String createdAt) {
+        repo.raw.execute('UPDATE users SET created_at = ? WHERE id = ?', [
+          createdAt,
+          id,
+        ]);
+      }
 
-    // Registered long before the first weekend, never attended.
-    addUser(1);
-    backdate(1, '2026-07-01 00:00:00');
-    expect(repo.consecutiveAbsentWeeks(1, latestSat), 4);
+      // Registered long before the first weekend, never attended.
+      addUser(1);
+      backdate(1, '2026-07-01 00:00:00');
+      expect(repo.consecutiveAbsentWeeks(1, latestSat), 4);
 
-    // Attended Aug 8 → the streak restarts after that weekend.
-    addUser(2);
-    backdate(2, '2026-07-01 00:00:00');
-    final aug8 = repo.sessionsForWeekend(DateTime(2026, 8, 8)).first;
-    repo.setAttendanceState(2, aug8.id, attended: true);
-    expect(repo.consecutiveAbsentWeeks(2, latestSat), 2);
+      // Attended Aug 8 → the streak restarts after that weekend.
+      addUser(2);
+      backdate(2, '2026-07-01 00:00:00');
+      final aug8 = repo.sessionsForWeekend(DateTime(2026, 8, 8)).first;
+      repo.setAttendanceState(2, aug8.id, attended: true);
+      expect(repo.consecutiveAbsentWeeks(2, latestSat), 2);
 
-    // Registered mid-cycle (Aug 10): weeks before that do not count.
-    addUser(3);
-    backdate(3, '2026-08-10 00:00:00');
-    expect(repo.consecutiveAbsentWeeks(3, latestSat), 2);
+      // Registered mid-cycle (Aug 10): weeks before that do not count.
+      addUser(3);
+      backdate(3, '2026-08-10 00:00:00');
+      expect(repo.consecutiveAbsentWeeks(3, latestSat), 2);
 
-    // Holiday week (Aug 10-16) is skipped: neither counts nor resets.
-    repo.addHoliday(DateTime(2026, 8, 10), HolidayKind.middle);
-    expect(repo.consecutiveAbsentWeeks(1, latestSat), 3);
-    expect(repo.consecutiveAbsentWeeks(2, latestSat), 1);
-    expect(repo.consecutiveAbsentWeeks(3, latestSat), 1);
+      // Holiday week (Aug 10-16) is skipped: neither counts nor resets.
+      repo.addHoliday(DateTime(2026, 8, 10), HolidayKind.middle);
+      expect(repo.consecutiveAbsentWeeks(1, latestSat), 3);
+      expect(repo.consecutiveAbsentWeeks(2, latestSat), 1);
+      expect(repo.consecutiveAbsentWeeks(3, latestSat), 1);
 
-    // No sessions at all → 0.
-    addUser(4);
-    backdate(4, '2026-07-01 00:00:00');
-    expect(repo.consecutiveAbsentWeeks(4, DateTime(2026, 6, 1)), 0);
-  });
+      // No sessions at all → 0.
+      addUser(4);
+      backdate(4, '2026-07-01 00:00:00');
+      expect(repo.consecutiveAbsentWeeks(4, DateTime(2026, 6, 1)), 0);
+    },
+  );
 }

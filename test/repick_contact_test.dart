@@ -35,7 +35,7 @@ void main() {
       ocbcCapacity: 2,
       prCapacity: 20,
       slotTimes: const {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      promptHour: 8,
+      promptHour: 18,
       reminderHour: 18,
       deadlineHour: 18,
       allocationHour: 9,
@@ -94,12 +94,9 @@ void main() {
       }
     });
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-    ));
+    repo.upsertUser(
+      User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+    );
 
     final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
     final state = BotState();
@@ -127,21 +124,23 @@ void main() {
 
     // alice taps Done without selecting any slot. This weekend (2026-08-15)
     // is already locked on the real clock; next weekend is still open.
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 1,
-      'callback_query': {
-        'id': '1',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 7,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': 'Your availability (tap to toggle):',
+    await bot.handleUpdate(
+      Update.fromJson({
+        'update_id': 1,
+        'callback_query': {
+          'id': '1',
+          'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+          'chat_instance': '1',
+          'message': {
+            'message_id': 7,
+            'date': 1,
+            'chat': {'id': 42, 'type': 'private'},
+            'text': 'Your availability (tap to toggle):',
+          },
+          'data': 'done|2026-08-15',
         },
-        'data': 'done|2026-08-15',
-      },
-    }));
+      }),
+    );
 
     await bot.stop();
     await startFuture;
@@ -149,8 +148,10 @@ void main() {
 
     // The reply is the "not available" message, never a "(none)" summary.
     final texts = sent.map((s) => s['text'] as String).toList();
-    expect(texts.any((t) => t.contains('all set for the next 2 weeks')),
-        isTrue);
+    expect(
+      texts.any((t) => t.contains('all set for the next 2 weeks')),
+      isTrue,
+    );
     expect(texts.any((t) => t.contains('(none)')), isFalse);
 
     // The open weekend's availability row is stored as available=false.
@@ -163,37 +164,43 @@ void main() {
     expect(dynamicRuns, 1);
   });
 
-  test('message contacts resolve to the group leader, not the placeholder',
-      () {
-    repo.upsertUser(User(
-      id: 10,
-      name: '@leader',
-      experience: Experience.experienced,
-      group: '1',
-      isAdmin: true,
-    ));
-    repo.upsertUser(User(
-      id: 11,
-      name: '@member',
-      experience: Experience.newbie,
-      group: '1',
-    ));
+  test('message contacts resolve to the group leader, not the placeholder', () {
+    repo.upsertUser(
+      User(
+        id: 10,
+        name: '@leader',
+        experience: Experience.experienced,
+        group: '1',
+        isAdmin: true,
+      ),
+    );
+    repo.upsertUser(
+      User(id: 11, name: '@member', experience: Experience.newbie, group: '1'),
+    );
 
     final prompt = messages.msg1('1');
     expect(prompt, contains('@leader'));
     expect(prompt, isNot(contains('TBD')));
 
-    final notice = messages.msg4('1', 'OCBC · Saturday 15 Aug AM',
-        '09:00 to 12:00',
-        deadlinePassed: true, deadlineLabel: 'Friday 6:00 PM');
+    final notice = messages.msg4(
+      '1',
+      'OCBC · Saturday 15 Aug AM',
+      '09:00 to 12:00',
+      deadlinePassed: true,
+      deadlineLabel: 'Friday 6:00 PM',
+    );
     expect(notice, contains('@leader'));
     expect(notice, isNot(contains('TBD')));
 
     // Before the weekend's Friday deadline the member can still re-pick
     // instead of messaging the contact.
-    final before = messages.msg4('1', 'OCBC · Saturday 15 Aug AM',
-        '09:00 to 12:00',
-        deadlinePassed: false, deadlineLabel: 'Friday 6:00 PM');
+    final before = messages.msg4(
+      '1',
+      'OCBC · Saturday 15 Aug AM',
+      '09:00 to 12:00',
+      deadlinePassed: false,
+      deadlineLabel: 'Friday 6:00 PM',
+    );
     expect(before, contains('re-pick'));
     expect(before, isNot(contains('@leader')));
   });
@@ -222,361 +229,372 @@ void main() {
   });
 
   test('the allocation hour is the next sharp hour after indicating', () {
-    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 14, 23)),
-        '3:00 PM');
-    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 15, 0)),
-        '4:00 PM');
-    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 23, 30)),
-        '12:00 AM');
+    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 14, 23)), '3:00 PM');
+    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 15, 0)), '4:00 PM');
+    expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 23, 30)), '12:00 AM');
     expect(Flows.nextSharpHourLabel(DateTime(2026, 8, 12, 0, 5)), '1:00 AM');
   });
 
   test('cancel button appears only after the member has responded', () {
     final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
     final now = DateTime(2026, 8, 12); // Wednesday, both weekends open
-    final kbNo = CycleService.buildKeyboard(w, (const {}, const {}),
-        now: now);
-    final labelsNo =
-        kbNo.inlineKeyboard.expand((r) => r).map((b) => b.text).toList();
+    final kbNo = CycleService.buildKeyboard(w, (const {}, const {}), now: now);
+    final labelsNo = kbNo.inlineKeyboard
+        .expand((r) => r)
+        .map((b) => b.text)
+        .toList();
     expect(labelsNo.contains('❌ Cancel'), isFalse);
-    final kbYes =
-        CycleService.buildKeyboard(w, (const {}, const {}),
-            now: now, hasIndicated: true);
-    final labelsYes =
-        kbYes.inlineKeyboard.expand((r) => r).map((b) => b.text).toList();
+    final kbYes = CycleService.buildKeyboard(
+      w,
+      (const {}, const {}),
+      now: now,
+      hasIndicated: true,
+    );
+    final labelsYes = kbYes.inlineKeyboard
+        .expand((r) => r)
+        .map((b) => b.text)
+        .toList();
     expect(labelsYes.contains('❌ Cancel'), isTrue);
   });
 
-  test('cancel aborts the in-progress repick, keeping the saved answer',
-      () async {
-    final sent = <Map<String, dynamic>>[];
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    server.listen((req) async {
-      final path = req.uri.path;
-      if (path.endsWith('/getMe')) {
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'id': 1,
-            'is_bot': true,
-            'first_name': 'test',
-            'username': 'sdsc_attendence_bot',
+  test(
+    'cancel aborts the in-progress repick, keeping the saved answer',
+    () async {
+      final sent = <Map<String, dynamic>>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((req) async {
+        final path = req.uri.path;
+        if (path.endsWith('/getMe')) {
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'id': 1,
+              'is_bot': true,
+              'first_name': 'test',
+              'username': 'sdsc_attendence_bot',
+            },
+          });
+        } else if (path.endsWith('/getUpdates')) {
+          await _json(req, {'ok': true, 'result': <dynamic>[]});
+        } else if (path.endsWith('/sendMessage')) {
+          final body = jsonDecode(await utf8.decoder.bind(req).join());
+          sent.add(body as Map<String, dynamic>);
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'message_id': 1,
+              'date': 1,
+              'chat': {'id': 1, 'type': 'private'},
+              'text': body['text'],
+            },
+          });
+        } else if (path.endsWith('/answerCallbackQuery') ||
+            path.endsWith('/editMessageText')) {
+          await _json(req, {'ok': true, 'result': true});
+        } else {
+          await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+        }
+      });
+
+      repo.upsertUser(
+        User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+      );
+
+      final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+      final state = BotState();
+      final service = CycleService(
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        bot: bot,
+      );
+      Flows(
+        bot: bot,
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        service: service,
+      ).register();
+
+      final startFuture = bot.start();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      // alice first answers the bundle (Done, nothing selected → not
+      // available). This weekend (2026-08-15) is already locked on the real
+      // clock; next weekend is still open.
+      await bot.handleUpdate(
+        Update.fromJson({
+          'update_id': 1,
+          'callback_query': {
+            'id': '1',
+            'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+            'chat_instance': '1',
+            'message': {
+              'message_id': 7,
+              'date': 1,
+              'chat': {'id': 42, 'type': 'private'},
+              'text': 'Your availability (tap to toggle):',
+            },
+            'data': 'done|2026-08-15',
           },
-        });
-      } else if (path.endsWith('/getUpdates')) {
-        await _json(req, {'ok': true, 'result': <dynamic>[]});
-      } else if (path.endsWith('/sendMessage')) {
-        final body = jsonDecode(await utf8.decoder.bind(req).join());
-        sent.add(body as Map<String, dynamic>);
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'message_id': 1,
-            'date': 1,
-            'chat': {'id': 1, 'type': 'private'},
-            'text': body['text'],
+        }),
+      );
+
+      // The open weekend (Sat 22 Aug) now has a saved response.
+      final sat1 = DateTime(2026, 8, 22);
+      expect(repo.getAvailability(sat1, 42), isNotNull);
+
+      // alice starts a repick: toggles a week-2 slot (in-progress change).
+      await bot.handleUpdate(
+        Update.fromJson({
+          'update_id': 2,
+          'callback_query': {
+            'id': '2',
+            'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+            'chat_instance': '1',
+            'message': {
+              'message_id': 7,
+              'date': 1,
+              'chat': {'id': 42, 'type': 'private'},
+              'text': 'Your availability (tap to toggle):',
+            },
+            'data': 'slot|2026-08-15|1:sat:am:ocbc',
           },
-        });
-      } else if (path.endsWith('/answerCallbackQuery') ||
-          path.endsWith('/editMessageText')) {
-        await _json(req, {'ok': true, 'result': true});
-      } else {
-        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
-      }
-    });
+        }),
+      );
+      expect(state.picksFor(42).$2, isNotEmpty); // 1 tap = offered 🟢
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-    ));
-
-    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
-    final state = BotState();
-    final service = CycleService(
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      bot: bot,
-    );
-    Flows(
-      bot: bot,
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      service: service,
-    ).register();
-
-    final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-
-    // alice first answers the bundle (Done, nothing selected → not
-    // available). This weekend (2026-08-15) is already locked on the real
-    // clock; next weekend is still open.
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 1,
-      'callback_query': {
-        'id': '1',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 7,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': 'Your availability (tap to toggle):',
-        },
-        'data': 'done|2026-08-15',
-      },
-    }));
-
-    // The open weekend (Sat 22 Aug) now has a saved response.
-    final sat1 = DateTime(2026, 8, 22);
-    expect(repo.getAvailability(sat1, 42), isNotNull);
-
-    // alice starts a repick: toggles a week-2 slot (in-progress change).
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 2,
-      'callback_query': {
-        'id': '2',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 7,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': 'Your availability (tap to toggle):',
-        },
-        'data': 'slot|2026-08-15|1:sat:am:ocbc',
-      },
-    }));
-    expect(state.picksFor(42).$2, isNotEmpty); // 1 tap = offered 🟢
-
-    // alice cancels: the in-progress toggle is discarded, the saved answer
-    // is kept.
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 3,
-      'callback_query': {
-        'id': '3',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 7,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': 'Your availability (tap to toggle):',
-        },
-        'data': 'cancel|2026-08-15',
-      },
-    }));
-
-    await bot.stop();
-    await startFuture;
-    await server.close(force: true);
-
-    // The saved answer is untouched and the in-progress picks are gone.
-    expect(repo.getAvailability(sat1, 42), isNotNull);
-    expect(state.availabilityPicks.containsKey(42), isFalse);
-    final texts = sent.map((s) => s['text'] as String).toList();
-    expect(texts.any((t) => t.contains('previous availability is kept')),
-        isTrue);
-    expect(texts.any((t) => t.contains('Send re-pick')), isTrue);
-    expect(texts.any((t) => t.contains('/repick')), isFalse);
-  });
-
-  test('toggling a slot keeps the picker anchored to the bundle start',
-      () async {
-    final edits = <Map<String, dynamic>>[];
-    var answered = 0;
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    server.listen((req) async {
-      final path = req.uri.path;
-      if (path.endsWith('/getMe')) {
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'id': 1,
-            'is_bot': true,
-            'first_name': 'test',
-            'username': 'sdsc_attendence_bot',
+      // alice cancels: the in-progress toggle is discarded, the saved answer
+      // is kept.
+      await bot.handleUpdate(
+        Update.fromJson({
+          'update_id': 3,
+          'callback_query': {
+            'id': '3',
+            'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+            'chat_instance': '1',
+            'message': {
+              'message_id': 7,
+              'date': 1,
+              'chat': {'id': 42, 'type': 'private'},
+              'text': 'Your availability (tap to toggle):',
+            },
+            'data': 'cancel|2026-08-15',
           },
-        });
-      } else if (path.endsWith('/getUpdates')) {
-        await _json(req, {'ok': true, 'result': <dynamic>[]});
-      } else if (path.endsWith('/sendMessage')) {
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'message_id': 1,
-            'date': 1,
-            'chat': {'id': 1, 'type': 'private'},
-            'text': 'x',
+        }),
+      );
+
+      await bot.stop();
+      await startFuture;
+      await server.close(force: true);
+
+      // The saved answer is untouched and the in-progress picks are gone.
+      expect(repo.getAvailability(sat1, 42), isNotNull);
+      expect(state.availabilityPicks.containsKey(42), isFalse);
+      final texts = sent.map((s) => s['text'] as String).toList();
+      expect(
+        texts.any((t) => t.contains('previous availability is kept')),
+        isTrue,
+      );
+      expect(texts.any((t) => t.contains('Send re-pick')), isTrue);
+      expect(texts.any((t) => t.contains('/repick')), isFalse);
+    },
+  );
+
+  test(
+    'toggling a slot keeps the picker anchored to the bundle start',
+    () async {
+      final edits = <Map<String, dynamic>>[];
+      var answered = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((req) async {
+        final path = req.uri.path;
+        if (path.endsWith('/getMe')) {
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'id': 1,
+              'is_bot': true,
+              'first_name': 'test',
+              'username': 'sdsc_attendence_bot',
+            },
+          });
+        } else if (path.endsWith('/getUpdates')) {
+          await _json(req, {'ok': true, 'result': <dynamic>[]});
+        } else if (path.endsWith('/sendMessage')) {
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'message_id': 1,
+              'date': 1,
+              'chat': {'id': 1, 'type': 'private'},
+              'text': 'x',
+            },
+          });
+        } else if (path.endsWith('/editMessageText')) {
+          final body = jsonDecode(await utf8.decoder.bind(req).join());
+          edits.add(body as Map<String, dynamic>);
+          await _json(req, {'ok': true, 'result': true});
+        } else if (path.endsWith('/answerCallbackQuery')) {
+          answered++;
+          await _json(req, {'ok': true, 'result': true});
+        } else {
+          await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+        }
+      });
+
+      repo.upsertUser(
+        User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+      );
+
+      final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+      final state = BotState();
+      final service = CycleService(
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        bot: bot,
+      );
+      Flows(
+        bot: bot,
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        service: service,
+      ).register();
+
+      final startFuture = bot.start();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      // Toggle a week-2 slot (weekend index 1 of the bundle starting
+      // 2026-08-15). The re-rendered keyboard must stay anchored to that
+      // bundle: only the open weekend (Sat 22 Aug) shows a header — never a
+      // shifted one like "Sat 29 Aug".
+      await bot.handleUpdate(
+        Update.fromJson({
+          'update_id': 1,
+          'callback_query': {
+            'id': '1',
+            'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+            'chat_instance': '1',
+            'message': {
+              'message_id': 7,
+              'date': 1,
+              'chat': {'id': 42, 'type': 'private'},
+              'text': 'Your availability (tap to toggle):',
+            },
+            'data': 'slot|2026-08-15|1:sat:am:ocbc',
           },
-        });
-      } else if (path.endsWith('/editMessageText')) {
-        final body = jsonDecode(await utf8.decoder.bind(req).join());
-        edits.add(body as Map<String, dynamic>);
-        await _json(req, {'ok': true, 'result': true});
-      } else if (path.endsWith('/answerCallbackQuery')) {
-        answered++;
-        await _json(req, {'ok': true, 'result': true});
-      } else {
-        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
-      }
-    });
+        }),
+      );
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-    ));
+      expect(edits, isNotEmpty);
+      final rows =
+          (edits.last['reply_markup']! as Map)['inline_keyboard']! as List;
+      final headers = [
+        for (final row in rows)
+          for (final b in (row as List))
+            if ((b as Map)['callback_data'].toString().startsWith('noop'))
+              b['text'] as String,
+      ];
+      expect(headers, ['Sat 22 Aug']);
 
-    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
-    final state = BotState();
-    final service = CycleService(
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      bot: bot,
-    );
-    Flows(
-      bot: bot,
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      service: service,
-    ).register();
-
-    final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
-
-    // Toggle a week-2 slot (weekend index 1 of the bundle starting
-    // 2026-08-15). The re-rendered keyboard must stay anchored to that
-    // bundle: only the open weekend (Sat 22 Aug) shows a header — never a
-    // shifted one like "Sat 29 Aug".
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 1,
-      'callback_query': {
-        'id': '1',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 7,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': 'Your availability (tap to toggle):',
-        },
-        'data': 'slot|2026-08-15|1:sat:am:ocbc',
-      },
-    }));
-
-    expect(edits, isNotEmpty);
-    final rows =
-        (edits.last['reply_markup']! as Map)['inline_keyboard']! as List;
-    final headers = [
-      for (final row in rows)
-        for (final b in (row as List))
-          if ((b as Map)['callback_data'].toString().startsWith('noop'))
-            b['text'] as String,
-    ];
-    expect(headers, ['Sat 22 Aug']);
-
-    // A header tap is answered immediately (no spinner left hanging).
-    final answeredBeforeNoop = answered;
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 2,
-      'callback_query': {
-        'id': '2',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 7,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': 'Your availability (tap to toggle):',
-        },
-        'data': 'noop|1',
-      },
-    }));
-    expect(answered, answeredBeforeNoop + 1);
-
-    await bot.stop();
-    await startFuture;
-    await server.close(force: true);
-  });
-
-  test('toggling cycles off → offered → booked → off and saves want separately',
-      () async {
-    final sent = <Map<String, dynamic>>[];
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    server.listen((req) async {
-      final path = req.uri.path;
-      if (path.endsWith('/getMe')) {
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'id': 1,
-            'is_bot': true,
-            'first_name': 'test',
-            'username': 'sdsc_attendence_bot',
+      // A header tap is answered immediately (no spinner left hanging).
+      final answeredBeforeNoop = answered;
+      await bot.handleUpdate(
+        Update.fromJson({
+          'update_id': 2,
+          'callback_query': {
+            'id': '2',
+            'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+            'chat_instance': '1',
+            'message': {
+              'message_id': 7,
+              'date': 1,
+              'chat': {'id': 42, 'type': 'private'},
+              'text': 'Your availability (tap to toggle):',
+            },
+            'data': 'noop|1',
           },
-        });
-      } else if (path.endsWith('/getUpdates')) {
-        await _json(req, {'ok': true, 'result': <dynamic>[]});
-      } else if (path.endsWith('/sendMessage')) {
-        final body = jsonDecode(await utf8.decoder.bind(req).join());
-        sent.add(body as Map<String, dynamic>);
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'message_id': 1,
-            'date': 1,
-            'chat': {'id': 1, 'type': 'private'},
-            'text': body['text'],
-          },
-        });
-      } else if (path.endsWith('/answerCallbackQuery') ||
-          path.endsWith('/editMessageText')) {
-        await _json(req, {'ok': true, 'result': true});
-      } else {
-        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
-      }
-    });
+        }),
+      );
+      expect(answered, answeredBeforeNoop + 1);
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-    ));
+      await bot.stop();
+      await startFuture;
+      await server.close(force: true);
+    },
+  );
 
-    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
-    final state = BotState();
-    final service = CycleService(
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      bot: bot,
-    );
-    Flows(
-      bot: bot,
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      service: service,
-    ).register();
+  test(
+    'toggling cycles off → offered → booked → off and saves want separately',
+    () async {
+      final sent = <Map<String, dynamic>>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((req) async {
+        final path = req.uri.path;
+        if (path.endsWith('/getMe')) {
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'id': 1,
+              'is_bot': true,
+              'first_name': 'test',
+              'username': 'sdsc_attendence_bot',
+            },
+          });
+        } else if (path.endsWith('/getUpdates')) {
+          await _json(req, {'ok': true, 'result': <dynamic>[]});
+        } else if (path.endsWith('/sendMessage')) {
+          final body = jsonDecode(await utf8.decoder.bind(req).join());
+          sent.add(body as Map<String, dynamic>);
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'message_id': 1,
+              'date': 1,
+              'chat': {'id': 1, 'type': 'private'},
+              'text': body['text'],
+            },
+          });
+        } else if (path.endsWith('/answerCallbackQuery') ||
+            path.endsWith('/editMessageText')) {
+          await _json(req, {'ok': true, 'result': true});
+        } else {
+          await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+        }
+      });
 
-    final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+      repo.upsertUser(
+        User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+      );
 
-    Future<void> tap(int updateId, String data) => bot.handleUpdate(
+      final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+      final state = BotState();
+      final service = CycleService(
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        bot: bot,
+      );
+      Flows(
+        bot: bot,
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        service: service,
+      ).register();
+
+      final startFuture = bot.start();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      Future<void> tap(int updateId, String data) => bot.handleUpdate(
         Update.fromJson({
           'update_id': updateId,
           'callback_query': {
@@ -591,41 +609,43 @@ void main() {
             },
             'data': data,
           },
-        }));
+        }),
+      );
 
-    // 1st tap: offered 🟢.
-    await tap(1, 'slot|2026-08-15|1:sat:am:ocbc');
-    expect(state.picksFor(42).$1, isEmpty);
-    expect(state.picksFor(42).$2, {const Slot(1, 'sat', 'am', 'ocbc')});
+      // 1st tap: offered 🟢.
+      await tap(1, 'slot|2026-08-15|1:sat:am:ocbc');
+      expect(state.picksFor(42).$1, isEmpty);
+      expect(state.picksFor(42).$2, {const Slot(1, 'sat', 'am', 'ocbc')});
 
-    // 2nd tap: booked 🔒.
-    await tap(2, 'slot|2026-08-15|1:sat:am:ocbc');
-    expect(state.picksFor(42).$1, {const Slot(1, 'sat', 'am', 'ocbc')});
-    expect(state.picksFor(42).$2, isEmpty);
+      // 2nd tap: booked 🔒.
+      await tap(2, 'slot|2026-08-15|1:sat:am:ocbc');
+      expect(state.picksFor(42).$1, {const Slot(1, 'sat', 'am', 'ocbc')});
+      expect(state.picksFor(42).$2, isEmpty);
 
-    // 3rd tap: off again.
-    await tap(3, 'slot|2026-08-15|1:sat:am:ocbc');
-    expect(state.picksFor(42).$1, isEmpty);
-    expect(state.picksFor(42).$2, isEmpty);
+      // 3rd tap: off again.
+      await tap(3, 'slot|2026-08-15|1:sat:am:ocbc');
+      expect(state.picksFor(42).$1, isEmpty);
+      expect(state.picksFor(42).$2, isEmpty);
 
-    // Book it again (2 taps) and also offer a second slot, then Done.
-    await tap(4, 'slot|2026-08-15|1:sat:am:ocbc');
-    await tap(5, 'slot|2026-08-15|1:sat:am:ocbc');
-    await tap(6, 'slot|2026-08-15|1:sat:pm:pasirRis');
-    await tap(7, 'done|2026-08-15');
+      // Book it again (2 taps) and also offer a second slot, then Done.
+      await tap(4, 'slot|2026-08-15|1:sat:am:ocbc');
+      await tap(5, 'slot|2026-08-15|1:sat:am:ocbc');
+      await tap(6, 'slot|2026-08-15|1:sat:pm:pasirRis');
+      await tap(7, 'done|2026-08-15');
 
-    await bot.stop();
-    await startFuture;
-    await server.close(force: true);
+      await bot.stop();
+      await startFuture;
+      await server.close(force: true);
 
-    // The open weekend (Sat 22 Aug) saved want and available separately.
-    final sat1 = DateTime(2026, 8, 22);
-    final row = repo.getAvailability(sat1, 42);
-    expect(row, isNotNull);
-    expect(row!.wantSlots, {const Slot(1, 'sat', 'am', 'ocbc')});
-    expect(row.slots, {const Slot(1, 'sat', 'pm', 'pasirRis')});
-    expect(row.available, isTrue);
-  });
+      // The open weekend (Sat 22 Aug) saved want and available separately.
+      final sat1 = DateTime(2026, 8, 22);
+      final row = repo.getAvailability(sat1, 42);
+      expect(row, isNotNull);
+      expect(row!.wantSlots, {const Slot(1, 'sat', 'am', 'ocbc')});
+      expect(row.slots, {const Slot(1, 'sat', 'pm', 'pasirRis')});
+      expect(row.available, isTrue);
+    },
+  );
 
   test('saving availability revokes the member\'s allocation', () async {
     final sent = <Map<String, dynamic>>[];
@@ -664,17 +684,17 @@ void main() {
       }
     });
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-    ));
+    repo.upsertUser(
+      User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+    );
 
     // alice was already allocated to a session of the open weekend.
     final sat1 = DateTime(2026, 8, 22);
     repo.ensureSessionsForWeekend(
-        sat1, config.slotTimes, tzOffsetHours: config.timezoneOffsetHours);
+      sat1,
+      config.slotTimes,
+      tzOffsetHours: config.timezoneOffsetHours,
+    );
     final sessions = repo.sessionsForWeekend(sat1);
     expect(sessions, isNotEmpty);
     repo.replaceAllocationsForWeekend(sat1, [(42, sessions.first.id)]);
@@ -703,21 +723,23 @@ void main() {
     // alice answers the bundle (Done, nothing selected). The open weekend
     // (Sat 22 Aug) gets saved; her allocation there must be revoked so the
     // next sharp-hour run re-decides her from scratch.
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 1,
-      'callback_query': {
-        'id': '1',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 7,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': 'Your availability (tap to toggle):',
+    await bot.handleUpdate(
+      Update.fromJson({
+        'update_id': 1,
+        'callback_query': {
+          'id': '1',
+          'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+          'chat_instance': '1',
+          'message': {
+            'message_id': 7,
+            'date': 1,
+            'chat': {'id': 42, 'type': 'private'},
+            'text': 'Your availability (tap to toggle):',
+          },
+          'data': 'done|2026-08-15',
         },
-        'data': 'done|2026-08-15',
-      },
-    }));
+      }),
+    );
 
     await bot.stop();
     await startFuture;
@@ -727,127 +749,144 @@ void main() {
     expect(allocs.where((e) => e.$1.id == 42), isEmpty);
   });
 
-  test('setinfo walks the 3-step profile wizard and saves the profile',
-      () async {
-    final sent = <Map<String, dynamic>>[];
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    server.listen((req) async {
-      final path = req.uri.path;
-      if (path.endsWith('/getMe')) {
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'id': 1,
-            'is_bot': true,
-            'first_name': 'test',
-            'username': 'sdsc_attendence_bot',
-          },
-        });
-      } else if (path.endsWith('/getUpdates')) {
-        await _json(req, {'ok': true, 'result': <dynamic>[]});
-      } else if (path.endsWith('/sendMessage')) {
-        final body = jsonDecode(await utf8.decoder.bind(req).join());
-        sent.add(body as Map<String, dynamic>);
-        await _json(req, {
-          'ok': true,
-          'result': {
-            'message_id': 1,
-            'date': 1,
-            'chat': {'id': 1, 'type': 'private'},
-            'text': body['text'],
-          },
-        });
-      } else if (path.endsWith('/answerCallbackQuery') ||
-          path.endsWith('/editMessageText')) {
-        await _json(req, {'ok': true, 'result': true});
-      } else {
-        await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+  test(
+    'setinfo walks the 3-step profile wizard and saves the profile',
+    () async {
+      final sent = <Map<String, dynamic>>[];
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      server.listen((req) async {
+        final path = req.uri.path;
+        if (path.endsWith('/getMe')) {
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'id': 1,
+              'is_bot': true,
+              'first_name': 'test',
+              'username': 'sdsc_attendence_bot',
+            },
+          });
+        } else if (path.endsWith('/getUpdates')) {
+          await _json(req, {'ok': true, 'result': <dynamic>[]});
+        } else if (path.endsWith('/sendMessage')) {
+          final body = jsonDecode(await utf8.decoder.bind(req).join());
+          sent.add(body as Map<String, dynamic>);
+          await _json(req, {
+            'ok': true,
+            'result': {
+              'message_id': 1,
+              'date': 1,
+              'chat': {'id': 1, 'type': 'private'},
+              'text': body['text'],
+            },
+          });
+        } else if (path.endsWith('/answerCallbackQuery') ||
+            path.endsWith('/editMessageText')) {
+          await _json(req, {'ok': true, 'result': true});
+        } else {
+          await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
+        }
+      });
+
+      repo.upsertUser(
+        User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+      );
+
+      final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
+      final state = BotState();
+      final service = CycleService(
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        bot: bot,
+      );
+      Flows(
+        bot: bot,
+        repo: repo,
+        config: config,
+        messages: messages,
+        state: state,
+        service: service,
+      ).register();
+
+      final startFuture = bot.start();
+      await Future<void>.delayed(const Duration(milliseconds: 300));
+
+      Future<void> cmd(
+        int updateId,
+        String text, {
+        List<Map<String, dynamic>>? entities,
+      }) async {
+        await bot.handleUpdate(
+          Update.fromJson({
+            'update_id': updateId,
+            'message': {
+              'message_id': updateId,
+              'date': 1,
+              'chat': {'id': 42, 'type': 'private'},
+              'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+              'text': text,
+              'entities': ?entities,
+            },
+          }),
+        );
       }
-    });
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-    ));
+      // /setinfo opens step 1 of 4.
+      await cmd(
+        1,
+        '/setinfo',
+        entities: [
+          {'offset': 0, 'length': 8, 'type': 'bot_command'},
+        ],
+      );
+      expect(state.profileStep[42], 0);
+      expect(
+        sent.any((s) => (s['text'] as String).contains('full name')),
+        isTrue,
+      );
 
-    final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
-    final state = BotState();
-    final service = CycleService(
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      bot: bot,
-    );
-    Flows(
-      bot: bot,
-      repo: repo,
-      config: config,
-      messages: messages,
-      state: state,
-      service: service,
-    ).register();
+      await cmd(2, 'Alice Tan');
+      expect(
+        sent.any((s) => (s['text'] as String).contains('preferred name')),
+        isTrue,
+      );
+      // A fresh walk offers no Cancel — not even after the first answer
+      // (it only appears when re-running /setinfo over existing data).
+      final step2 = sent.last;
+      expect(step2['reply_markup'], isNull);
 
-    final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+      await cmd(3, 'Ali');
+      expect(
+        sent.any((s) => (s['text'] as String).contains('matric no.')),
+        isTrue,
+      );
 
-    Future<void> cmd(int updateId, String text,
-        {List<Map<String, dynamic>>? entities}) async {
-      await bot.handleUpdate(Update.fromJson({
-        'update_id': updateId,
-        'message': {
-          'message_id': updateId,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-          'text': text,
-          'entities': ?entities,
-        },
-      }));
-    }
+      await cmd(4, 'U1234567A');
+      expect(
+        sent.any((s) => (s['text'] as String).contains('school email')),
+        isTrue,
+      );
 
-    // /setinfo opens step 1 of 4.
-    await cmd(1, '/setinfo', entities: [
-      {'offset': 0, 'length': 8, 'type': 'bot_command'},
-    ]);
-    expect(state.profileStep[42], 0);
-    expect(sent.any((s) => (s['text'] as String).contains('full name')),
-        isTrue);
+      await cmd(5, 'alice@e.ntu.edu.sg');
 
-    await cmd(2, 'Alice Tan');
-    expect(sent.any((s) => (s['text'] as String).contains('preferred name')),
-        isTrue);
-    // A fresh walk offers no Cancel — not even after the first answer
-    // (it only appears when re-running /setinfo over existing data).
-    final step2 = sent.last;
-    expect(step2['reply_markup'], isNull);
+      await bot.stop();
+      await startFuture;
+      await server.close(force: true);
 
-    await cmd(3, 'Ali');
-    expect(sent.any((s) => (s['text'] as String).contains('matric no.')),
-        isTrue);
-
-    await cmd(4, 'U1234567A');
-    expect(sent.any((s) => (s['text'] as String).contains('school email')),
-        isTrue);
-
-    await cmd(5, 'alice@e.ntu.edu.sg');
-
-    await bot.stop();
-    await startFuture;
-    await server.close(force: true);
-
-    final user = repo.findUser(42)!;
-    expect(user.fullName, 'Alice Tan');
-    expect(user.preferredName, 'Ali');
-    expect(user.matricNo, 'U1234567A');
-    expect(user.schoolEmail, 'alice@e.ntu.edu.sg');
-    expect(state.profileStep.containsKey(42), isFalse);
-    expect(
+      final user = repo.findUser(42)!;
+      expect(user.fullName, 'Alice Tan');
+      expect(user.preferredName, 'Ali');
+      expect(user.matricNo, 'U1234567A');
+      expect(user.schoolEmail, 'alice@e.ntu.edu.sg');
+      expect(state.profileStep.containsKey(42), isFalse);
+      expect(
         sent.any((s) => (s['text'] as String).contains('Profile saved')),
-        isTrue);
-  });
+        isTrue,
+      );
+    },
+  );
 
   test('pfcancel aborts the profile wizard, keeping saved fields', () async {
     final sent = <Map<String, dynamic>>[];
@@ -886,13 +925,15 @@ void main() {
       }
     });
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-      fullName: 'Alice Tan',
-    ));
+    repo.upsertUser(
+      User(
+        id: 42,
+        name: '@alice',
+        experience: Experience.newbie,
+        group: '1',
+        fullName: 'Alice Tan',
+      ),
+    );
 
     final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
     final state = BotState();
@@ -916,39 +957,43 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
     // alice has a full name already → the first prompt carries Cancel.
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 1,
-      'message': {
-        'message_id': 1,
-        'date': 1,
-        'chat': {'id': 42, 'type': 'private'},
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'text': '/setinfo',
-        'entities': [
-          {'offset': 0, 'length': 8, 'type': 'bot_command'},
-        ],
-      },
-    }));
+    await bot.handleUpdate(
+      Update.fromJson({
+        'update_id': 1,
+        'message': {
+          'message_id': 1,
+          'date': 1,
+          'chat': {'id': 42, 'type': 'private'},
+          'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+          'text': '/setinfo',
+          'entities': [
+            {'offset': 0, 'length': 8, 'type': 'bot_command'},
+          ],
+        },
+      }),
+    );
     final step1 = sent.last;
     expect((step1['reply_markup'] as Map), isNotNull);
     expect(state.profileStep[42], 0);
 
     // Tap Cancel: wizard ends, saved fields untouched.
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 2,
-      'callback_query': {
-        'id': '2',
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'chat_instance': '1',
-        'message': {
-          'message_id': 1,
-          'date': 1,
-          'chat': {'id': 42, 'type': 'private'},
-          'text': '1/4 — What is your full name?',
+    await bot.handleUpdate(
+      Update.fromJson({
+        'update_id': 2,
+        'callback_query': {
+          'id': '2',
+          'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+          'chat_instance': '1',
+          'message': {
+            'message_id': 1,
+            'date': 1,
+            'chat': {'id': 42, 'type': 'private'},
+            'text': '1/4 — What is your full name?',
+          },
+          'data': 'pfcancel|0',
         },
-        'data': 'pfcancel|0',
-      },
-    }));
+      }),
+    );
 
     await bot.stop();
     await startFuture;
@@ -996,12 +1041,9 @@ void main() {
       }
     });
 
-    repo.upsertUser(User(
-      id: 42,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: '1',
-    ));
+    repo.upsertUser(
+      User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+    );
 
     final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
     final state = BotState();
@@ -1024,19 +1066,21 @@ void main() {
     final startFuture = bot.start();
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
-    await bot.handleUpdate(Update.fromJson({
-      'update_id': 1,
-      'message': {
-        'message_id': 1,
-        'date': 1,
-        'chat': {'id': 42, 'type': 'private'},
-        'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
-        'text': '/start',
-        'entities': [
-          {'offset': 0, 'length': 6, 'type': 'bot_command'},
-        ],
-      },
-    }));
+    await bot.handleUpdate(
+      Update.fromJson({
+        'update_id': 1,
+        'message': {
+          'message_id': 1,
+          'date': 1,
+          'chat': {'id': 42, 'type': 'private'},
+          'from': {'id': 42, 'is_bot': false, 'first_name': 'alice'},
+          'text': '/start',
+          'entities': [
+            {'offset': 0, 'length': 6, 'type': 'bot_command'},
+          ],
+        },
+      }),
+    );
 
     await bot.stop();
     await startFuture;
@@ -1046,13 +1090,18 @@ void main() {
     // nothing saved yet).
     final texts = sent.map((s) => s['text'] as String).toList();
     expect(texts.any((t) => t.contains('re-pick')), isTrue);
-    expect(texts.any((t) => t.contains('1/4') && t.contains('full name')),
-        isTrue);
+    expect(
+      texts.any((t) => t.contains('1/4') && t.contains('full name')),
+      isTrue,
+    );
   });
 }
 
-Future<void> _json(HttpRequest req, Map<String, dynamic> body,
-    {int status = 200}) async {
+Future<void> _json(
+  HttpRequest req,
+  Map<String, dynamic> body, {
+  int status = 200,
+}) async {
   req.response
     ..statusCode = status
     ..headers.contentType = ContentType.json

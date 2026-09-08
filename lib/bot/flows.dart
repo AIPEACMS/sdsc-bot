@@ -76,8 +76,11 @@ class Flows {
       final data = ctx.callbackQuery?.data;
       if (data == null) return next();
       final head = data.split('|').first;
-      if (head == 'slot' || head == 'done' || head == 'no' ||
-          head == 'cancel' || head == 'holidayout') {
+      if (head == 'slot' ||
+          head == 'done' ||
+          head == 'no' ||
+          head == 'cancel' ||
+          head == 'holidayout') {
         await _onCallback(ctx);
         return;
       }
@@ -109,8 +112,13 @@ class Flows {
     commandBoth(bot, state, 'repick', _onRepick, label: 're-pick');
     commandBoth(bot, state, 'setinfo', _onSetInfo, label: 'set-info');
     commandBoth(bot, state, 'mystatus', _onMyStatus, label: 'my-status');
-    commandBoth(bot, state, 'check-status', _onCheckStatus,
-        label: 'check-status');
+    commandBoth(
+      bot,
+      state,
+      'check-status',
+      _onCheckStatus,
+      label: 'check-status',
+    );
     commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, state, 'resetgrid', _onResetGrid, label: 'reset-grid');
   }
@@ -129,12 +137,9 @@ class Flows {
       final name = ctx.from?.username != null
           ? '@${ctx.from!.username}'
           : 'Console';
-      repo.upsertUser(User(
-        id: userId,
-        name: name,
-        experience: Experience.newbie,
-        group: '',
-      ));
+      repo.upsertUser(
+        User(id: userId, name: name, experience: Experience.newbie, group: ''),
+      );
       repo.updateAdmin(userId, true);
       user = repo.findUser(userId);
     }
@@ -180,6 +185,7 @@ class Flows {
         ..writeln('hold — pause the bot: no messages at all')
         ..writeln('unhold — resume sending')
         ..writeln('/addadmin @handle — promote a member to admin')
+        ..writeln('/addcheck @handle — add a checker')
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/setdate | /resetdate — custom or calendar dates')
         ..writeln('/sync-calendar — push the calendar YAML')
@@ -189,8 +195,10 @@ class Flows {
     }
 
     if (retired) {
-      sb.writeln('\n<i>You are not an active member — you will not be '
-          'prompted or allocated.</i>');
+      sb.writeln(
+        '\n<i>You are not an active member — you will not be '
+        'prompted or allocated.</i>',
+      );
     }
 
     if (isAdmin) {
@@ -201,25 +209,31 @@ class Flows {
         ..writeln('group-status — your group\'s cycle state and responders')
         ..writeln('all-users — registered members')
         ..writeln('group-users — your group\'s member details')
-        ..writeln('prompt — send availability prompts now')
-        ..writeln('remind — remind non-responders now')
-        ..writeln('ask [telegram_id] — prompt one member')
+        ..writeln('/prompt — send availability prompts now')
+        ..writeln('/remind — remind non-responders now')
+        ..writeln('/ask [telegram_id] — send one member an availability picker')
         ..writeln('mark-attend — mark attendance')
-        ..writeln('set-exp experienced|newbie — change a member\'s experience')
+        ..writeln('/setexp experienced|newbie — change a member\'s experience')
         ..writeln('/allocate — run the allocation now')
-        ..writeln('/broadcast — message all members');
+        ..writeln('/broadcast <message> — message all members');
     }
 
     if (!retired) {
       sb
         ..writeln('\n<b>Member</b>')
-        ..writeln('re-pick — update your availability (you are re-allocated '
-            'at the next sharp hour)')
-        ..writeln('set-info — update your name, preferred name, matric no. '
-            'and school email')
+        ..writeln(
+          're-pick — update your availability (you are re-allocated '
+          'at the next sharp hour)',
+        )
+        ..writeln(
+          'set-info — update your name, preferred name, matric no. '
+          'and school email',
+        )
         ..writeln('my-status — your picks, allocation and attendance')
-        ..writeln('\nUse the buttons above the keyboard to jump to a command. '
-            'Type /grid to switch which grid you see (console only).');
+        ..writeln(
+          '\nUse the buttons above the keyboard to jump to a command. '
+          'Type /grid to switch which grid you see (console only).',
+        );
     }
 
     await ctx.reply(
@@ -260,29 +274,35 @@ class Flows {
     // Decided once, from the profile the member had BEFORE this wizard run:
     // re-running /setinfo over existing data offers Cancel; a fresh walk
     // (nothing saved yet) never does — even after the first answer.
-    final hasInfo = user.fullName.isNotEmpty ||
+    final hasInfo =
+        user.fullName.isNotEmpty ||
         user.preferredName.isNotEmpty ||
         user.matricNo.isNotEmpty ||
         user.schoolEmail.isNotEmpty;
     state.profileCancel[userId] = hasInfo;
     final message = await ctx.reply(
       '1/$_profileSteps — ${_profilePrompt(0)}',
-      replyMarkup:
-          hasInfo ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
+      replyMarkup: hasInfo
+          ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0')
+          : null,
     );
     state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
   static String _profilePrompt(int step) => switch (step) {
-        0 => 'What is your full name?',
-        1 => 'What is your preferred name?',
-        2 => 'What is your matric no.?',
-        3 => 'What is your school email?',
-        _ => '',
-      };
+    0 => 'What is your full name?',
+    1 => 'What is your preferred name?',
+    2 => 'What is your matric no.?',
+    3 => 'What is your school email?',
+    _ => '',
+  };
 
   Future<void> _consumeProfileStep(
-      Context ctx, int userId, int step, String text) async {
+    Context ctx,
+    int userId,
+    int step,
+    String text,
+  ) async {
     final value = text.trim();
     if (value.isEmpty) {
       await ctx.reply('That cannot be empty — please type it again.');
@@ -303,8 +323,9 @@ class Flows {
       final cancel = state.profileCancel[userId] ?? false;
       final message = await ctx.reply(
         '${step + 2}/$_profileSteps — ${_profilePrompt(step + 1)}',
-        replyMarkup:
-            cancel ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0') : null,
+        replyMarkup: cancel
+            ? InlineKeyboard().text('❌ Cancel', 'pfcancel|0')
+            : null,
       );
       state.trackInteractiveMessage(userId, userId, message.messageId);
     } else {
@@ -353,14 +374,18 @@ class Flows {
     _recordSeen(ctx, userId);
 
     if (!config.isConsole(userId)) {
-      await ctx.reply('Only the console can reset the grid preview.',
-          replyMarkup: RoleKeyboard.build(_gridFor(userId)));
+      await ctx.reply(
+        'Only the console can reset the grid preview.',
+        replyMarkup: RoleKeyboard.build(_gridFor(userId)),
+      );
       return;
     }
 
     state.gridPreview.remove(userId);
-    await ctx.reply('Back to your console grid.',
-        replyMarkup: RoleKeyboard.build('console'));
+    await ctx.reply(
+      'Back to your console grid.',
+      replyMarkup: RoleKeyboard.build('console'),
+    );
   }
 
   /// Which grid to show: the console's preview if set, otherwise the
@@ -463,29 +488,36 @@ class Flows {
         sb.writeln(avail.map((s) => '🟢 ${_slotLabel(s, w)}').join('\n'));
       }
     } else if (unavailableDates.isNotEmpty) {
-      sb.writeln('\n<b>Indicated not available</b>: '
-          '${unavailableDates.join(', ')}.');
+      sb.writeln(
+        '\n<b>Indicated not available</b>: '
+        '${unavailableDates.join(', ')}.',
+      );
     } else {
       sb.writeln('\n<b>Indicated</b>: none yet.');
     }
 
-    final allocated = [
-      ...repo.allocationsForWeekend(w.sat0),
-      ...repo.allocationsForWeekend(w.sat1),
-    ]
-        .where((a) => a.$1.id == userId)
-        .map((a) => '• ${service.sessionLabel(a.$2)}')
-        .join('\n');
+    final allocated =
+        [
+              ...repo.allocationsForWeekend(w.sat0),
+              ...repo.allocationsForWeekend(w.sat1),
+            ]
+            .where((a) => a.$1.id == userId)
+            .map((a) => '• ${service.sessionLabel(a.$2)}')
+            .join('\n');
     if (allocated.isNotEmpty) {
       sb.writeln('\n<b>Allocated</b>:\n$allocated');
     } else {
-      sb.writeln('\n<b>Allocated</b>: not yet — this weekend locks Friday '
-          '18:00, next weekend the Friday after.');
+      sb.writeln(
+        '\n<b>Allocated</b>: not yet — this weekend locks Friday '
+        '18:00, next weekend the Friday after.',
+      );
     }
 
     final stats = repo.attendanceStats(userId);
-    sb.writeln('\n<b>Attendance</b>: ${stats.total} sessions total '
-        '(${stats.ocbc} OCBC · ${stats.pasirRis} PR).');
+    sb.writeln(
+      '\n<b>Attendance</b>: ${stats.total} sessions total '
+      '(${stats.ocbc} OCBC · ${stats.pasirRis} PR).',
+    );
 
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
@@ -500,8 +532,18 @@ class Flows {
 
   static String _day(DateTime date) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month - 1]}';
   }
@@ -529,7 +571,7 @@ class Flows {
     }
 
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(now);
+    final w = _windowFor(now);
 
     // "This week": weekend-0 during its week, weekend-1 once we roll over.
     final sat = now.isBefore(w.sat1) ? w.sat0 : w.sat1;
@@ -543,7 +585,11 @@ class Flows {
   /// `adduser` = the handle to add (handled in admin);
   /// `setdate` / `synccalendar` = typed console wizard input (in console).
   Future<void> _consumePendingArg(
-      Context ctx, int userId, String command, String text) async {
+    Context ctx,
+    int userId,
+    String command,
+    String text,
+  ) async {
     switch (command) {
       case 'broadcast':
         await onBroadcastText?.call(ctx, userId, text);
@@ -560,8 +606,7 @@ class Flows {
 
   /// Set by main.dart: handles the pending "type the message" step of
   /// /broadcast (shows the confirm dialog).
-  Future<void> Function(Context ctx, int userId, String text)?
-      onBroadcastText;
+  Future<void> Function(Context ctx, int userId, String text)? onBroadcastText;
 
   /// Set by main.dart: handles the typed handle of the /adduser wizard
   /// (shows the confirm dialog).
@@ -572,7 +617,7 @@ class Flows {
 
   /// Set by main.dart: applies the pasted YAML of the /sync-calendar wizard.
   Future<void> Function(Context ctx, int userId, String text)?
-      onSyncCalendarText;
+  onSyncCalendarText;
 
   // ---------------------------------------------------------- callback
 
@@ -597,7 +642,11 @@ class Flows {
     }
   }
 
-  Future<void> _optOutHoliday(Context ctx, int userId, List<String> parts) async {
+  Future<void> _optOutHoliday(
+    Context ctx,
+    int userId,
+    List<String> parts,
+  ) async {
     await ctx.answerCallbackQuery();
     final sat0Raw = parts.length > 1 ? parts[1] : '';
     final sat0 = DateTime.tryParse(sat0Raw);
@@ -615,14 +664,16 @@ class Flows {
     state.forgetAvailability(userId);
     final now = config.toLocal(Config.nowUtc());
     for (final week in [sat0, sat0.add(const Duration(days: 7))]) {
-      repo.setAvailability(Availability(
-        weekendStart: week,
-        userId: userId,
-        bundleStart: sat0,
-        slots: {},
-        available: false,
-        updatedAt: now,
-      ));
+      repo.setAvailability(
+        Availability(
+          weekendStart: week,
+          userId: userId,
+          bundleStart: sat0,
+          slots: {},
+          available: false,
+          updatedAt: now,
+        ),
+      );
     }
     await ctx.editMessageText(messages.msg5Z());
   }
@@ -633,12 +684,14 @@ class Flows {
     final sat0 = DateTime.tryParse(parts[1]);
     final slot = Slot.parse(parts[2]);
     if (sat0 == null || slot == null) return;
-    final w = RollingWindow.fromSat0(sat0);
+    final w = _windowForSat(sat0);
     final sat = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
     final now = config.toLocal(Config.nowUtc());
     if (w.locked(sat, now)) {
-      await ctx.reply('That weekend\'s availability is already locked — '
-          'its Friday deadline passed.');
+      await ctx.reply(
+        'That weekend\'s availability is already locked — '
+        'its Friday deadline passed.',
+      );
       return;
     }
 
@@ -653,7 +706,8 @@ class Flows {
       available.add(slot);
     }
 
-    final text = 'Your availability — tap <b>once</b> = backup 🟢, '
+    final text =
+        'Your availability — tap <b>once</b> = backup 🟢, '
         '<b>twice</b> = booked 🔒, <b>again</b> = off.\n\n'
         'You\'ll be allocated to <b>every</b> session you book 🔒 '
         '(one per time slot), plus <b>one</b> of your 🟢 backups.';
@@ -678,7 +732,10 @@ class Flows {
   /// Cancel button only appears once the member has responded, so there is
   /// always a saved answer to fall back to.
   Future<void> _cancelAvailability(
-      Context ctx, int userId, List<String> parts) async {
+    Context ctx,
+    int userId,
+    List<String> parts,
+  ) async {
     await ctx.answerCallbackQuery();
     if (parts.length < 2) return;
     state.forgetAvailability(userId);
@@ -688,8 +745,10 @@ class Flows {
     } catch (_) {
       // message may be gone; ignore
     }
-    await ctx.reply('Your previous availability is kept. '
-        'Changed your mind? Send re-pick to update by Friday.');
+    await ctx.reply(
+      'Your previous availability is kept. '
+      'Changed your mind? Send re-pick to update by Friday.',
+    );
   }
 
   Future<void> _saveAvailability(
@@ -702,7 +761,7 @@ class Flows {
     state.clearInteractiveMessages(userId);
     final sat0 = DateTime.tryParse(sat0Raw);
     if (sat0 == null) return;
-    final w = RollingWindow.fromSat0(sat0);
+    final w = _windowForSat(sat0);
     final now = config.toLocal(Config.nowUtc());
 
     final user = repo.findUser(userId);
@@ -717,19 +776,21 @@ class Flows {
     var saved = 0;
     for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
       if (w.locked(sat, now)) continue;
-      repo.setAvailability(Availability(
-        weekendStart: sat,
-        userId: userId,
-        bundleStart: sat0,
-        slots: unavailable
-            ? {}
-            : available.where((s) => s.weekendIndex == wi).toSet(),
-        wantSlots: unavailable
-            ? {}
-            : want.where((s) => s.weekendIndex == wi).toSet(),
-        available: !unavailable,
-        updatedAt: now,
-      ));
+      repo.setAvailability(
+        Availability(
+          weekendStart: sat,
+          userId: userId,
+          bundleStart: sat0,
+          slots: unavailable
+              ? {}
+              : available.where((s) => s.weekendIndex == wi).toSet(),
+          wantSlots: unavailable
+              ? {}
+              : want.where((s) => s.weekendIndex == wi).toSet(),
+          available: !unavailable,
+          updatedAt: now,
+        ),
+      );
       // Repicking moves the member out of the allocation pool: their
       // previous allocation is revoked and re-decided at the next sharp
       // hour together with the rest of the current availability.
@@ -757,11 +818,11 @@ class Flows {
       // message may be gone; ignore
     }
     await ctx.reply(
-        unavailable
-            ? messages.msg6()
-            : messages.msg3(want, available,
-                allocateAt: nextSharpHourLabel(now)),
-        parseMode: ParseMode.html);
+      unavailable
+          ? messages.msg6()
+          : messages.msg3(want, available, allocateAt: nextSharpHourLabel(now)),
+      parseMode: ParseMode.html,
+    );
   }
 
   /// The sharp hour the allocation goes out: the next hour boundary after
@@ -777,8 +838,20 @@ class Flows {
 
   RollingWindow _currentWindow(Context ctx) {
     final now = config.toLocal(Config.nowUtc());
-    return RollingWindow.forDate(now);
+    return _windowFor(now);
   }
+
+  RollingWindow _windowFor(DateTime now) => RollingWindow.forDate(
+    now,
+    promptHour: config.promptHour,
+    reminderHour: config.reminderHour,
+  );
+
+  RollingWindow _windowForSat(DateTime sat0) => RollingWindow.fromSat0(
+    sat0,
+    promptHour: config.promptHour,
+    reminderHour: config.reminderHour,
+  );
 
   /// Remembers (id, username) from any update so admins can add members by
   /// handle later. If the handle is in the pending queue (added by an admin
@@ -805,24 +878,39 @@ class Flows {
 
     final existing = repo.findUser(userId);
     if (existing == null) {
-      repo.upsertUser(User(
-        id: userId,
-        name: '@$username',
-        experience: Experience.newbie,
-        group: '',
-        memberTier: tier,
-      ));
+      repo.upsertUser(
+        User(
+          id: userId,
+          name: '@$username',
+          experience: Experience.newbie,
+          group: '',
+          memberTier: tier,
+        ),
+      );
       if (isAdmin) repo.updateAdmin(userId, true); // gets their own group
     } else if (isAdmin) {
       repo.updateAdmin(userId, true);
     }
+    // /start provides the role-aware welcome and grid itself. Other first
+    // contacts still receive them here after being auto-registered.
+    final messageText = ctx.message?.text;
+    if (messageText?.trim().startsWith('/start') ?? false) return;
     // Let the user know they're in — they can now use /start.
+    final isCheck = tier == MemberTier.check && !isAdmin;
     ctx.reply(
       isAdmin
           ? 'Welcome! You have been added as an <b>admin</b>. Send /start to see your commands.'
+          : isCheck
+          ? 'Welcome! You have been added as a <b>checker</b>. Send /start to see your commands.'
           : 'Welcome! You have been added. Send /start to see your commands.',
       parseMode: ParseMode.html,
-      replyMarkup: RoleKeyboard.build(isAdmin ? 'admin' : 'member'),
+      replyMarkup: RoleKeyboard.build(
+        isAdmin
+            ? 'admin'
+            : isCheck
+            ? 'check'
+            : 'member',
+      ),
     );
   }
 }

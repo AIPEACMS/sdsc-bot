@@ -4,7 +4,6 @@ import 'package:televerse/telegram.dart' hide Location, User;
 import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
-import '../core/messages.dart';
 import 'command_both.dart';
 import 'pickers.dart';
 import 'service.dart';
@@ -15,7 +14,6 @@ class Admin {
   final Bot bot;
   final Repo repo;
   final Config config;
-  final Messages messages;
   final BotState state;
   final CycleService service;
 
@@ -23,7 +21,6 @@ class Admin {
     required this.bot,
     required this.repo,
     required this.config,
-    required this.messages,
     required this.state,
     required this.service,
   });
@@ -31,25 +28,50 @@ class Admin {
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
     commandBoth(bot, state, 'status', _guard(_status), label: 'all-status');
-    commandBoth(bot, state, 'groupstatus', _guard(_groupStatus),
-        label: 'group-status');
+    commandBoth(
+      bot,
+      state,
+      'groupstatus',
+      _guard(_groupStatus),
+      label: 'group-status',
+    );
     commandBoth(bot, state, 'users', _guard(_users), label: 'all-users');
-    commandBoth(bot, state, 'groupusers', _guard(_groupUsers),
-        label: 'group-users');
+    commandBoth(
+      bot,
+      state,
+      'groupusers',
+      _guard(_groupUsers),
+      label: 'group-users',
+    );
     commandBoth(bot, state, 'prompt', _guard(_promptConfirm), label: 'prompt');
     commandBoth(bot, state, 'remind', _guard(_remindConfirm), label: 'remind');
-    commandBoth(bot, state, 'allocate',
-        _guard((ctx) async {
-          final w = _window(ctx);
-          await service.allocateBundle(w);
-        }),
-        label: 'allocate');
+    commandBoth(
+      bot,
+      state,
+      'allocate',
+      _guard((ctx) async {
+        final w = _window();
+        await service.allocateBundle(w);
+        await ctx.reply('✅ Allocation completed.');
+      }),
+      label: 'allocate',
+    );
     commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
     commandBoth(bot, state, 'confirm', _guard(_confirm), label: 'mark-attend');
-    commandBoth(bot, state, 'setexp',
-        _guard((ctx) => _pickUser(ctx, 'setexp')),
-        label: 'set-exp');
-    commandBoth(bot, state, 'broadcast', _guard(_broadcast), label: 'announce');
+    commandBoth(
+      bot,
+      state,
+      'setexp',
+      _guard((ctx) => _pickUser(ctx, 'setexp')),
+      label: 'set-exp',
+    );
+    commandBoth(
+      bot,
+      state,
+      'broadcast',
+      _guard(_broadcast),
+      label: 'broadcast',
+    );
 
     // Callback middleware: handles admin prefixes, continues otherwise.
     bot.use((ctx, next) async {
@@ -57,8 +79,16 @@ class Admin {
       if (data == null) return next();
       final head = data.split('|').first;
       const mine = {
-        'att_sess', 'att_toggle', 'setexp', 'setval',
-        'mpick', 'bcast', 'adduser', 'prompt', 'remind', 'cancel',
+        'att_sess',
+        'att_toggle',
+        'setexp',
+        'setval',
+        'mpick',
+        'bcast',
+        'adduser',
+        'prompt',
+        'remind',
+        'cancel',
       };
       if (mine.contains(head)) {
         await _onAdminCallback(ctx);
@@ -86,8 +116,13 @@ class Admin {
     };
   }
 
-  RollingWindow _window(Context ctx) =>
-      RollingWindow.forDate(config.toLocal(Config.nowUtc()));
+  RollingWindow _window() => _windowFor(config.toLocal(Config.nowUtc()));
+
+  RollingWindow _windowFor(DateTime now) => RollingWindow.forDate(
+    now,
+    promptHour: config.promptHour,
+    reminderHour: config.reminderHour,
+  );
 
   // ----------------------------------------------------------- /adduser
 
@@ -130,7 +165,11 @@ class Admin {
   final Map<int, String> _pendingAddUser = {};
 
   /// Registers a member picked from the seen-users list (add-admin picker).
-  Future<void> _addSeenById(Context ctx, int memberId, {required bool isAdmin}) async {
+  Future<void> _addSeenById(
+    Context ctx,
+    int memberId, {
+    required bool isAdmin,
+  }) async {
     final username = repo.seenUsername(memberId);
     if (username == null) return;
     final existing = repo.findUser(memberId);
@@ -140,18 +179,20 @@ class Admin {
       await ctx.editMessageText(
         isAdmin
             ? (alreadyAdmin
-                ? '✅ @$username is already an admin.'
-                : '✅ @$username is now an admin.')
+                  ? '✅ @$username is already an admin.'
+                  : '✅ @$username is now an admin.')
             : '✅ @$username is already a member.',
       );
       return;
     }
-    repo.upsertUser(User(
-      id: memberId,
-      name: '@$username',
-      experience: Experience.newbie,
-      group: '',
-    ));
+    repo.upsertUser(
+      User(
+        id: memberId,
+        name: '@$username',
+        experience: Experience.newbie,
+        group: '',
+      ),
+    );
     if (isAdmin) repo.updateAdmin(memberId, true); // gets their own group
     await ctx.editMessageText(
       isAdmin
@@ -173,12 +214,14 @@ class Admin {
     }
     if (userId != null) {
       // Seen before: register now.
-      repo.upsertUser(User(
-        id: userId,
-        name: '@$handle',
-        experience: Experience.newbie,
-        group: '',
-      ));
+      repo.upsertUser(
+        User(
+          id: userId,
+          name: '@$handle',
+          experience: Experience.newbie,
+          group: '',
+        ),
+      );
       if (isAdmin) repo.updateAdmin(userId, true); // gets their own group
       return isAdmin
           ? '✅ @$handle is now an admin.'
@@ -188,16 +231,17 @@ class Admin {
     repo.addPendingUser(handle, isAdmin: isAdmin);
     return isAdmin
         ? '✅ @$handle queued as admin — no need for them to message first. '
-            'The moment they message this bot, they are promoted automatically.'
+              'The moment they message this bot, they are promoted automatically.'
         : '✅ @$handle queued — no need for them to message first. The moment '
-            'they message this bot, they are registered automatically.';
+              'they message this bot, they are registered automatically.';
   }
 
   // ----------------------------------------------------------- /status
 
   Future<void> _status(Context ctx, {String? group}) async {
-    final w = _window(ctx);
-    final users = repo.activeUsers()
+    final w = _window();
+    final users = repo
+        .activeUsers()
         .where((user) => group == null || user.group == group)
         .toList();
     final activeIds = {for (final u in users) u.id};
@@ -209,20 +253,27 @@ class Admin {
     // responders, not rows.
     final responderIds = <int>{for (final a in avail) a.userId};
     final responders = responderIds.length;
-    final pending = repo.reminderTargets(w.sat0)
+    final pending = repo
+        .reminderTargets(w.sat0)
         .where((user) => group == null || user.group == group)
         .toList();
 
     final sb = StringBuffer()
-      ..writeln('📊 <b>${group == null ? 'All members' : 'Group $group'} status</b>')
+      ..writeln(
+        '📊 <b>${group == null ? 'All members' : 'Group $group'} status</b>',
+      )
       ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"')
-      ..writeln('Prompt: ${_day(w.promptDay)}  |  '
-          'Reminder: ${_day(w.reminderDay)}  |  '
-          'Lock W1: ${_day(w.deadline0)}  |  '
-          'Lock W2: ${_day(w.deadline1)}')
+      ..writeln(
+        'Prompt: ${_day(w.promptDay)}  |  '
+        'Reminder: ${_day(w.reminderDay)}  |  '
+        'Lock W1: ${_day(w.deadline0)}  |  '
+        'Lock W2: ${_day(w.deadline1)}',
+      )
       ..writeln('Registered members: ${users.length}')
-      ..writeln('Responded: $responders/${users.length} '
-          '(+${pending.length} pending)');
+      ..writeln(
+        'Responded: $responders/${users.length} '
+        '(+${pending.length} pending)',
+      );
 
     if (pending.isNotEmpty) {
       sb.writeln('⏳ Pending: ${pending.map(_displayName).join(', ')}');
@@ -232,13 +283,21 @@ class Admin {
     // per-session list the check tier sees, so admins can check who is on
     // what session without the console app.
     sb.writeln();
-    sb.write(service.checkListText(w.sat0,
+    sb.write(
+      service.checkListText(
+        w.sat0,
         title: '📋 <b>Allocation · ${_day(w.sat0)}</b>',
-        userIds: group == null ? null : activeIds));
+        userIds: group == null ? null : activeIds,
+      ),
+    );
     sb.writeln();
-    sb.write(service.checkListText(w.sat1,
+    sb.write(
+      service.checkListText(
+        w.sat1,
         title: '📋 <b>Allocation · ${_day(w.sat1)}</b>',
-        userIds: group == null ? null : activeIds));
+        userIds: group == null ? null : activeIds,
+      ),
+    );
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
 
@@ -251,7 +310,11 @@ class Admin {
     await _status(ctx, group: group);
   }
 
-  Future<void> _users(Context ctx, {String? group, bool fullInfo = false}) async {
+  Future<void> _users(
+    Context ctx, {
+    String? group,
+    bool fullInfo = false,
+  }) async {
     final users = repo.allUsers().where((u) {
       // The console shows only while still a member (or admin); once demoted
       // out of membership entirely, they disappear from the list.
@@ -268,9 +331,9 @@ class Admin {
       final stats = repo.attendanceStats(u.id);
       final profile = fullInfo
           ? '\n   Full name: ${_field(u.fullName)}'
-              '\n   Preferred name: ${_field(u.preferredName)}'
-              '\n   School email: ${_field(u.schoolEmail)}'
-              '\n   Matric number: ${_field(u.matricNo)}'
+                '\n   Preferred name: ${_field(u.preferredName)}'
+                '\n   School email: ${_field(u.schoolEmail)}'
+                '\n   Matric number: ${_field(u.matricNo)}'
           : '';
       return '• <b>${_displayName(u)}</b>$profile\n   ($tier, '
           'group ${u.group.isEmpty ? 'none' : u.group}, '
@@ -300,8 +363,7 @@ class Admin {
     return '${_html(human)} ${_html(user.name)}';
   }
 
-  static String _field(String value) =>
-      value.isEmpty ? '—' : _html(value);
+  static String _field(String value) => value.isEmpty ? '—' : _html(value);
 
   static String _html(String text) => text
       .replaceAll('&', '&amp;')
@@ -340,9 +402,8 @@ class Admin {
       await ctx.reply('Unknown user id.');
       return;
     }
-    final w = _window(ctx);
-    final text = service.promptFor(user, w) ?? messages.msg1(user.group);
-    await service.showAvailability(user, w, text);
+    final result = await _sendAsk(ctx, user);
+    if (!result.$2) await ctx.reply(result.$1);
   }
 
   Future<void> _askPicker(Context ctx, int page) async {
@@ -365,10 +426,35 @@ class Admin {
     await ctx.answerCallbackQuery();
     final user = repo.findUser(memberId);
     if (user == null) return;
-    final w = _window(ctx);
-    final text = service.promptFor(user, w) ?? messages.msg1(user.group);
+    final result = await _sendAsk(ctx, user);
+    await ctx.editMessageText(result.$1);
+  }
+
+  /// Sends an individual picker only while the current availability window is
+  /// open. Early-week asks use prompt text; late-week asks use reminder text.
+  Future<(String, bool)> _sendAsk(Context ctx, User user) async {
+    final now = config.toLocal(Config.nowUtc());
+    final w = _window();
+    final holiday = service.optedOutHolidayFor(user, w);
+    if (holiday != null) {
+      return (
+        '${user.name} opted out of the holiday from '
+            '${service.holidayPeriod(holiday)}. No availability picker was sent.',
+        false,
+      );
+    }
+    if (!now.isBefore(w.deadline0)) {
+      return (
+        'Availability is closed for this window. No availability picker was '
+            'sent to ${user.name}.',
+        false,
+      );
+    }
+    final text = now.isBefore(w.reminderDay)
+        ? service.promptFor(user, w)!
+        : service.reminderFor(user, w)!;
     await service.showAvailability(user, w, text);
-    await ctx.editMessageText('✅ Availability picker sent to ${user.name}.');
+    return ('✅ Availability picker sent to ${user.name}.', true);
   }
 
   // ----------------------------------------------------------- /confirm
@@ -378,7 +464,7 @@ class Admin {
   /// finished) can still be marked.
   DateTime _currentWeekendSat() {
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(now);
+    final w = _windowFor(now);
     return now.isBefore(w.sat0)
         ? w.sat0.subtract(const Duration(days: 7))
         : w.sat0;
@@ -548,11 +634,16 @@ class Admin {
     for (final u in users) {
       kb = kb.text(u.name, '$kind|$value|${u.id}').row();
     }
-    final text = 'Set <b>'
+    final text =
+        'Set <b>'
         '${kind == 'setexp' ? 'experience to $value' : 'group to ${value.toUpperCase()}'}'
         '</b> for:';
     if (ctx.callbackQuery != null) {
-      await ctx.editMessageText(text, parseMode: ParseMode.html, replyMarkup: kb);
+      await ctx.editMessageText(
+        text,
+        parseMode: ParseMode.html,
+        replyMarkup: kb,
+      );
     } else {
       await ctx.reply(text, parseMode: ParseMode.html, replyMarkup: kb);
     }
@@ -581,7 +672,7 @@ class Admin {
         : 'newbie';
     await ctx.editMessageText(
       '✅ <b>${updated.name}</b> → $exp, '
-          'group ${updated.group.isEmpty ? 'none' : updated.group}',
+      'group ${updated.group.isEmpty ? 'none' : updated.group}',
       parseMode: ParseMode.html,
     );
   }
@@ -602,13 +693,14 @@ class Admin {
       state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
     }
+    final userId = ctx.from!.id;
+    _pendingBroadcast[userId] = text.trim();
     await _confirmBroadcast(ctx, text.trim());
   }
 
   /// Entry point for the wizard: the user typed the broadcast text; show the
   /// confirm dialog.
-  Future<void> onBroadcastText(
-      Context ctx, int userId, String text) async {
+  Future<void> onBroadcastText(Context ctx, int userId, String text) async {
     _pendingBroadcast[userId] = text;
     await _confirmBroadcast(ctx, text.trim());
   }
@@ -620,7 +712,11 @@ class Admin {
       parseMode: ParseMode.html,
       replyMarkup: Pickers.confirm('bcast'),
     );
-    state.trackInteractiveMessage(ctx.from!.id, ctx.from!.id, message.messageId);
+    state.trackInteractiveMessage(
+      ctx.from!.id,
+      ctx.from!.id,
+      message.messageId,
+    );
   }
 
   Future<void> _doBroadcast(Context ctx, String text) async {
@@ -673,6 +769,8 @@ class Admin {
         if (yes) {
           final text = _pendingBroadcast.remove(ctx.from!.id);
           if (text != null) await _doBroadcast(ctx, text);
+        } else {
+          _pendingBroadcast.remove(ctx.from!.id);
         }
       case 'adduser':
         final yes = parts.length > 1 && parts[1] == 'yes';
@@ -687,13 +785,17 @@ class Admin {
       case 'prompt':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
-        await ctx.editMessageText(yes ? 'Sending prompts…' : 'Cancelled — nothing was sent.');
-        if (yes) await service.sendPrompts(_window(ctx));
+        await ctx.editMessageText(
+          yes ? 'Sending prompts…' : 'Cancelled — nothing was sent.',
+        );
+        if (yes) await service.sendPrompts(_window());
       case 'remind':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
-        await ctx.editMessageText(yes ? 'Sending reminders…' : 'Cancelled — nothing was sent.');
-        if (yes) await service.sendReminders(_window(ctx));
+        await ctx.editMessageText(
+          yes ? 'Sending reminders…' : 'Cancelled — nothing was sent.',
+        );
+        if (yes) await service.sendReminders(_window());
       case 'cancel':
         await ctx.answerCallbackQuery();
         state.pendingArg.remove(ctx.from!.id);
@@ -755,8 +857,18 @@ class Admin {
   static String _day(DateTime d) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${days[d.weekday - 1]} ${d.day} ${months[d.month - 1]}';
   }

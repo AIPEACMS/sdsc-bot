@@ -95,8 +95,7 @@ class Config {
     String env(String key, [String fallback = '']) =>
         Platform.environment[key] ?? fallback;
 
-    int envInt(String key, int fallback) =>
-        int.tryParse(env(key)) ?? fallback;
+    int envInt(String key, int fallback) => int.tryParse(env(key)) ?? fallback;
 
     final token = env('TELEGRAM_TOKEN');
     if (token.isEmpty) {
@@ -121,16 +120,10 @@ class Config {
       ocbcCapacity: envInt('OCBC_CAPACITY', 6),
       prCapacity: envInt('PR_CAPACITY', 20),
       slotTimes: {
-        'am': (
-          env('SLOT_AM_START', '09:00'),
-          env('SLOT_AM_END', '12:00'),
-        ),
-        'pm': (
-          env('SLOT_PM_START', '13:00'),
-          env('SLOT_PM_END', '17:00'),
-        ),
+        'am': (env('SLOT_AM_START', '09:00'), env('SLOT_AM_END', '12:00')),
+        'pm': (env('SLOT_PM_START', '13:00'), env('SLOT_PM_END', '17:00')),
       },
-      promptHour: envInt('PROMPT_HOUR', 8),
+      promptHour: envInt('PROMPT_HOUR', 18),
       reminderHour: envInt('REMINDER_HOUR', 18),
       deadlineHour: envInt('DEADLINE_HOUR', 18),
       allocationHour: envInt('ALLOCATION_HOUR', 9),

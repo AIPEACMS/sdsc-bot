@@ -5,6 +5,28 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.13.0] - 2026-09-08
+
+### Added
+
+- **Checker onboarding.** The console can queue checkers with `/addcheck`, and
+  new checkers receive checker-specific onboarding controls on first contact.
+
+### Changed
+
+- **Availability timing and tools.** Prompts now start Monday at 6:00 PM;
+  manual `/ask` uses prompt or reminder wording while the availability window
+  is open. Prompt, reminder, and allocation remain available as typed admin
+  commands but are no longer grid buttons.
+- **Broadcast controls.** The admin grid now includes a broadcast button, and
+  `/broadcast <message>` is documented as the direct broadcast form.
+
+### Fixed
+
+- **Holiday opt-outs.** Reminders and manual asks now respect holiday opt-outs.
+- **Broadcast confirmation.** Direct broadcasts retain their message through
+  confirmation and discard it when cancelled.
+
 ## [1.12.4] - 2026-09-08
 
 ### Added
