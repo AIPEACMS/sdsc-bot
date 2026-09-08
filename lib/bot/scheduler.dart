@@ -11,7 +11,7 @@ import '../core/log.dart';
 /// cron daemon and naturally catches up when the bot restarts.
 ///
 /// The rolling window (bundle = current + next weekend) has, every week:
-///  - Monday 08:00   prompts for the bundle (quiet users skipped)
+///  - Monday 18:00   prompts for the bundle (quiet users skipped)
 ///  - Thursday 18:00 reminders to the bundle's non-responders
 ///  - Friday 18:00   deadline for this weekend (locks availability)
 ///  - Friday 21:00   full allocation list pushed to the `check` tier
@@ -33,11 +33,7 @@ class Scheduler {
   Timer? _milestone;
   Timer? _allocTimer;
 
-  Scheduler({
-    required this.repo,
-    required this.config,
-    required this.service,
-  });
+  Scheduler({required this.repo, required this.config, required this.service});
 
   void start({Duration interval = const Duration(hours: 12)}) {
     unawaited(_tick());
@@ -57,7 +53,7 @@ class Scheduler {
     _milestone?.cancel();
     try {
       final now = config.toLocal(Config.nowUtc());
-      final w = RollingWindow.forDate(now);
+      final w = _window(now);
       final monday = WeekMath.mondayOf(now);
       final today = DateTime(now.year, now.month, now.day);
 
@@ -122,11 +118,17 @@ class Scheduler {
     _scheduleNext();
   }
 
+  RollingWindow _window(DateTime now) => RollingWindow.forDate(
+    now,
+    promptHour: config.promptHour,
+    reminderHour: config.reminderHour,
+  );
+
   /// Arms a one-shot timer for the next upcoming milestone so it fires on
   /// the sharp scheduled hour instead of on the next 12h tick.
   void _scheduleNext() {
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(now);
+    final w = _window(now);
     final monday = WeekMath.mondayOf(now);
 
     final due = <DateTime>[
@@ -163,7 +165,7 @@ class Scheduler {
   Future<void> _runDynamicAllocation() async {
     try {
       final now = config.toLocal(Config.nowUtc());
-      final w = RollingWindow.forDate(now);
+      final w = _window(now);
       if (now.isBefore(w.sat0) || now.isBefore(w.sat1)) {
         await service.allocateBundle(w);
       }

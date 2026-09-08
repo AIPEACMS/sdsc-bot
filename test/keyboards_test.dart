@@ -23,15 +23,19 @@ void main() {
     }
   });
 
-  test('every word in a label is 8 chars or fewer (no Telegram wrap)', () {
+  test('grid labels avoid Telegram wrapping except requested broadcast', () {
     for (final b in [
       ...RoleKeyboard.memberButtons,
       ...RoleKeyboard.adminButtons,
       ...RoleKeyboard.consoleButtons,
     ]) {
       for (final word in b.label.split(RegExp(r'[ -]'))) {
-        expect(word.length, lessThanOrEqualTo(8),
-            reason: '${b.label} (word "$word" is too long)');
+        if (word == 'broadcast') continue;
+        expect(
+          word.length,
+          lessThanOrEqualTo(8),
+          reason: '${b.label} (word "$word" is too long)',
+        );
       }
     }
   });
@@ -43,8 +47,7 @@ void main() {
       RoleKeyboard.consoleButtons,
     ]) {
       final labels = grid.map((b) => b.label).toSet();
-      expect(labels.length, grid.length,
-          reason: 'duplicate label in grid');
+      expect(labels.length, grid.length, reason: 'duplicate label in grid');
     }
   });
 
@@ -60,8 +63,7 @@ void main() {
       expect(b.color, RoleColor.admin, reason: b.label);
     }
     final consoleOnly = RoleKeyboard.consoleButtons
-        .where((b) => b.color != RoleColor.admin &&
-            b.color != RoleColor.member)
+        .where((b) => b.color != RoleColor.admin && b.color != RoleColor.member)
         .toList();
     expect(consoleOnly.isNotEmpty, isTrue);
     for (final b in consoleOnly) {
@@ -81,20 +83,27 @@ void main() {
   });
 
   test('roleFor honours the check/old tiers', () {
-    expect(RoleKeyboard.roleFor(
-        isConsole: false, isAdmin: false, tier: 'check'), 'check');
-    expect(RoleKeyboard.roleFor(
-        isConsole: false, isAdmin: false, tier: 'old'), 'old');
+    expect(
+      RoleKeyboard.roleFor(isConsole: false, isAdmin: false, tier: 'check'),
+      'check',
+    );
+    expect(
+      RoleKeyboard.roleFor(isConsole: false, isAdmin: false, tier: 'old'),
+      'old',
+    );
     // Admin tier wins over a stored check/old tier.
-    expect(RoleKeyboard.roleFor(
-        isConsole: false, isAdmin: true, tier: 'old'), 'admin');
-    expect(RoleKeyboard.roleFor(
-        isConsole: true, isAdmin: false, tier: 'old'), 'console');
+    expect(
+      RoleKeyboard.roleFor(isConsole: false, isAdmin: true, tier: 'old'),
+      'admin',
+    );
+    expect(
+      RoleKeyboard.roleFor(isConsole: true, isAdmin: false, tier: 'old'),
+      'console',
+    );
   });
 
   test('gridButtons resolves each role', () {
-    expect(RoleKeyboard.gridButtons('console'),
-        RoleKeyboard.consoleButtons);
+    expect(RoleKeyboard.gridButtons('console'), RoleKeyboard.consoleButtons);
     expect(RoleKeyboard.gridButtons('admin'), RoleKeyboard.adminButtons);
     expect(RoleKeyboard.gridButtons('member'), RoleKeyboard.memberButtons);
     expect(RoleKeyboard.gridButtons('check'), RoleKeyboard.checkButtons);
@@ -106,13 +115,17 @@ void main() {
     final admin = RoleKeyboard.adminButtons.toSet();
     final consoleOnly = console.difference(admin);
     expect(consoleOnly.map((b) => b.command), hasLength(3));
-    expect(consoleOnly.map((b) => b.command),
-        containsAll(['/hold', '/unhold', '/fullinfo']));
+    expect(
+      consoleOnly.map((b) => b.command),
+      containsAll(['/hold', '/unhold', '/fullinfo']),
+    );
   });
 
   test('admin grid no longer has set-group', () {
     expect(
-        RoleKeyboard.adminButtons.map((b) => b.command), isNot(contains('/setgroup')));
+      RoleKeyboard.adminButtons.map((b) => b.command),
+      isNot(contains('/setgroup')),
+    );
   });
 
   test('check grid is a single button', () {

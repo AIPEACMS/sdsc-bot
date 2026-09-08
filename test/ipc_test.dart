@@ -12,21 +12,21 @@ void main() {
   late CalendarIpcServer server;
 
   Config config() => Config(
-        botToken: 'test',
-        dbPath: '${tmp.path}/test.db',
-        consoleId: 1,
-        groupAContact: 'TBD',
-        groupBContact: 'TBD',
-        ocbcCapacity: 6,
-        prCapacity: 20,
-        slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-        promptHour: 8,
-        reminderHour: 18,
-        deadlineHour: 18,
-        allocationHour: 9,
-        bailHour: 12,
-        timezoneOffsetHours: 8,
-      );
+    botToken: 'test',
+    dbPath: '${tmp.path}/test.db',
+    consoleId: 1,
+    groupAContact: 'TBD',
+    groupBContact: 'TBD',
+    ocbcCapacity: 6,
+    prCapacity: 20,
+    slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+    promptHour: 18,
+    reminderHour: 18,
+    deadlineHour: 18,
+    allocationHour: 9,
+    bailHour: 12,
+    timezoneOffsetHours: 8,
+  );
 
   setUp(() async {
     tmp = Directory.systemTemp.createTempSync('sdsc_ipc_');

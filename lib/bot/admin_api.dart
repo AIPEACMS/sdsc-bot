@@ -76,6 +76,12 @@ class AdminApi {
     this.service,
   }) : identity = ServerIdentity(repo);
 
+  RollingWindow _window(DateTime now) => RollingWindow.forDate(
+    now,
+    promptHour: config.promptHour,
+    reminderHour: config.reminderHour,
+  );
+
   /// The actual bound port (differs from [port] when 0 = ephemeral).
   int get boundPort => _server?.port ?? port;
 
@@ -83,8 +89,7 @@ class AdminApi {
     _server = await HttpServer.bind(InternetAddress.anyIPv4, port);
     _server!.listen(_handle);
     LogRing.log('admin API listening on :$boundPort');
-    LogRing.log(
-        'admin API server fingerprint ${await identity.fingerprint()}');
+    LogRing.log('admin API server fingerprint ${await identity.fingerprint()}');
   }
 
   Future<void> stop() async {
@@ -157,8 +162,12 @@ class AdminApi {
         return;
       }
 
-      if (!await _authorized(req,
-          method: method, path: path, bodyBytes: bodyBytes)) {
+      if (!await _authorized(
+        req,
+        method: method,
+        path: path,
+        bodyBytes: bodyBytes,
+      )) {
         await _send(req, 401, {'ok': false, 'error': 'unauthorized'});
         return;
       }
@@ -272,7 +281,7 @@ class AdminApi {
 
   Map<String, Object?> _stateBody() {
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(now);
+    final w = _window(now);
     return {
       'ok': true,
       'held': holdGate.isHeld,
@@ -340,12 +349,17 @@ class AdminApi {
     }
     repo.setTier(id, tier);
     final updated = repo.findUser(id)!;
-    LogRing.log('admin API: ${user.name} ${user.isAdmin ? 'admin' : ''} → tier $tier');
-    return (200, {
-      'ok': true,
-      'user': updated.name,
-      'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
-    });
+    LogRing.log(
+      'admin API: ${user.name} ${user.isAdmin ? 'admin' : ''} → tier $tier',
+    );
+    return (
+      200,
+      {
+        'ok': true,
+        'user': updated.name,
+        'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
+      },
+    );
   }
 
   /// Toggles the admin flag only — the member tier (check/member/old) is
@@ -362,12 +376,17 @@ class AdminApi {
     }
     repo.updateAdmin(id, admin);
     final updated = repo.findUser(id)!;
-    LogRing.log('admin API: ${updated.name} ${admin ? 'granted' : 'stripped'} admin');
-    return (200, {
-      'ok': true,
-      'admin': admin,
-      'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
-    });
+    LogRing.log(
+      'admin API: ${updated.name} ${admin ? 'granted' : 'stripped'} admin',
+    );
+    return (
+      200,
+      {
+        'ok': true,
+        'admin': admin,
+        'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
+      },
+    );
   }
 
   Future<(int, Object)> _setUserExp(int id, String bodyText) async {
@@ -376,10 +395,15 @@ class AdminApi {
     final body = _jsonBody(bodyText);
     final exp = (body['exp'] as String?) ?? '';
     if (exp != 'experienced' && exp != 'newbie') {
-      return (400, {'ok': false, 'error': 'expected {"exp": "experienced"|"newbie"}'});
+      return (
+        400,
+        {'ok': false, 'error': 'expected {"exp": "experienced"|"newbie"}'},
+      );
     }
     repo.updateExperience(
-        id, exp == 'experienced' ? Experience.experienced : Experience.newbie);
+      id,
+      exp == 'experienced' ? Experience.experienced : Experience.newbie,
+    );
     LogRing.log('admin API: ${user.name} exp → $exp');
     return (200, {'ok': true, 'exp': exp});
   }
@@ -391,7 +415,10 @@ class AdminApi {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
     if (user.isAdmin) {
-      return (400, {'ok': false, 'error': 'admin owns their group — demote first'});
+      return (
+        400,
+        {'ok': false, 'error': 'admin owns their group — demote first'},
+      );
     }
     final body = _jsonBody(bodyText);
     final group = (body['group'] as String?) ?? '';
@@ -406,7 +433,9 @@ class AdminApi {
       }
     }
     repo.setGroup(id, group);
-    LogRing.log('admin API: ${user.name} group → ${group.isEmpty ? '(none)' : group}');
+    LogRing.log(
+      'admin API: ${user.name} group → ${group.isEmpty ? '(none)' : group}',
+    );
     return (200, {'ok': true, 'group': group});
   }
 
@@ -415,8 +444,10 @@ class AdminApi {
   Future<(int, Object)> _assignGroups() async {
     final counts = repo.autoAssignGroups();
     final total = counts.values.fold<int>(0, (a, b) => a + b);
-    LogRing.log('admin API: auto-assign groups → $total members '
-        'across ${counts.length} groups');
+    LogRing.log(
+      'admin API: auto-assign groups → $total members '
+      'across ${counts.length} groups',
+    );
     return (200, {'ok': true, 'assigned': total, 'groups': counts.length});
   }
 
@@ -443,39 +474,51 @@ class AdminApi {
       return (200, {'ok': true, 'message': '@$handle is already a member.'});
     }
     if (repo.isPendingUser(handle)) {
-      return (200, {
-        'ok': true,
-        'message': '@$handle is already queued — they will be registered the '
-            'first time they message the bot.',
-      });
+      return (
+        200,
+        {
+          'ok': true,
+          'message':
+              '@$handle is already queued — they will be registered the '
+              'first time they message the bot.',
+        },
+      );
     }
     if (userId != null) {
-      repo.upsertUser(User(
-        id: userId,
-        name: '@$handle',
-        experience: Experience.newbie,
-        group: 'A',
-        memberTier: tier,
-      ));
-      return (200, {
-        'ok': true,
-        'message': isCheck
-            ? '@$handle added as a checker. They can now use /start to see '
-                'their commands.'
-            : '@$handle added. They can now use /start to see their commands.',
-      });
+      repo.upsertUser(
+        User(
+          id: userId,
+          name: '@$handle',
+          experience: Experience.newbie,
+          group: 'A',
+          memberTier: tier,
+        ),
+      );
+      return (
+        200,
+        {
+          'ok': true,
+          'message': isCheck
+              ? '@$handle added as a checker. They can now use /start to see '
+                    'their commands.'
+              : '@$handle added. They can now use /start to see their commands.',
+        },
+      );
     }
     repo.addPendingUser(handle, isAdmin: false, tier: tier);
-    return (200, {
-      'ok': true,
-      'message': isCheck
-          ? '@$handle queued as a checker — no need for them to message '
-              'first. The moment they message this bot, they are registered '
-              'automatically.'
-          : '@$handle queued — no need for them to message first. The '
-              'moment they message this bot, they are registered '
-              'automatically.',
-    });
+    return (
+      200,
+      {
+        'ok': true,
+        'message': isCheck
+            ? '@$handle queued as a checker — no need for them to message '
+                  'first. The moment they message this bot, they are registered '
+                  'automatically.'
+            : '@$handle queued — no need for them to message first. The '
+                  'moment they message this bot, they are registered '
+                  'automatically.',
+      },
+    );
   }
 
   /// Runs a cycle-driving operation (prompt / remind / allocate). Requires
@@ -487,7 +530,7 @@ class AdminApi {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(now);
+    final w = _window(now);
     switch (op) {
       case 'prompt':
         await service.sendPrompts(w);
@@ -519,9 +562,29 @@ class AdminApi {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(now);
-    final text = service.promptFor(user, w) ??
-        service.messages.msg1(user.group);
+    final w = _window(now);
+    final holiday = service.optedOutHolidayFor(user, w);
+    if (holiday != null) {
+      return (
+        200,
+        {
+          'ok': true,
+          'asked': false,
+          'message':
+              '${user.name} opted out of the holiday from '
+              '${service.holidayPeriod(holiday)}. No availability picker was sent.',
+        },
+      );
+    }
+    if (!now.isBefore(w.deadline0)) {
+      return (
+        409,
+        {'ok': false, 'error': 'availability is closed for this window'},
+      );
+    }
+    final text = now.isBefore(w.reminderDay)
+        ? service.promptFor(user, w)!
+        : service.reminderFor(user, w)!;
     await service.showAvailability(user, w, text);
     LogRing.log('admin API: ask ${user.name}');
     return (200, {'ok': true, 'asked': user.name});
@@ -555,7 +618,7 @@ class AdminApi {
   /// attendance states, for the console's attendance timetable.
   Map<String, Object?> _attendanceBody() {
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(now);
+    final w = _window(now);
     final sessions = repo.windowSessions(w);
     final bySession = <int, List<User>>{};
     for (final sat in w.weekends) {
@@ -594,7 +657,9 @@ class AdminApi {
   /// 'present' | 'absent' | 'unmarked' for (user, session).
   String _attendanceStateFor(int userId, int sessionId) {
     for (final a in repo.attendanceForSession(sessionId)) {
-      if (a.userId == userId) return a.attended ? 'present' : 'absent';
+      if (a.userId == userId) {
+        return a.attended ? 'present' : 'absent';
+      }
     }
     return 'unmarked';
   }
@@ -610,15 +675,19 @@ class AdminApi {
     final sessionId = (body['sessionId'] as num?)?.toInt();
     final userId = (body['userId'] as num?)?.toInt();
     if (sessionId == null || userId == null) {
-      return (400, {
-        'ok': false,
-        'error': 'expected {"sessionId": <id>, "userId": <id>}',
-      });
+      return (
+        400,
+        {'ok': false, 'error': 'expected {"sessionId": <id>, "userId": <id>}'},
+      );
     }
     final session = repo.sessionById(sessionId);
-    if (session == null) return (404, {'ok': false, 'error': 'no such session'});
+    if (session == null) {
+      return (404, {'ok': false, 'error': 'no such session'});
+    }
     final user = repo.findUser(userId);
-    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    if (user == null) {
+      return (404, {'ok': false, 'error': 'no such user'});
+    }
     final state = (body['state'] as String?) ?? 'unmarked';
     switch (state) {
       case 'present':
@@ -628,10 +697,13 @@ class AdminApi {
       case 'unmarked':
         repo.clearAttendance(userId, sessionId);
       default:
-        return (400, {
-          'ok': false,
-          'error': 'expected {"state": "present"|"absent"|"unmarked"}',
-        });
+        return (
+          400,
+          {
+            'ok': false,
+            'error': 'expected {"state": "present"|"absent"|"unmarked"}',
+          },
+        );
     }
     LogRing.log('admin API: attendance ${user.name} → $state');
     return (200, {'ok': true, 'state': state});
@@ -639,8 +711,18 @@ class AdminApi {
 
   static String _sessionLabel(Session s) {
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     final loc = s.location == Location.ocbc ? 'OCBC' : 'Pasir Ris';
     final day = s.day == 'sat' ? 'Saturday' : 'Sunday';
@@ -670,7 +752,10 @@ class AdminApi {
     final raw = (body['date'] as String?) ?? '';
     final parsed = _parseDate(raw);
     if (parsed == null) {
-      return (400, {'ok': false, 'error': 'expected {"date": "YYYY-MM-DD [HH:MM]"}'});
+      return (
+        400,
+        {'ok': false, 'error': 'expected {"date": "YYYY-MM-DD [HH:MM]"}'},
+      );
     }
     Config.setDebugNow(parsed);
     LogRing.log('admin API: set-date to $raw');
@@ -686,14 +771,18 @@ class AdminApi {
     try {
       final result = calendarSync.apply(yaml);
       LogRing.log(
-          'admin API: sync-calendar ${result.academicYear} '
-          '(${result.weeks} weeks, ${result.holidays} holidays)');
-      return (200, {
-        'ok': true,
-        'academicYear': result.academicYear,
-        'weeks': result.weeks,
-        'holidays': result.holidays,
-      });
+        'admin API: sync-calendar ${result.academicYear} '
+        '(${result.weeks} weeks, ${result.holidays} holidays)',
+      );
+      return (
+        200,
+        {
+          'ok': true,
+          'academicYear': result.academicYear,
+          'weeks': result.weeks,
+          'holidays': result.holidays,
+        },
+      );
     } catch (e) {
       return (400, {'ok': false, 'error': 'sync failed: $e'});
     }
@@ -726,9 +815,7 @@ class AdminApi {
       if (h == null || m == null) return null;
       local = DateTime(date.year, date.month, date.day, h, m);
     }
-    return local
-        .subtract(Duration(hours: config.timezoneOffsetHours))
-        .toUtc();
+    return local.subtract(Duration(hours: config.timezoneOffsetHours)).toUtc();
   }
 
   static Map<String, dynamic> _jsonBody(String text) {

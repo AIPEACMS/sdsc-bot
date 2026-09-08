@@ -48,24 +48,21 @@ void main() {
   }
 
   Config makeConfig() => Config(
-        botToken: 'test',
-        dbPath: '${tmp.path}/test.db',
-        consoleId: 1,
-        groupAContact: 'TBD',
-        groupBContact: 'TBD',
-        ocbcCapacity: 2,
-        prCapacity: 20,
-        slotTimes: {
-          'am': ('09:00', '12:00'),
-          'pm': ('13:00', '17:00'),
-        },
-        promptHour: 8,
-        reminderHour: 18,
-        deadlineHour: 18,
-        allocationHour: 9,
-        bailHour: 12,
-        timezoneOffsetHours: 8,
-      );
+    botToken: 'test',
+    dbPath: '${tmp.path}/test.db',
+    consoleId: 1,
+    groupAContact: 'TBD',
+    groupBContact: 'TBD',
+    ocbcCapacity: 2,
+    prCapacity: 20,
+    slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+    promptHour: 18,
+    reminderHour: 18,
+    deadlineHour: 18,
+    allocationHour: 9,
+    bailHour: 12,
+    timezoneOffsetHours: 8,
+  );
 
   setUp(() async {
     tmp = Directory.systemTemp.createTempSync('sdsc_api_');
@@ -117,8 +114,10 @@ void main() {
     final target = on ?? api;
     final client = HttpClient();
     try {
-      final req = await client.openUrl(method, Uri.parse(
-          'http://127.0.0.1:${target.boundPort}$path'));
+      final req = await client.openUrl(
+        method,
+        Uri.parse('http://127.0.0.1:${target.boundPort}$path'),
+      );
       if (authorized) {
         req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       }
@@ -147,15 +146,23 @@ void main() {
     final tsNow = ts ?? DateTime.now().millisecondsSinceEpoch.toString();
     final nonceNow =
         nonce ?? '${rand.nextInt(1 << 32)}-${rand.nextInt(1 << 32)}';
-    final bodyBytes =
-        body == null ? utf8.encode('') : utf8.encode(jsonEncode(body));
-    final (pub, sig) = await signKey(method, path, KeyAuth.bodyHash(bodyBytes),
-        ts: tsNow, nonce: nonceNow);
+    final bodyBytes = body == null
+        ? utf8.encode('')
+        : utf8.encode(jsonEncode(body));
+    final (pub, sig) = await signKey(
+      method,
+      path,
+      KeyAuth.bodyHash(bodyBytes),
+      ts: tsNow,
+      nonce: nonceNow,
+    );
 
     final client = HttpClient();
     try {
-      final req = await client.openUrl(method, Uri.parse(
-          'http://127.0.0.1:${api.boundPort}$path'));
+      final req = await client.openUrl(
+        method,
+        Uri.parse('http://127.0.0.1:${api.boundPort}$path'),
+      );
       req.headers.set('X-SDSC-Pub', pub);
       req.headers.set('X-SDSC-Ts', tsNow);
       req.headers.set('X-SDSC-Nonce', nonceNow);
@@ -177,46 +184,60 @@ void main() {
   Future<(int, Map<String, String>, String)> rawGet(String path) async {
     final client = HttpClient();
     try {
-      final req = await client
-          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}$path'));
+      final req = await client.openUrl(
+        'GET',
+        Uri.parse('http://127.0.0.1:${api.boundPort}$path'),
+      );
       final res = await req.close();
       final text = await res.transform(utf8.decoder).join();
       final headers = <String, String>{};
-      res.headers.forEach((name, values) => headers[name.toLowerCase()] =
-          values.isEmpty ? '' : values.first);
+      res.headers.forEach(
+        (name, values) =>
+            headers[name.toLowerCase()] = values.isEmpty ? '' : values.first,
+      );
       return (res.statusCode, headers, text);
     } finally {
       client.close(force: true);
     }
   }
 
-  test('GET /api/server-info exposes the server identity for pinning', () async {
-    final (status, headers, body) = await rawGet('/api/server-info');
-    expect(status, 200);
-    final json = jsonDecode(body) as Map<String, dynamic>;
-    expect(json['ok'], true);
-    expect(json['pubkey'], isNotEmpty);
-    expect(json['fingerprint'], KeyAuth.fingerprint(json['pubkey'] as String));
-    // Unauthenticated — reachable before any key is registered.
-    expect(headers['x-sdsc-server-pub'], json['pubkey']);
-    expect(headers['x-sdsc-server-sig'], isNotEmpty);
-  });
+  test(
+    'GET /api/server-info exposes the server identity for pinning',
+    () async {
+      final (status, headers, body) = await rawGet('/api/server-info');
+      expect(status, 200);
+      final json = jsonDecode(body) as Map<String, dynamic>;
+      expect(json['ok'], true);
+      expect(json['pubkey'], isNotEmpty);
+      expect(
+        json['fingerprint'],
+        KeyAuth.fingerprint(json['pubkey'] as String),
+      );
+      // Unauthenticated — reachable before any key is registered.
+      expect(headers['x-sdsc-server-pub'], json['pubkey']);
+      expect(headers['x-sdsc-server-sig'], isNotEmpty);
+    },
+  );
 
   test('every response is signed by the server identity', () async {
     final (_, _, infoBody) = await rawGet('/api/server-info');
-    final serverPub = (jsonDecode(infoBody) as Map<String, dynamic>)['pubkey']
-        as String;
+    final serverPub =
+        (jsonDecode(infoBody) as Map<String, dynamic>)['pubkey'] as String;
 
     final client = HttpClient();
     try {
-      final req = await client
-          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}/api/state'));
+      final req = await client.openUrl(
+        'GET',
+        Uri.parse('http://127.0.0.1:${api.boundPort}/api/state'),
+      );
       req.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
       final res = await req.close();
       final text = await res.transform(utf8.decoder).join();
       final headers = <String, String>{};
-      res.headers.forEach((name, values) => headers[name.toLowerCase()] =
-          values.isEmpty ? '' : values.first);
+      res.headers.forEach(
+        (name, values) =>
+            headers[name.toLowerCase()] = values.isEmpty ? '' : values.first,
+      );
 
       expect(headers['x-sdsc-server-pub'], serverPub);
       final ts = headers['x-sdsc-server-ts']!;
@@ -244,8 +265,10 @@ void main() {
   test('rejects requests without the bearer token', () async {
     final client = HttpClient();
     try {
-      final req = await client.openUrl('GET',
-          Uri.parse('http://127.0.0.1:${api.boundPort}/api/users'));
+      final req = await client.openUrl(
+        'GET',
+        Uri.parse('http://127.0.0.1:${api.boundPort}/api/users'),
+      );
       final res = await req.close();
       expect(res.statusCode, 401);
       await res.drain<void>();
@@ -255,18 +278,17 @@ void main() {
   });
 
   test('GET /api/users lists users with resolved tiers', () async {
-    repo.upsertUser(User(
-      id: 101,
-      name: '@alice',
-      experience: Experience.experienced,
-      group: 'A',
-    ));
-    repo.upsertUser(User(
-      id: 2,
-      name: '@bob',
-      experience: Experience.newbie,
-      group: 'B',
-    ));
+    repo.upsertUser(
+      User(
+        id: 101,
+        name: '@alice',
+        experience: Experience.experienced,
+        group: 'A',
+      ),
+    );
+    repo.upsertUser(
+      User(id: 2, name: '@bob', experience: Experience.newbie, group: 'B'),
+    );
     repo.setTier(2, 'check');
 
     final (status, body) = await call('GET', '/api/users');
@@ -283,14 +305,14 @@ void main() {
   });
 
   test('POST /api/users/{id}/tier changes the tier', () async {
-    repo.upsertUser(User(
-      id: 7,
-      name: '@carol',
-      experience: Experience.newbie,
-      group: 'A',
-    ));
-    final (status, body) = await call('POST', '/api/users/7/tier',
-        body: {'tier': 'admin'});
+    repo.upsertUser(
+      User(id: 7, name: '@carol', experience: Experience.newbie, group: 'A'),
+    );
+    final (status, body) = await call(
+      'POST',
+      '/api/users/7/tier',
+      body: {'tier': 'admin'},
+    );
     final bodyMap = body as Map<String, dynamic>;
     expect(status, 200);
     expect(bodyMap['ok'], true);
@@ -318,15 +340,17 @@ void main() {
   test('POST /api/date sets and resets the debug clock', () async {
     await call('GET', '/api/state'); // warm up
     Config.setDebugNow(null);
-    final (_, set) = await call('POST', '/api/date',
-        body: {'date': '2026-08-10 08:00'});
+    final (_, set) = await call(
+      'POST',
+      '/api/date',
+      body: {'date': '2026-08-10 08:00'},
+    );
     final setMap = set as Map<String, dynamic>;
     expect(setMap['ok'], true);
     final local = Config.nowUtc().toUtc().toLocal();
     expect(local.day, 10);
 
-    final (_, reset) = await call('POST', '/api/date',
-        body: {'reset': true});
+    final (_, reset) = await call('POST', '/api/date', body: {'reset': true});
     final resetMap = reset as Map<String, dynamic>;
     expect(resetMap['ok'], true);
   });
@@ -345,8 +369,11 @@ void main() {
     final stateMap = state as Map<String, dynamic>;
     expect(stateMap['logRetentionDays'], 14);
 
-    final (status, body) = await call('POST', '/api/log-retention',
-        body: {'days': 30});
+    final (status, body) = await call(
+      'POST',
+      '/api/log-retention',
+      body: {'days': 30},
+    );
     final bodyMap = body as Map<String, dynamic>;
     expect(status, 200);
     expect(bodyMap['ok'], true);
@@ -364,27 +391,33 @@ void main() {
   });
 
   test('POST /api/log-retention rejects nonsense input', () async {
-    final (status, body) =
-        await call('POST', '/api/log-retention', body: {'days': -1});
+    final (status, body) = await call(
+      'POST',
+      '/api/log-retention',
+      body: {'days': -1},
+    );
     final bodyMap = body as Map<String, dynamic>;
     expect(status, 400);
     expect(bodyMap['error'], contains('positive int'));
   });
 
   test('bad tier and unknown user are rejected', () async {
-    repo.upsertUser(User(
-      id: 9,
-      name: '@dave',
-      experience: Experience.newbie,
-      group: 'A',
-    ));
-    final (badStatus, bad) = await call('POST', '/api/users/9/tier',
-        body: {'tier': 'chief'});
+    repo.upsertUser(
+      User(id: 9, name: '@dave', experience: Experience.newbie, group: 'A'),
+    );
+    final (badStatus, bad) = await call(
+      'POST',
+      '/api/users/9/tier',
+      body: {'tier': 'chief'},
+    );
     final badMap = bad as Map<String, dynamic>;
     expect(badStatus, 400);
     expect(badMap['error'], contains('bad tier'));
-    final (missingStatus, missing) = await call('POST', '/api/users/999/tier',
-        body: {'tier': 'member'});
+    final (missingStatus, missing) = await call(
+      'POST',
+      '/api/users/999/tier',
+      body: {'tier': 'member'},
+    );
     final missingMap = missing as Map<String, dynamic>;
     expect(missingStatus, 404);
     expect(missingMap['error'], contains('no such user'));
@@ -413,13 +446,19 @@ void main() {
     final bodyHash = KeyAuth.bodyHash(bodyBytes);
     final ts = DateTime.now().millisecondsSinceEpoch.toString();
     final nonce = 'tamper-${rand.nextInt(1 << 32)}';
-    final (pub, sig) = await signKey('POST', '/api/hold', bodyHash,
-        ts: ts, nonce: nonce);
+    final (pub, sig) = await signKey(
+      'POST',
+      '/api/hold',
+      bodyHash,
+      ts: ts,
+      nonce: nonce,
+    );
 
     final client = HttpClient();
     try {
       final req = await client.postUrl(
-          Uri.parse('http://127.0.0.1:${api.boundPort}/api/hold'));
+        Uri.parse('http://127.0.0.1:${api.boundPort}/api/hold'),
+      );
       req.headers.set('X-SDSC-Pub', pub);
       req.headers.set('X-SDSC-Ts', ts);
       req.headers.set('X-SDSC-Nonce', nonce);
@@ -444,8 +483,8 @@ void main() {
   });
 
   test('a stale timestamp is rejected', () async {
-    final stale =
-        (DateTime.now().millisecondsSinceEpoch - 10 * 60 * 1000).toString();
+    final stale = (DateTime.now().millisecondsSinceEpoch - 10 * 60 * 1000)
+        .toString();
     final (status, _) = await signedCall('GET', '/api/state', ts: stale);
     expect(status, 401);
   });
@@ -455,13 +494,20 @@ void main() {
     final bodyHash = KeyAuth.bodyHash(utf8.encode(''));
     final ts = DateTime.now().millisecondsSinceEpoch.toString();
     final nonce = 'path-${rand.nextInt(1 << 32)}';
-    final (pub, sig) = await signKey('GET', '/api/state', bodyHash,
-        ts: ts, nonce: nonce);
+    final (pub, sig) = await signKey(
+      'GET',
+      '/api/state',
+      bodyHash,
+      ts: ts,
+      nonce: nonce,
+    );
 
     final client = HttpClient();
     try {
-      final req = await client
-          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}/api/users'));
+      final req = await client.openUrl(
+        'GET',
+        Uri.parse('http://127.0.0.1:${api.boundPort}/api/users'),
+      );
       req.headers.set('X-SDSC-Pub', pub);
       req.headers.set('X-SDSC-Ts', ts);
       req.headers.set('X-SDSC-Nonce', nonce);
@@ -477,10 +523,14 @@ void main() {
   test('the calendar IPC token never authorizes the admin API', () async {
     final client = HttpClient();
     try {
-      final req = await client
-          .openUrl('GET', Uri.parse('http://127.0.0.1:${api.boundPort}/api/state'));
+      final req = await client.openUrl(
+        'GET',
+        Uri.parse('http://127.0.0.1:${api.boundPort}/api/state'),
+      );
       req.headers.set(
-          HttpHeaders.authorizationHeader, 'Bearer calendar-cron-token');
+        HttpHeaders.authorizationHeader,
+        'Bearer calendar-cron-token',
+      );
       final res = await req.close();
       expect(res.statusCode, 401);
       await res.drain<void>();
@@ -493,46 +543,40 @@ void main() {
 
   test('GET /api/users reports every group of a user', () async {
     // Id 1 is the console id in this test config (makeConfig).
-    repo.upsertUser(User(
-      id: 1,
-      name: '@root',
-      experience: Experience.experienced,
-      group: 'A',
-      isAdmin: true,
-    ));
-    repo.upsertUser(User(
-      id: 101,
-      name: '@alice',
-      experience: Experience.newbie,
-      group: 'A',
-      isAdmin: true,
-    ));
-    repo.upsertUser(User(
-      id: 2,
-      name: '@bob',
-      experience: Experience.newbie,
-      group: 'B',
-    ));
+    repo.upsertUser(
+      User(
+        id: 1,
+        name: '@root',
+        experience: Experience.experienced,
+        group: 'A',
+        isAdmin: true,
+      ),
+    );
+    repo.upsertUser(
+      User(
+        id: 101,
+        name: '@alice',
+        experience: Experience.newbie,
+        group: 'A',
+        isAdmin: true,
+      ),
+    );
+    repo.upsertUser(
+      User(id: 2, name: '@bob', experience: Experience.newbie, group: 'B'),
+    );
     repo.setTier(2, 'check');
-    repo.upsertUser(User(
-      id: 3,
-      name: '@carol',
-      experience: Experience.newbie,
-      group: 'A',
-    ));
+    repo.upsertUser(
+      User(id: 3, name: '@carol', experience: Experience.newbie, group: 'A'),
+    );
     repo.setTier(3, 'old');
-    repo.upsertUser(User(
-      id: 4,
-      name: '@dave',
-      experience: Experience.newbie,
-      group: 'B',
-    ));
+    repo.upsertUser(
+      User(id: 4, name: '@dave', experience: Experience.newbie, group: 'B'),
+    );
 
     final (status, body) = await call('GET', '/api/users');
     expect(status, 200);
-    final users =
-        ((body as Map<String, dynamic>)['users'] as List)
-            .cast<Map<String, dynamic>>();
+    final users = ((body as Map<String, dynamic>)['users'] as List)
+        .cast<Map<String, dynamic>>();
 
     String? groupOf(int id) {
       final u = users.firstWhere((u) => u['id'] == id);
@@ -546,21 +590,21 @@ void main() {
     expect(groupOf(4), 'member');
   });
 
-  test('a console who stepped down as admin shows console | member',
-      () async {
-    repo.upsertUser(User(
-      id: 1,
-      name: '@root',
-      experience: Experience.experienced,
-      group: 'A',
-      isAdmin: true,
-    ));
+  test('a console who stepped down as admin shows console | member', () async {
+    repo.upsertUser(
+      User(
+        id: 1,
+        name: '@root',
+        experience: Experience.experienced,
+        group: 'A',
+        isAdmin: true,
+      ),
+    );
     // Console removes their own admin flag: still a member, not an admin.
     await call('POST', '/api/users/1/admin', body: {'admin': false});
     final (_, body) = await call('GET', '/api/users');
-    final users =
-        ((body as Map<String, dynamic>)['users'] as List)
-            .cast<Map<String, dynamic>>();
+    final users = ((body as Map<String, dynamic>)['users'] as List)
+        .cast<Map<String, dynamic>>();
     final root = users.firstWhere((u) => u['id'] == 1);
     expect((root['groups'] as List).cast<String>(), ['console', 'member']);
     // Still active: a retired-from-admin console is a normal member.
@@ -569,143 +613,186 @@ void main() {
 
   // ------------------------------------------------------- user admin
 
-  test('POST /api/users/{id}/admin grants and strips admin, keeping the tier',
-      () async {
-    repo.upsertUser(User(
-      id: 7,
-      name: '@carol',
-      experience: Experience.newbie,
-      group: 'A',
-    ));
-    repo.setTier(7, 'check'); // check, not admin
-    expect(repo.findUser(7)!.memberTier, 'check');
+  test(
+    'POST /api/users/{id}/admin grants and strips admin, keeping the tier',
+    () async {
+      repo.upsertUser(
+        User(id: 7, name: '@carol', experience: Experience.newbie, group: 'A'),
+      );
+      repo.setTier(7, 'check'); // check, not admin
+      expect(repo.findUser(7)!.memberTier, 'check');
 
-    final (status, body) = await call('POST', '/api/users/7/admin',
-        body: {'admin': true});
-    expect(status, 200);
-    expect((body as Map<String, dynamic>)['admin'], true);
-    expect(repo.findUser(7)!.isAdmin, true);
-    expect(repo.findUser(7)!.memberTier, 'check'); // tier untouched
+      final (status, body) = await call(
+        'POST',
+        '/api/users/7/admin',
+        body: {'admin': true},
+      );
+      expect(status, 200);
+      expect((body as Map<String, dynamic>)['admin'], true);
+      expect(repo.findUser(7)!.isAdmin, true);
+      expect(repo.findUser(7)!.memberTier, 'check'); // tier untouched
 
-    await call('POST', '/api/users/7/admin', body: {'admin': false});
-    expect(repo.findUser(7)!.isAdmin, false);
-    expect(repo.findUser(7)!.memberTier, 'check');
+      await call('POST', '/api/users/7/admin', body: {'admin': false});
+      expect(repo.findUser(7)!.isAdmin, false);
+      expect(repo.findUser(7)!.memberTier, 'check');
 
-    // The console can also toggle their own admin flag (stepping down as
-    // admin while staying the console).
-    repo.upsertUser(User(
-      id: 1,
-      name: '@root',
-      experience: Experience.experienced,
-      group: 'A',
-      isAdmin: true,
-    ));
-    final (consoleStatus, _) = await call('POST', '/api/users/1/admin',
-        body: {'admin': false});
-    expect(consoleStatus, 200);
-    expect(repo.findUser(1)!.isAdmin, false);
-  });
+      // The console can also toggle their own admin flag (stepping down as
+      // admin while staying the console).
+      repo.upsertUser(
+        User(
+          id: 1,
+          name: '@root',
+          experience: Experience.experienced,
+          group: 'A',
+          isAdmin: true,
+        ),
+      );
+      final (consoleStatus, _) = await call(
+        'POST',
+        '/api/users/1/admin',
+        body: {'admin': false},
+      );
+      expect(consoleStatus, 200);
+      expect(repo.findUser(1)!.isAdmin, false);
+    },
+  );
 
-  test('the console can demote themselves to old (no prompts, no allocation)',
-      () async {
-    // Id 1 is the console id in this test config.
-    repo.upsertUser(User(
-      id: 1,
-      name: '@root',
-      experience: Experience.experienced,
-      group: 'A',
-      isAdmin: true,
-    ));
-    final (status, body) =
-        await call('POST', '/api/users/1/tier', body: {'tier': 'old'});
-    expect(status, 200);
-    final u = repo.findUser(1)!;
-    expect(u.memberTier, 'old');
-    expect(u.isAdmin, false);
-    // Dropped from the prompt/allocation pool.
-    expect(repo.activeUsers().any((x) => x.id == 1), isFalse);
-    // Still reported as the console, with the old-mem group visible.
-    final (_, usersBody) = await call('GET', '/api/users');
-    final users = ((usersBody as Map<String, dynamic>)['users'] as List)
-        .cast<Map<String, dynamic>>();
-    final root = users.firstWhere((u) => u['id'] == 1);
-    expect((root['groups'] as List).cast<String>(), ['console', 'old']);
+  test(
+    'the console can demote themselves to old (no prompts, no allocation)',
+    () async {
+      // Id 1 is the console id in this test config.
+      repo.upsertUser(
+        User(
+          id: 1,
+          name: '@root',
+          experience: Experience.experienced,
+          group: 'A',
+          isAdmin: true,
+        ),
+      );
+      final (status, body) = await call(
+        'POST',
+        '/api/users/1/tier',
+        body: {'tier': 'old'},
+      );
+      expect(status, 200);
+      final u = repo.findUser(1)!;
+      expect(u.memberTier, 'old');
+      expect(u.isAdmin, false);
+      // Dropped from the prompt/allocation pool.
+      expect(repo.activeUsers().any((x) => x.id == 1), isFalse);
+      // Still reported as the console, with the old-mem group visible.
+      final (_, usersBody) = await call('GET', '/api/users');
+      final users = ((usersBody as Map<String, dynamic>)['users'] as List)
+          .cast<Map<String, dynamic>>();
+      final root = users.firstWhere((u) => u['id'] == 1);
+      expect((root['groups'] as List).cast<String>(), ['console', 'old']);
 
-    // They can promote themselves back to an active member.
-    await call('POST', '/api/users/1/tier', body: {'tier': 'member'});
-    expect(repo.activeUsers().any((x) => x.id == 1), isTrue);
-  });
+      // They can promote themselves back to an active member.
+      await call('POST', '/api/users/1/tier', body: {'tier': 'member'});
+      expect(repo.activeUsers().any((x) => x.id == 1), isTrue);
+    },
+  );
 
   test('POST /api/users/{id}/exp changes experience', () async {
-    repo.upsertUser(User(
-      id: 7,
-      name: '@carol',
-      experience: Experience.newbie,
-      group: 'A',
-    ));
-    final (status, body) = await call('POST', '/api/users/7/exp',
-        body: {'exp': 'experienced'});
+    repo.upsertUser(
+      User(id: 7, name: '@carol', experience: Experience.newbie, group: 'A'),
+    );
+    final (status, body) = await call(
+      'POST',
+      '/api/users/7/exp',
+      body: {'exp': 'experienced'},
+    );
     expect(status, 200);
     expect((body as Map<String, dynamic>)['exp'], 'experienced');
     expect(repo.findUser(7)!.experience, Experience.experienced);
 
-    final (badStatus, _) = await call('POST', '/api/users/7/exp',
-        body: {'exp': 'senior'});
+    final (badStatus, _) = await call(
+      'POST',
+      '/api/users/7/exp',
+      body: {'exp': 'senior'},
+    );
     expect(badStatus, 400);
-    final (missingStatus, _) = await call('POST', '/api/users/999/exp',
-        body: {'exp': 'newbie'});
+    final (missingStatus, _) = await call(
+      'POST',
+      '/api/users/999/exp',
+      body: {'exp': 'newbie'},
+    );
     expect(missingStatus, 404);
   });
 
   test('POST /api/users registers or queues a member by handle', () async {
     // Unseen, unqueued handle → queued for first contact.
-    final (q, _) =
-        await call('POST', '/api/users', body: {'handle': '@newbie'});
+    final (q, _) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@newbie'},
+    );
     expect(q, 200);
     expect(repo.isPendingUser('newbie'), true);
 
     // A seen user is registered immediately as a plain member.
     repo.upsertSeenUser(202, 'alice');
-    final (s, _) =
-        await call('POST', '/api/users', body: {'handle': '@alice'});
+    final (s, _) = await call('POST', '/api/users', body: {'handle': '@alice'});
     expect(s, 200);
     expect(repo.findUser(202), isNotNull);
     expect(repo.findUser(202)!.isAdmin, false);
 
     // Already a member → reported, no duplicate.
-    final (d, dBody) =
-        await call('POST', '/api/users', body: {'handle': '@alice'});
+    final (d, dBody) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@alice'},
+    );
     expect(d, 200);
-    expect((dBody as Map<String, dynamic>)['message'],
-        contains('already a member'));
+    expect(
+      (dBody as Map<String, dynamic>)['message'],
+      contains('already a member'),
+    );
 
     // Garbage input is rejected.
-    final (bad, _) =
-        await call('POST', '/api/users', body: {'handle': 'two words'});
+    final (bad, _) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': 'two words'},
+    );
     expect(bad, 400);
   });
 
   test('POST /api/users adds a user directly as check tier', () async {
     // A seen user is registered immediately as a checker.
     repo.upsertSeenUser(303, 'carol');
-    final (s, sBody) = await call('POST', '/api/users',
-        body: {'handle': '@carol', 'tier': 'check'});
+    final (s, sBody) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@carol', 'tier': 'check'},
+    );
     expect(s, 200);
-    expect((sBody as Map<String, dynamic>)['message'],
-        contains('added as a checker'));
+    expect(
+      (sBody as Map<String, dynamic>)['message'],
+      contains('added as a checker'),
+    );
     expect(repo.findUser(303)!.memberTier, MemberTier.check);
 
     // An unseen user is queued as a checker; the tier survives registration.
-    final (q, qBody) = await call('POST', '/api/users',
-        body: {'handle': '@dave', 'tier': 'check'});
+    final (q, qBody) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@dave', 'tier': 'check'},
+    );
     expect(q, 200);
-    expect((qBody as Map<String, dynamic>)['message'],
-        contains('queued as a checker'));
+    expect(
+      (qBody as Map<String, dynamic>)['message'],
+      contains('queued as a checker'),
+    );
     expect(repo.pendingTier('dave'), MemberTier.check);
 
     // A bad tier is rejected.
-    final (bad, _) = await call('POST', '/api/users',
-        body: {'handle': '@eve', 'tier': 'admin'});
+    final (bad, _) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@eve', 'tier': 'admin'},
+    );
     expect(bad, 400);
   });
 
@@ -743,18 +830,17 @@ void main() {
   // ------------------------------------------------------- attendance
 
   test('attendance lists window sessions and sets explicit states', () async {
-    repo.upsertUser(User(
-      id: 101,
-      name: '@alice',
-      experience: Experience.experienced,
-      group: 'A',
-    ));
-    repo.upsertUser(User(
-      id: 102,
-      name: '@bob',
-      experience: Experience.newbie,
-      group: 'B',
-    ));
+    repo.upsertUser(
+      User(
+        id: 101,
+        name: '@alice',
+        experience: Experience.experienced,
+        group: 'A',
+      ),
+    );
+    repo.upsertUser(
+      User(id: 102, name: '@bob', experience: Experience.newbie, group: 'B'),
+    );
     final now = api.config.toLocal(Config.nowUtc());
     final w = RollingWindow.forDate(now);
     repo.ensureSessionsForWeekend(
@@ -765,7 +851,10 @@ void main() {
     final sessions = repo.sessionsForWeekend(w.sat0);
     expect(sessions, isNotEmpty);
     final sessionId = sessions.first.id;
-    repo.replaceAllocationsForWeekend(w.sat0, [(101, sessionId), (102, sessionId)]);
+    repo.replaceAllocationsForWeekend(w.sat0, [
+      (101, sessionId),
+      (102, sessionId),
+    ]);
 
     final (status, body) = await call('GET', '/api/attendance');
     expect(status, 200);
@@ -781,156 +870,206 @@ void main() {
     expect(members, hasLength(2));
     expect(members.every((m) => m['state'] == 'unmarked'), isTrue);
 
-    final (t1, t1Body) = await call('POST', '/api/attendance',
-        body: {'sessionId': sessionId, 'userId': 101, 'state': 'present'});
+    final (t1, t1Body) = await call(
+      'POST',
+      '/api/attendance',
+      body: {'sessionId': sessionId, 'userId': 101, 'state': 'present'},
+    );
     expect(t1, 200);
     expect((t1Body as Map<String, dynamic>)['state'], 'present');
 
-    final (t2, t2Body) = await call('POST', '/api/attendance',
-        body: {'sessionId': sessionId, 'userId': 101, 'state': 'absent'});
+    final (t2, t2Body) = await call(
+      'POST',
+      '/api/attendance',
+      body: {'sessionId': sessionId, 'userId': 101, 'state': 'absent'},
+    );
     expect(t2, 200);
     expect((t2Body as Map<String, dynamic>)['state'], 'absent');
 
-    final (t3, t3Body) = await call('POST', '/api/attendance',
-        body: {'sessionId': sessionId, 'userId': 101, 'state': 'unmarked'});
+    final (t3, t3Body) = await call(
+      'POST',
+      '/api/attendance',
+      body: {'sessionId': sessionId, 'userId': 101, 'state': 'unmarked'},
+    );
     expect(t3, 200);
     expect((t3Body as Map<String, dynamic>)['state'], 'unmarked');
     expect(repo.attendanceForSession(sessionId), isEmpty);
 
-    final (bad, _) = await call('POST', '/api/attendance',
-        body: {'sessionId': sessionId, 'userId': 101, 'state': 'maybe'});
+    final (bad, _) = await call(
+      'POST',
+      '/api/attendance',
+      body: {'sessionId': sessionId, 'userId': 101, 'state': 'maybe'},
+    );
     expect(bad, 400);
   });
 
   // ------------------------------------------------------- group model
 
-  test('POST /api/assign-groups distributes ungrouped members evenly',
-      () async {
-    repo.upsertUser(User(
-      id: 1,
-      name: '@root',
-      experience: Experience.experienced,
-      group: '1',
-      isAdmin: true,
-    ));
-    repo.upsertUser(User(
-      id: 11,
-      name: '@lead2',
-      experience: Experience.experienced,
-      group: '2',
-      isAdmin: true,
-    ));
-    for (var i = 100; i < 105; i++) {
-      repo.upsertUser(User(
-        id: i,
-        name: '@m$i',
-        experience: Experience.newbie,
-        group: '',
-      ));
-    }
-    // check/old have no group but must NOT be assigned.
-    repo.upsertUser(User(
-      id: 200, name: '@checker', experience: Experience.newbie, group: '',
-    ));
-    repo.setTier(200, 'check');
-    repo.upsertUser(User(
-      id: 201, name: '@former', experience: Experience.newbie, group: '',
-    ));
-    repo.setTier(201, 'old');
+  test(
+    'POST /api/assign-groups distributes ungrouped members evenly',
+    () async {
+      repo.upsertUser(
+        User(
+          id: 1,
+          name: '@root',
+          experience: Experience.experienced,
+          group: '1',
+          isAdmin: true,
+        ),
+      );
+      repo.upsertUser(
+        User(
+          id: 11,
+          name: '@lead2',
+          experience: Experience.experienced,
+          group: '2',
+          isAdmin: true,
+        ),
+      );
+      for (var i = 100; i < 105; i++) {
+        repo.upsertUser(
+          User(id: i, name: '@m$i', experience: Experience.newbie, group: ''),
+        );
+      }
+      // check/old have no group but must NOT be assigned.
+      repo.upsertUser(
+        User(
+          id: 200,
+          name: '@checker',
+          experience: Experience.newbie,
+          group: '',
+        ),
+      );
+      repo.setTier(200, 'check');
+      repo.upsertUser(
+        User(
+          id: 201,
+          name: '@former',
+          experience: Experience.newbie,
+          group: '',
+        ),
+      );
+      repo.setTier(201, 'old');
 
-    final (status, body) = await call('POST', '/api/assign-groups');
-    expect(status, 200);
-    expect((body as Map<String, dynamic>)['assigned'], 5);
+      final (status, body) = await call('POST', '/api/assign-groups');
+      expect(status, 200);
+      expect((body as Map<String, dynamic>)['assigned'], 5);
 
-    final counts = <String, int>{};
-    for (var i = 100; i < 105; i++) {
-      final g = repo.findUser(i)!.group;
-      expect(g, isNotEmpty);
-      counts[g] = (counts[g] ?? 0) + 1;
-    }
-    expect(counts.length, 2); // split across both leader groups
-    expect(counts.values.every((c) => c >= 2 && c <= 3), isTrue);
-    // check/old untouched, admins untouched.
-    expect(repo.findUser(200)!.group, '');
-    expect(repo.findUser(201)!.group, '');
-    expect(repo.findUser(1)!.group, '1');
-    expect(repo.findUser(11)!.group, '2');
-  });
+      final counts = <String, int>{};
+      for (var i = 100; i < 105; i++) {
+        final g = repo.findUser(i)!.group;
+        expect(g, isNotEmpty);
+        counts[g] = (counts[g] ?? 0) + 1;
+      }
+      expect(counts.length, 2); // split across both leader groups
+      expect(counts.values.every((c) => c >= 2 && c <= 3), isTrue);
+      // check/old untouched, admins untouched.
+      expect(repo.findUser(200)!.group, '');
+      expect(repo.findUser(201)!.group, '');
+      expect(repo.findUser(1)!.group, '1');
+      expect(repo.findUser(11)!.group, '2');
+    },
+  );
 
   test('POST /api/users/{id}/group moves or ungroups a member, blocked for '
       'admins', () async {
-    repo.upsertUser(User(
-      id: 1,
-      name: '@root',
-      experience: Experience.experienced,
-      group: '1',
-      isAdmin: true,
-    ));
-    repo.upsertUser(User(
-      id: 11,
-      name: '@lead2',
-      experience: Experience.experienced,
-      group: '2',
-      isAdmin: true,
-    ));
-    repo.upsertUser(User(
-      id: 101, name: '@alice', experience: Experience.newbie, group: '',
-    ));
+    repo.upsertUser(
+      User(
+        id: 1,
+        name: '@root',
+        experience: Experience.experienced,
+        group: '1',
+        isAdmin: true,
+      ),
+    );
+    repo.upsertUser(
+      User(
+        id: 11,
+        name: '@lead2',
+        experience: Experience.experienced,
+        group: '2',
+        isAdmin: true,
+      ),
+    );
+    repo.upsertUser(
+      User(id: 101, name: '@alice', experience: Experience.newbie, group: ''),
+    );
 
-    final (m, mBody) = await call('POST', '/api/users/101/group',
-        body: {'group': '2'});
+    final (m, mBody) = await call(
+      'POST',
+      '/api/users/101/group',
+      body: {'group': '2'},
+    );
     expect(m, 200);
     expect((mBody as Map<String, dynamic>)['group'], '2');
     expect(repo.findUser(101)!.group, '2');
 
-    final (r, _) = await call('POST', '/api/users/101/group',
-        body: {'group': ''});
+    final (r, _) = await call(
+      'POST',
+      '/api/users/101/group',
+      body: {'group': ''},
+    );
     expect(r, 200);
     expect(repo.findUser(101)!.group, '');
 
     // An admin cannot be moved or removed from their own group.
-    final (a, aBody) = await call('POST', '/api/users/11/group',
-        body: {'group': ''});
+    final (a, aBody) = await call(
+      'POST',
+      '/api/users/11/group',
+      body: {'group': ''},
+    );
     expect(a, 400);
     expect((aBody as Map<String, dynamic>)['error'], contains('demote'));
     expect(repo.findUser(11)!.group, '2');
 
     // Unknown groups are rejected.
-    final (u, _) = await call('POST', '/api/users/101/group',
-        body: {'group': '9'});
+    final (u, _) = await call(
+      'POST',
+      '/api/users/101/group',
+      body: {'group': '9'},
+    );
     expect(u, 400);
   });
 
-  test('promotion assigns the lowest free group; demotion dissolves it',
-      () async {
-    repo.upsertUser(User(
-      id: 1,
-      name: '@root',
-      experience: Experience.experienced,
-      group: '1',
-      isAdmin: true,
-    ));
-    repo.upsertUser(User(
-      id: 101, name: '@alice', experience: Experience.newbie, group: '1',
-    ));
-    repo.upsertUser(User(
-      id: 102, name: '@bob', experience: Experience.newbie, group: '',
-    ));
+  test(
+    'promotion assigns the lowest free group; demotion dissolves it',
+    () async {
+      repo.upsertUser(
+        User(
+          id: 1,
+          name: '@root',
+          experience: Experience.experienced,
+          group: '1',
+          isAdmin: true,
+        ),
+      );
+      repo.upsertUser(
+        User(
+          id: 101,
+          name: '@alice',
+          experience: Experience.newbie,
+          group: '1',
+        ),
+      );
+      repo.upsertUser(
+        User(id: 102, name: '@bob', experience: Experience.newbie, group: ''),
+      );
 
-    // Promote bob → lowest free group is 2 (1 is taken by root).
-    await call('POST', '/api/users/102/tier', body: {'tier': 'admin'});
-    expect(repo.findUser(102)!.isAdmin, true);
-    expect(repo.findUser(102)!.group, '2');
+      // Promote bob → lowest free group is 2 (1 is taken by root).
+      await call('POST', '/api/users/102/tier', body: {'tier': 'admin'});
+      expect(repo.findUser(102)!.isAdmin, true);
+      expect(repo.findUser(102)!.group, '2');
 
-    // Demote root (console, group 1) → group 1 dissolves: alice loses it too.
-    await call('POST', '/api/users/1/admin', body: {'admin': false});
-    expect(repo.findUser(1)!.isAdmin, false);
-    expect(repo.findUser(1)!.group, '');
-    expect(repo.findUser(101)!.group, '');
+      // Demote root (console, group 1) → group 1 dissolves: alice loses it too.
+      await call('POST', '/api/users/1/admin', body: {'admin': false});
+      expect(repo.findUser(1)!.isAdmin, false);
+      expect(repo.findUser(1)!.group, '');
+      expect(repo.findUser(101)!.group, '');
 
-    // Promote alice → group 1 is free again (bob holds 2) → gap filled.
-    await call('POST', '/api/users/101/admin', body: {'admin': true});
-    expect(repo.findUser(101)!.group, '1');
-    expect(repo.findUser(102)!.group, '2');
-  });
+      // Promote alice → group 1 is free again (bob holds 2) → gap filled.
+      await call('POST', '/api/users/101/admin', body: {'admin': true});
+      expect(repo.findUser(101)!.group, '1');
+      expect(repo.findUser(102)!.group, '2');
+    },
+  );
 }

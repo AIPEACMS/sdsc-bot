@@ -78,7 +78,6 @@ Future<void> main() async {
     bot: bot,
     repo: repo,
     config: config,
-    messages: messages,
     state: state,
     service: service,
   );
@@ -94,11 +93,7 @@ Future<void> main() async {
     holdGate: holdGate,
   );
 
-  final scheduler = Scheduler(
-    repo: repo,
-    config: config,
-    service: service,
-  );
+  final scheduler = Scheduler(repo: repo, config: config, service: service);
 
   CalendarIpcServer? ipcServer;
   if (config.calendarIpcToken != null) {
@@ -109,7 +104,7 @@ Future<void> main() async {
     );
   }
 
-    AdminApi? adminApi;
+  AdminApi? adminApi;
   // Always listen: with zero registered keys the API 401s every request, but
   // it must be up for the very first console key to be usable after /addkey.
   final apiToken = config.adminApiToken;

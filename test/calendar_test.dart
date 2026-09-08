@@ -45,39 +45,44 @@ void main() {
 
   setUp(() {
     tmp = Directory.systemTemp.createTempSync('sdsc_cal_');
-    db = Database.open(Config(
-      botToken: 'test',
-      dbPath: '${tmp.path}/test.db',
-      consoleId: 1,
-      groupAContact: 'TBD',
-      groupBContact: 'TBD',
-      ocbcCapacity: 6,
-      prCapacity: 20,
-      slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      promptHour: 8,
-      reminderHour: 18,
-      deadlineHour: 18,
-      allocationHour: 9,
-      bailHour: 12,
-      timezoneOffsetHours: 8,
-    ));
+    db = Database.open(
+      Config(
+        botToken: 'test',
+        dbPath: '${tmp.path}/test.db',
+        consoleId: 1,
+        groupAContact: 'TBD',
+        groupBContact: 'TBD',
+        ocbcCapacity: 6,
+        prCapacity: 20,
+        slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+        promptHour: 18,
+        reminderHour: 18,
+        deadlineHour: 18,
+        allocationHour: 9,
+        bailHour: 12,
+        timezoneOffsetHours: 8,
+      ),
+    );
     repo = Repo(db);
-    sync = CalendarSync(repo: repo, config: Config(
-      botToken: 'test',
-      dbPath: '${tmp.path}/test.db',
-      consoleId: 1,
-      groupAContact: 'TBD',
-      groupBContact: 'TBD',
-      ocbcCapacity: 6,
-      prCapacity: 20,
-      slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      promptHour: 8,
-      reminderHour: 18,
-      deadlineHour: 18,
-      allocationHour: 9,
-      bailHour: 12,
-      timezoneOffsetHours: 8,
-    ));
+    sync = CalendarSync(
+      repo: repo,
+      config: Config(
+        botToken: 'test',
+        dbPath: '${tmp.path}/test.db',
+        consoleId: 1,
+        groupAContact: 'TBD',
+        groupBContact: 'TBD',
+        ocbcCapacity: 6,
+        prCapacity: 20,
+        slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+        promptHour: 18,
+        reminderHour: 18,
+        deadlineHour: 18,
+        allocationHour: 9,
+        bailHour: 12,
+        timezoneOffsetHours: 8,
+      ),
+    );
   });
 
   tearDown(() {
@@ -90,18 +95,18 @@ void main() {
     expect(year.academicYear, '2026-27');
     expect(year.semester('semester_1')!.weeks.length, 4);
     expect(year.semester('semester_1')!.weeks[2].type, 'recess');
-    expect(year.semester('semester_1')!.weeks[2].start,
-        DateTime(2026, 9, 28));
+    expect(year.semester('semester_1')!.weeks[2].start, DateTime(2026, 9, 28));
   });
 
   test('rejects malformed YAML', () {
     expect(() => CalendarYear.fromYaml('garbage: [not'), throwsFormatException);
-    expect(() => CalendarYear.fromYaml('foo: bar'),
-        throwsFormatException); // missing academic_year
+    expect(
+      () => CalendarYear.fromYaml('foo: bar'),
+      throwsFormatException,
+    ); // missing academic_year
   });
 
-  test('sync derives holidays: recess=middle, winter gap, summer tail',
-      () {
+  test('sync derives holidays: recess=middle, winter gap, summer tail', () {
     final result = sync.apply(sampleYaml);
     expect(result.academicYear, '2026-27');
     expect(result.holidays, greaterThan(0));
@@ -137,7 +142,8 @@ void main() {
   test('saveCalendarYaml round-trips', () {
     sync.apply(sampleYaml);
     final rows = repo.raw.select(
-      "SELECT academic_year FROM calendar_years WHERE academic_year = '2026-27'");
+      "SELECT academic_year FROM calendar_years WHERE academic_year = '2026-27'",
+    );
     expect(rows.length, 1);
   });
 

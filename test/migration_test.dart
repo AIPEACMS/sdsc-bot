@@ -5,25 +5,24 @@ import 'package:sqlite3/sqlite3.dart' as sqlite;
 import 'package:sdsc_bot/sdsc_bot.dart';
 
 Config _config(String path) => Config(
-      botToken: 'test',
-      dbPath: path,
-      consoleId: 1,
-      groupAContact: 'TBD',
-      groupBContact: 'TBD',
-      ocbcCapacity: 2,
-      prCapacity: 20,
-      slotTimes: const {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-      promptHour: 8,
-      reminderHour: 18,
-      deadlineHour: 18,
-      allocationHour: 9,
-      bailHour: 12,
-      timezoneOffsetHours: 8,
-    );
+  botToken: 'test',
+  dbPath: path,
+  consoleId: 1,
+  groupAContact: 'TBD',
+  groupBContact: 'TBD',
+  ocbcCapacity: 2,
+  prCapacity: 20,
+  slotTimes: const {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+  promptHour: 18,
+  reminderHour: 18,
+  deadlineHour: 18,
+  allocationHour: 9,
+  bailHour: 12,
+  timezoneOffsetHours: 8,
+);
 
 void main() {
-  test('a legacy cycle-keyed database migrates to the weekend-keyed model',
-      () {
+  test('a legacy cycle-keyed database migrates to the weekend-keyed model', () {
     final tmp = Directory.systemTemp.createTempSync('sdsc_mig_');
     final path = '${tmp.path}/old.db';
 
@@ -96,9 +95,11 @@ CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE console_keys (id INTEGER PRIMARY KEY AUTOINCREMENT, pubkey TEXT NOT NULL UNIQUE, name TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP);
 ''');
     db.execute(
-        "INSERT INTO users (id, name, group_id) VALUES (1, '@root', 'A')");
+      "INSERT INTO users (id, name, group_id) VALUES (1, '@root', 'A')",
+    );
     db.execute(
-        "INSERT INTO users (id, name, group_id) VALUES (2, '@member', 'B')");
+      "INSERT INTO users (id, name, group_id) VALUES (2, '@member', 'B')",
+    );
     db.execute('''
 INSERT INTO cycles (id, block_week, block_year, prompt_day, reminder_day, deadline, allocation_day)
 VALUES (1, 33, 2026, '2026-08-10T08:00:00', '2026-08-13T18:00:00',
@@ -111,10 +112,13 @@ VALUES (1, 1, 0, 'sat', 'am', 'ocbc', '2026-08-15T09:00:00', '2026-08-15T12:00:0
        (2, 1, 1, 'sat', 'am', 'ocbc', '2026-08-22T09:00:00', '2026-08-22T12:00:00')
 ''');
     db.execute(
-        "INSERT INTO availability (cycle_id, user_id, slots, available) "
-        "VALUES (1, 1, '[\"0:sat:am:ocbc\"]', 1)");
-    db.execute('INSERT INTO allocations (cycle_id, user_id, session_id) '
-        'VALUES (1, 1, 1)');
+      "INSERT INTO availability (cycle_id, user_id, slots, available) "
+      "VALUES (1, 1, '[\"0:sat:am:ocbc\"]', 1)",
+    );
+    db.execute(
+      'INSERT INTO allocations (cycle_id, user_id, session_id) '
+      'VALUES (1, 1, 1)',
+    );
     db.execute('INSERT INTO attendance (user_id, session_id) VALUES (1, 1)');
     db.close();
 

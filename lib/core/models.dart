@@ -29,8 +29,7 @@ class MemberTier {
   }
 
   /// True when the user takes part in availability/allocation/messaging.
-  static bool isActive(String tier) =>
-      tier != check && tier != old;
+  static bool isActive(String tier) => tier != check && tier != old;
 }
 
 class User {
@@ -101,23 +100,23 @@ class User {
   }
 
   factory User.fromRow(Map<String, Object?> row) => User(
-        id: row['id'] as int,
-        name: row['name'] as String,
-        experience: (row['experience'] as String) == 'experienced'
-            ? Experience.experienced
-            : Experience.newbie,
-        group: row['group_id'] as String,
-        isAdmin: (row['is_admin'] as int) == 1,
-        ocbcStreak: (row['ocbc_streak'] as int? ?? 0),
-        registeredAt: row['created_at'] == null
-            ? null
-            : DateTime.tryParse(row['created_at'] as String),
-        fullName: (row['full_name'] as String?) ?? '',
-        preferredName: (row['preferred_name'] as String?) ?? '',
-        matricNo: (row['matric_no'] as String?) ?? '',
-        schoolEmail: (row['school_email'] as String?) ?? '',
-        memberTier: (row['member_tier'] as String?) ?? MemberTier.member,
-      );
+    id: row['id'] as int,
+    name: row['name'] as String,
+    experience: (row['experience'] as String) == 'experienced'
+        ? Experience.experienced
+        : Experience.newbie,
+    group: row['group_id'] as String,
+    isAdmin: (row['is_admin'] as int) == 1,
+    ocbcStreak: (row['ocbc_streak'] as int? ?? 0),
+    registeredAt: row['created_at'] == null
+        ? null
+        : DateTime.tryParse(row['created_at'] as String),
+    fullName: (row['full_name'] as String?) ?? '',
+    preferredName: (row['preferred_name'] as String?) ?? '',
+    matricNo: (row['matric_no'] as String?) ?? '',
+    schoolEmail: (row['school_email'] as String?) ?? '',
+    memberTier: (row['member_tier'] as String?) ?? MemberTier.member,
+  );
 }
 
 /// One session of one weekend, e.g. `0:sat:am:ocbc` = weekend 0, Saturday AM,
@@ -131,7 +130,9 @@ class Slot {
 
   const Slot(this.weekendIndex, this.day, this.slot, this.location);
 
-  static const allDays = ['sat']; // Saturday only — there are no Sunday sessions
+  static const allDays = [
+    'sat',
+  ]; // Saturday only — there are no Sunday sessions
   static const allSlots = ['am', 'pm'];
   static const allLocations = ['ocbc', 'pasirRis'];
 
@@ -181,7 +182,8 @@ class Slot {
   }
 
   @override
-  String toString() => 'Weekend ${weekendIndex + 1} · $locationLabel · '
+  String toString() =>
+      'Weekend ${weekendIndex + 1} · $locationLabel · '
       '$dayLabel $slotLabel';
 
   @override
@@ -200,7 +202,7 @@ class Slot {
 /// and next weekend) with its per-weekend deadlines. Everything is computed
 /// from the calendar — no database rows.
 ///
-///   - prompt:    Monday 08:00 of the current week
+///   - prompt:    Monday 18:00 of the current week
 ///   - reminder:  Thursday 18:00
 ///   - deadline0: Friday 18:00 of the current week (locks this weekend)
 ///   - deadline1: Friday 18:00 of next week (locks the second weekend)
@@ -223,23 +225,38 @@ class RollingWindow {
   });
 
   /// The bundle whose first weekend is [sat0].
-  factory RollingWindow.fromSat0(DateTime sat0) {
+  factory RollingWindow.fromSat0(
+    DateTime sat0, {
+    int promptHour = 18,
+    int reminderHour = 18,
+  }) {
     final monday = sat0.subtract(const Duration(days: 5)); // Sat - 5 = Mon
     return RollingWindow(
       sat0: sat0,
       sat1: sat0.add(const Duration(days: 7)),
-      promptDay: WeekMath.atTime(monday, 8),
-      reminderDay: WeekMath.atTime(monday.add(const Duration(days: 3)), 18),
+      promptDay: WeekMath.atTime(monday, promptHour),
+      reminderDay: WeekMath.atTime(
+        monday.add(const Duration(days: 3)),
+        reminderHour,
+      ),
       deadline0: WeekMath.atTime(monday.add(const Duration(days: 4)), 18),
       deadline1: WeekMath.atTime(monday.add(const Duration(days: 11)), 18),
     );
   }
 
   /// The window for a local date: bundle = [current week, next week].
-  factory RollingWindow.forDate(DateTime localNow) {
+  factory RollingWindow.forDate(
+    DateTime localNow, {
+    int promptHour = 18,
+    int reminderHour = 18,
+  }) {
     final week = WeekMath.isoWeek(localNow);
     final year = WeekMath.isoYear(localNow);
-    return RollingWindow.fromSat0(WeekMath.saturdayOfWeek(week, year));
+    return RollingWindow.fromSat0(
+      WeekMath.saturdayOfWeek(week, year),
+      promptHour: promptHour,
+      reminderHour: reminderHour,
+    );
   }
 
   List<DateTime> get weekends => [sat0, sat1];
@@ -281,16 +298,16 @@ class Session {
   String slotKey() => '$day:$slot';
 
   factory Session.fromRow(Map<String, Object?> row) => Session(
-        id: row['id'] as int,
-        weekendStart: DateTime.parse(row['weekend_start'] as String),
-        day: row['day'] as String,
-        slot: row['slot'] as String,
-        location: (row['location'] as String) == 'ocbc'
-            ? Location.ocbc
-            : Location.pasirRis,
-        start: DateTime.parse(row['start_at'] as String),
-        end: DateTime.parse(row['end_at'] as String),
-      );
+    id: row['id'] as int,
+    weekendStart: DateTime.parse(row['weekend_start'] as String),
+    day: row['day'] as String,
+    slot: row['slot'] as String,
+    location: (row['location'] as String) == 'ocbc'
+        ? Location.ocbc
+        : Location.pasirRis,
+    start: DateTime.parse(row['start_at'] as String),
+    end: DateTime.parse(row['end_at'] as String),
+  );
 }
 
 /// A user's availability for one weekend of a bundle.
@@ -363,8 +380,8 @@ class Holiday {
   });
 
   factory Holiday.fromRow(Map<String, Object?> row) => Holiday(
-        id: row['id'] as int,
-        weekStart: DateTime.parse(row['week_start'] as String),
-        kind: HolidayKind.values.byName(row['kind'] as String),
-      );
+    id: row['id'] as int,
+    weekStart: DateTime.parse(row['week_start'] as String),
+    kind: HolidayKind.values.byName(row['kind'] as String),
+  );
 }

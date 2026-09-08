@@ -49,9 +49,9 @@ class BotState {
   /// existing data, never mid-walk over freshly typed answers).
   final Map<int, bool> profileCancel = {};
 
-  void registerCommand(String command, String label) {
+  void registerCommand(String command, [String? label]) {
     _commands.add(command);
-    _labels.add(label);
+    if (label != null) _labels.add(label);
   }
 
   bool isValidCommandText(String text) {
@@ -72,7 +72,8 @@ class BotState {
   List<(int chatId, int messageId)> takeInteractiveMessages(int userId) =>
       interactiveMessages.remove(userId) ?? [];
 
-  void clearInteractiveMessages(int userId) => interactiveMessages.remove(userId);
+  void clearInteractiveMessages(int userId) =>
+      interactiveMessages.remove(userId);
 
   void forgetAvailability(int userId) => availabilityPicks.remove(userId);
 
@@ -84,6 +85,6 @@ class BotState {
 
   /// The in-progress (want, available) pick sets for [userId], creating them
   /// if absent.
-  (Set<Slot>, Set<Slot>) picksFor(int userId) => availabilityPicks.putIfAbsent(
-      userId, () => (<Slot>{}, <Slot>{}));
+  (Set<Slot>, Set<Slot>) picksFor(int userId) =>
+      availabilityPicks.putIfAbsent(userId, () => (<Slot>{}, <Slot>{}));
 }

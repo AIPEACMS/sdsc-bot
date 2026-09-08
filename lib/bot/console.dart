@@ -33,11 +33,24 @@ class Console {
 
   void register() {
     commandBoth(bot, state, 'addadmin', _guard(_addAdmin), label: 'add-admin');
+    state.registerCommand('addcheck');
+    bot.command('addcheck', _guard(_addCheck));
     commandBoth(bot, state, 'setdate', _guard(_setDate), label: 'set-date');
-    commandBoth(bot, state, 'resetdate', _guard(_resetDate), label: 'reset-date');
+    commandBoth(
+      bot,
+      state,
+      'resetdate',
+      _guard(_resetDate),
+      label: 'reset-date',
+    );
     commandBoth(bot, state, 'demote', _guard(_demote), label: 'demote');
-    commandBoth(bot, state, 'sync-calendar', _guard(_syncCalendar),
-        label: 'sync-calendar');
+    commandBoth(
+      bot,
+      state,
+      'sync-calendar',
+      _guard(_syncCalendar),
+      label: 'sync-calendar',
+    );
     commandBoth(bot, state, 'hold', _guard(_holdConfirm), label: 'hold');
     commandBoth(bot, state, 'unhold', _guard(_unholdConfirm), label: 'unhold');
     commandBoth(bot, state, 'fullinfo', _guard(_fullInfo), label: 'full-info');
@@ -76,6 +89,53 @@ class Console {
 
   // --------------------------------------------------------- /addadmin
 
+  /// Adds a checker directly when their handle is known, or queues them until
+  /// their first contact with the bot.
+  Future<void> _addCheck(Context ctx) async {
+    if (ctx.args.length != 1) {
+      await ctx.reply('Usage: /addcheck @handle');
+      return;
+    }
+    final handle = ctx.args.single.replaceFirst('@', '').trim();
+    if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(handle)) {
+      await ctx.reply('Usage: /addcheck @handle');
+      return;
+    }
+
+    final userId = repo.userIdByUsername(handle);
+    final existing = userId == null ? null : repo.findUser(userId);
+    if (existing != null) {
+      if (existing.memberTier == MemberTier.check && !existing.isAdmin) {
+        await ctx.reply('✅ @$handle is already a checker.');
+        return;
+      }
+      repo.setTier(existing.id, MemberTier.check);
+      await ctx.reply('✅ @$handle is now a checker.');
+      return;
+    }
+    if (userId != null) {
+      repo.upsertUser(
+        User(
+          id: userId,
+          name: '@$handle',
+          experience: Experience.newbie,
+          group: '',
+          memberTier: MemberTier.check,
+        ),
+      );
+      await ctx.reply(
+        '✅ @$handle added as a checker. They can now use /start.',
+      );
+      return;
+    }
+
+    repo.addPendingUser(handle, isAdmin: false, tier: MemberTier.check);
+    await ctx.reply(
+      '✅ @$handle queued as a checker. The moment they message this bot, '
+      'they are registered automatically.',
+    );
+  }
+
   Future<void> _addAdmin(Context ctx) async {
     final args = ctx.args;
     if (args.isEmpty) {
@@ -99,12 +159,14 @@ class Console {
     if (userId != null) {
       final existing = repo.findUser(userId);
       if (existing == null) {
-        repo.upsertUser(User(
-          id: userId,
-          name: '@$handle',
-          experience: Experience.newbie,
-          group: '',
-        ));
+        repo.upsertUser(
+          User(
+            id: userId,
+            name: '@$handle',
+            experience: Experience.newbie,
+            group: '',
+          ),
+        );
         repo.updateAdmin(userId, true); // gets their own group
       } else {
         repo.updateAdmin(userId, true);
@@ -195,18 +257,19 @@ class Console {
   // ---------------------------------------------------------- /fullinfo
 
   Future<void> _fullInfo(Context ctx) async {
-    final users = repo.allUsers()
-      ..sort((a, b) => a.name.compareTo(b.name));
+    final users = repo.allUsers()..sort((a, b) => a.name.compareTo(b.name));
     if (users.isEmpty) {
       await ctx.reply('No registered users.');
       return;
     }
-    final lines = users.map((user) =>
-        '• <b>${_displayName(user)}</b>\n'
-        '   Full name: ${_field(user.fullName)}\n'
-        '   Preferred name: ${_field(user.preferredName)}\n'
-        '   School email: ${_field(user.schoolEmail)}\n'
-        '   Matric number: ${_field(user.matricNo)}');
+    final lines = users.map(
+      (user) =>
+          '• <b>${_displayName(user)}</b>\n'
+          '   Full name: ${_field(user.fullName)}\n'
+          '   Preferred name: ${_field(user.preferredName)}\n'
+          '   School email: ${_field(user.schoolEmail)}\n'
+          '   Matric number: ${_field(user.matricNo)}',
+    );
     await ctx.reply(
       '<b>All profile information (${users.length})</b>\n${lines.join('\n')}',
       parseMode: ParseMode.html,
@@ -290,8 +353,10 @@ class Console {
     if (holdGate.isHeld) {
       repo.setHeld(false);
       holdGate.held = false;
-      await ctx.reply('✅ <b>Bot unheld.</b> It can send again.',
-          parseMode: ParseMode.html);
+      await ctx.reply(
+        '✅ <b>Bot unheld.</b> It can send again.',
+        parseMode: ParseMode.html,
+      );
       return;
     }
     await ctx.reply(
@@ -363,8 +428,7 @@ class Console {
       return;
     }
     repo.addConsoleKey(pubkey, name: name);
-    LogRing.log(
-        'console: registered console key ${pubkey.substring(0, 12)}…');
+    LogRing.log('console: registered console key ${pubkey.substring(0, 12)}…');
     await ctx.reply(
       '✅ Console key registered.\n'
       'The desktop app can now control the bot with signed requests.',

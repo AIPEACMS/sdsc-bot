@@ -67,7 +67,7 @@ void main() {
         ocbcCapacity: 6,
         prCapacity: 20,
         slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
-        promptHour: 8,
+        promptHour: 18,
         reminderHour: 18,
         deadlineHour: 18,
         allocationHour: 9,
@@ -116,9 +116,7 @@ void main() {
       // New 4-part keys decode as-is; Sunday slots are not a thing and are
       // dropped.
       final set2 = Slot.decodeSet('["0:sat:am:ocbc","1:sun:pm:pasirRis"]');
-      expect(set2, {
-        const Slot(0, 'sat', 'am', 'ocbc'),
-      });
+      expect(set2, {const Slot(0, 'sat', 'am', 'ocbc')});
     });
   });
 }

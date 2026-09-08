@@ -1,5 +1,4 @@
-import 'package:televerse/telegram.dart' as tg
-    show KeyboardButton, StyleType;
+import 'package:televerse/telegram.dart' as tg show KeyboardButton, StyleType;
 import 'package:televerse/televerse.dart';
 
 import '../core/models.dart';
@@ -21,10 +20,10 @@ enum RoleColor {
 
   /// The televerse [StyleType] for this color.
   tg.StyleType get styleType => switch (this) {
-        RoleColor.member => tg.StyleType.success,
-        RoleColor.admin => tg.StyleType.primary,
-        RoleColor.console => tg.StyleType.danger,
-      };
+    RoleColor.member => tg.StyleType.success,
+    RoleColor.admin => tg.StyleType.primary,
+    RoleColor.console => tg.StyleType.danger,
+  };
 }
 
 /// A command grid button: the label shown in the grid and the command it
@@ -72,11 +71,10 @@ class RoleKeyboard {
     GridButton('group-status', '/groupstatus', RoleColor.admin),
     GridButton('all-users', '/users', RoleColor.admin),
     GridButton('group-users', '/groupusers', RoleColor.admin),
-    GridButton('prompt', '/prompt', RoleColor.admin),
-    GridButton('remind', '/remind', RoleColor.admin),
     GridButton('ask', '/ask', RoleColor.admin),
     GridButton('mark-attend', '/confirm', RoleColor.admin),
     GridButton('set-exp', '/setexp', RoleColor.admin),
+    GridButton('broadcast', '/broadcast', RoleColor.admin),
     ...memberButtons,
   ];
 
@@ -92,12 +90,12 @@ class RoleKeyboard {
   /// The full button list for [role] ('console' | 'admin' | 'check' |
   /// 'member' | 'old').
   static List<GridButton> gridButtons(String role) => switch (role) {
-        'console' => consoleButtons,
-        'admin' => adminButtons,
-        'check' => checkButtons,
-        'old' => oldButtons,
-        _ => memberButtons,
-      };
+    'console' => consoleButtons,
+    'admin' => adminButtons,
+    'check' => checkButtons,
+    'old' => oldButtons,
+    _ => memberButtons,
+  };
 
   /// The grid a user should see by default (highest tier wins).
   static String roleFor({
