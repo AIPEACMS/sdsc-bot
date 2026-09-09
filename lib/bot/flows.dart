@@ -215,7 +215,7 @@ class Flows {
         ..writeln('mark-attend — mark attendance')
         ..writeln('/setexp experienced|newbie — change a member\'s experience')
         ..writeln('/allocate — run the allocation now')
-        ..writeln('/broadcast <message> — message all members');
+        ..writeln('/broadcast &lt;message&gt; — message all members');
     }
 
     if (!retired) {

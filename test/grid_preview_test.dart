@@ -258,6 +258,17 @@ void main() {
   }
 
   test(
+    '/start sends parseable console help',
+    () async {
+      final sentBefore = sent.length;
+      await sendText(1, '/start');
+      final welcome = sent[sentBefore];
+      expect(welcome['text'], contains('/broadcast &lt;message&gt;'));
+      expect(welcome['parse_mode'], 'HTML');
+    },
+  );
+
+  test(
     '/grid cycles console → admin → check → member for the console',
     () async {
       await sendText(1, '/grid');
