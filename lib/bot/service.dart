@@ -168,6 +168,7 @@ class CycleService {
     final result = const Allocator().run(
       sessions: sessions,
       availability: availability,
+      users: users,
       locked: locked,
       lockedBackupUserIds: lockedBackupUserIds,
     );
