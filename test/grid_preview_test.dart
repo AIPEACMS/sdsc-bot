@@ -359,7 +359,7 @@ void main() {
   test('broadcast wizard cancel does not enter availability cancel flow', () async {
     await sendText(2, '/broadcast');
     await sendCallback(2, 'admincancel|0');
-    expect(sent.last['text'], 'Cancelled.');
+    expect(edited.last['text'], 'Cancelled.');
     expect(
       sent.where((body) => body['text'] == 'Your previous availability is kept.'),
       isEmpty,
