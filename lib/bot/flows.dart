@@ -184,8 +184,8 @@ class Flows {
         ..writeln('/grid | /resetgrid — preview role grids')
         ..writeln('/addkey — register a console app key')
         ..writeln('/keys | /rmkey — manage console keys')
-        ..writeln('/add-gadmin @handle — appoint the global admin')
-        ..writeln('/rm-gadmin [@handle] — remove the global admin');
+        ..writeln('/addg @handle — appoint the global admin')
+        ..writeln('/rmg [@handle] — remove the global admin');
     }
 
     if (retired) {

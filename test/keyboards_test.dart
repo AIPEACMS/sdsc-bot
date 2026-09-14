@@ -154,7 +154,7 @@ void main() {
     final commands = RoleKeyboard.consoleButtons.map((b) => b.command);
     expect(commands, RoleKeyboard.memberButtons.map((b) => b.command));
     expect(commands, isNot(contains('/addkey')));
-    expect(commands, isNot(contains('/add-gadmin')));
+    expect(commands, isNot(contains('/addg')));
     expect(commands, isNot(contains('/grid')));
   });
 
