@@ -297,7 +297,8 @@ void main() {
 
       await sendText(1, '/grid');
       expect(sent.last['text'], contains('Preview: console grid'));
-      expect(keyboardTexts(sent.last), containsAll(['hold', 'full-info']));
+      expect(keyboardTexts(sent.last), contains('hold'));
+      expect(keyboardTexts(sent.last), isNot(contains('full-info')));
     },
   );
 
@@ -334,7 +335,7 @@ void main() {
   });
 
   test('/status appends the allocation table for both weekends', () async {
-    repo.updateProfileInfo(2, preferredName: 'Allen');
+    repo.updatePreferredName(2, 'Allen');
     await sendText(2, '/status');
     final text = sent.last['text'] as String;
     expect(text, contains('All members status'));
@@ -345,13 +346,7 @@ void main() {
   });
 
   test('/groupstatus and /groupusers stay in the caller group', () async {
-    repo.updateProfileInfo(
-      2,
-      fullName: 'Allen Tan',
-      preferredName: 'Allen',
-      schoolEmail: 'allen@example.edu',
-      matricNo: 'A1234567X',
-    );
+    repo.updatePreferredName(2, 'Allen');
     final group = repo.findUser(2)!.group;
 
     await sendText(2, '/groupstatus');
@@ -362,28 +357,7 @@ void main() {
     await sendText(2, '/groupusers');
     final text = sent.last['text'] as String;
     expect(text, contains('Group $group users'));
-    expect(text, contains('Full name: Allen Tan'));
-    expect(text, contains('Preferred name: Allen'));
-    expect(text, contains('School email: allen@example.edu'));
-    expect(text, contains('Matric number: A1234567X'));
     expect(text, isNot(contains('@checker')));
-  });
-
-  test('/fullinfo shows profile information without attendance', () async {
-    repo.updateProfileInfo(
-      2,
-      fullName: 'Allen Tan',
-      preferredName: 'Allen',
-      schoolEmail: 'allen@example.edu',
-      matricNo: 'A1234567X',
-    );
-
-    await sendText(1, '/fullinfo');
-    final text = sent.last['text'] as String;
-    expect(text, contains('All profile information'));
-    expect(text, contains('Allen @admin'));
-    expect(text, contains('School email: allen@example.edu'));
-    expect(text, isNot(contains('ocbc ×')));
   });
 
   test('/unhold immediately reopens the held bot', () async {
@@ -483,15 +457,9 @@ void main() {
   });
 
   test(
-    '/mystatus shows profile fields and dated unavailable responses',
+    '/mystatus shows preferred name and dated unavailable responses',
     () async {
-      repo.updateProfileInfo(
-        2,
-        fullName: 'Allen Tan',
-        preferredName: 'Allen',
-        schoolEmail: 'allen@example.edu',
-        matricNo: 'A1234567X',
-      );
+      repo.updatePreferredName(2, 'Allen');
       final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
       repo.setAvailability(
         Availability(
@@ -507,10 +475,7 @@ void main() {
       await sendText(2, '/mystatus');
       final text = sent.last['text'] as String;
       expect(text, contains('Bundle: "'));
-      expect(text, contains('Full name: Allen Tan'));
       expect(text, contains('Preferred name: Allen'));
-      expect(text, contains('School email: allen@example.edu'));
-      expect(text, contains('Matric number: A1234567X'));
       expect(text, contains('Indicated not available'));
       expect(text, isNot(contains('Weekend 1')));
       expect(text, isNot(contains('this bundle')));

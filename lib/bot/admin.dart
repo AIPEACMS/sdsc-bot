@@ -313,7 +313,6 @@ class Admin {
   Future<void> _users(
     Context ctx, {
     String? group,
-    bool fullInfo = false,
   }) async {
     final users = repo.allUsers().where((u) {
       // The console shows only while still a member (or admin); once demoted
@@ -329,13 +328,7 @@ class Admin {
           : MemberTier.of(u, isConsole: false);
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
       final stats = repo.attendanceStats(u.id);
-      final profile = fullInfo
-          ? '\n   Full name: ${_field(u.fullName)}'
-                '\n   Preferred name: ${_field(u.preferredName)}'
-                '\n   School email: ${_field(u.schoolEmail)}'
-                '\n   Matric number: ${_field(u.matricNo)}'
-          : '';
-      return '• <b>${_displayName(u)}</b>$profile\n   ($tier, '
+      return '• <b>${_displayName(u)}</b>\n   ($tier, '
           'group ${u.group.isEmpty ? 'none' : u.group}, '
           '$exp, ocbc × ${stats.ocbc}, pr × ${stats.pasirRis})';
     });
@@ -352,18 +345,14 @@ class Admin {
       await ctx.reply('You are not assigned to a group.');
       return;
     }
-    await _users(ctx, group: group, fullInfo: true);
+    await _users(ctx, group: group);
   }
 
   static String _displayName(User user) {
-    final human = user.preferredName.isNotEmpty
-        ? user.preferredName
-        : user.fullName;
+    final human = user.preferredName;
     if (human.isEmpty) return _html(user.name);
     return '${_html(human)} ${_html(user.name)}';
   }
-
-  static String _field(String value) => value.isEmpty ? '—' : _html(value);
 
   static String _html(String text) => text
       .replaceAll('&', '&amp;')

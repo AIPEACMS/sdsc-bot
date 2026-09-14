@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.13.3] - 2026-09-14
+
+### Changed
+
+- **Profile information.** `/setinfo` now collects only a member's preferred
+  name. Legacy full name, school email, and matriculation fields remain
+  deprecated for database and API compatibility but are no longer shown.
+- **Console controls.** Removed the console `full-info` command and grid button.
+
 ## [1.13.2] - 2026-09-14
 
 ### Fixed

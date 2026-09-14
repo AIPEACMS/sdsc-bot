@@ -58,8 +58,7 @@ class Flows {
           await _consumePendingArg(ctx, userId, pending.command, text);
           return;
         }
-        // The 4-step profile wizard (full name → preferred name → matric
-        // no. → school email).
+        // The preferred-name profile wizard.
         final profileStep = state.profileStep[userId];
         if (profileStep != null) {
           await _consumeProfileStep(ctx, userId, profileStep, text);
@@ -189,7 +188,6 @@ class Flows {
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/setdate | /resetdate — custom or calendar dates')
         ..writeln('/sync-calendar — push the calendar YAML')
-        ..writeln('full-info — every user\'s saved profile information')
         ..writeln('/addkey — register a console app key')
         ..writeln('/keys | /rmkey — manage console keys');
     }
@@ -226,8 +224,7 @@ class Flows {
           'at the next sharp hour)',
         )
         ..writeln(
-          'set-info — update your name, preferred name, matric no. '
-          'and school email',
+          'set-info — update your preferred name',
         )
         ..writeln('my-status — your picks, allocation and attendance')
         ..writeln(
@@ -242,23 +239,18 @@ class Flows {
       replyMarkup: RoleKeyboard.build(_gridFor(userId)),
     );
 
-    // First-time profile: collect full name / preferred name / matric no. /
-    // school email. Only prompted until complete; /setinfo re-opens it later.
-    if (!retired &&
-        (user.fullName.isEmpty ||
-            user.preferredName.isEmpty ||
-            user.matricNo.isEmpty ||
-            user.schoolEmail.isEmpty)) {
+    // First-time profile: collect the preferred name. Only prompted until
+    // complete; /setinfo re-opens it later.
+    if (!retired && user.preferredName.isEmpty) {
       await _startProfileWizard(ctx, userId, user);
     }
   }
 
   // ----------------------------------------------------------- /setinfo
 
-  /// Re-opens the 4-step profile wizard (full name → preferred name →
-  /// matric no. → school email). If any field is already filled, the first
-  /// prompt carries a Cancel button so the member can abort without losing
-  /// their info.
+  /// Re-opens the preferred-name profile wizard. If the name is already
+  /// filled, the first prompt carries a Cancel button so the member can abort
+  /// without losing their info.
   Future<void> _onSetInfo(Context ctx) async {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
@@ -267,18 +259,14 @@ class Flows {
     await _startProfileWizard(ctx, userId, user);
   }
 
-  static const int _profileSteps = 4;
+  static const int _profileSteps = 1;
 
   Future<void> _startProfileWizard(Context ctx, int userId, User user) async {
     state.profileStep[userId] = 0;
     // Decided once, from the profile the member had BEFORE this wizard run:
     // re-running /setinfo over existing data offers Cancel; a fresh walk
     // (nothing saved yet) never does — even after the first answer.
-    final hasInfo =
-        user.fullName.isNotEmpty ||
-        user.preferredName.isNotEmpty ||
-        user.matricNo.isNotEmpty ||
-        user.schoolEmail.isNotEmpty;
+    final hasInfo = user.preferredName.isNotEmpty;
     state.profileCancel[userId] = hasInfo;
     final message = await ctx.reply(
       '1/$_profileSteps — ${_profilePrompt(0)}',
@@ -290,10 +278,7 @@ class Flows {
   }
 
   static String _profilePrompt(int step) => switch (step) {
-    0 => 'What is your full name?',
-    1 => 'What is your preferred name?',
-    2 => 'What is your matric no.?',
-    3 => 'What is your school email?',
+    0 => 'What is your preferred name?',
     _ => '',
   };
 
@@ -308,16 +293,8 @@ class Flows {
       await ctx.reply('That cannot be empty — please type it again.');
       return; // stay on the same step
     }
-    switch (step) {
-      case 0:
-        repo.updateProfileInfo(userId, fullName: value);
-      case 1:
-        repo.updateProfileInfo(userId, preferredName: value);
-      case 2:
-        repo.updateProfileInfo(userId, matricNo: value);
-      case 3:
-        repo.updateProfileInfo(userId, schoolEmail: value);
-    }
+    if (step != 0) throw StateError('Unexpected profile step: $step');
+    repo.updatePreferredName(userId, value);
     if (step < _profileSteps - 1) {
       state.profileStep[userId] = step + 1;
       final cancel = state.profileCancel[userId] ?? false;
@@ -456,10 +433,7 @@ class Flows {
 
     final sb = StringBuffer()
       ..writeln('👤 <b>Your information</b>')
-      ..writeln('Full name: ${_html(user.fullName)}')
       ..writeln('Preferred name: ${_html(user.preferredName)}')
-      ..writeln('School email: ${_html(user.schoolEmail)}')
-      ..writeln('Matric number: ${_html(user.matricNo)}')
       ..writeln('\n📋 <b>Your status</b>')
       ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"');
 

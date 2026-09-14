@@ -102,8 +102,8 @@ class Repo {
   User upsertUser(User user) {
     raw.execute(
       '''
-INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier, full_name, preferred_name, matric_no, school_email)
-VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier, preferred_name)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(id) DO UPDATE SET
   name = excluded.name,
   experience = excluded.experience,
@@ -111,10 +111,7 @@ ON CONFLICT(id) DO UPDATE SET
   is_admin = excluded.is_admin,
   ocbc_streak = excluded.ocbc_streak,
   member_tier = excluded.member_tier,
-  full_name = excluded.full_name,
-  preferred_name = excluded.preferred_name,
-  matric_no = excluded.matric_no,
-  school_email = excluded.school_email
+  preferred_name = excluded.preferred_name
 ''',
       [
         user.id,
@@ -124,10 +121,7 @@ ON CONFLICT(id) DO UPDATE SET
         user.isAdmin ? 1 : 0,
         user.ocbcStreak,
         user.memberTier,
-        user.fullName,
         user.preferredName,
-        user.matricNo,
-        user.schoolEmail,
       ],
     );
     return findUser(user.id)!;
@@ -151,7 +145,16 @@ ON CONFLICT(id) DO UPDATE SET
     raw.execute('UPDATE users SET name = ? WHERE id = ?', [name, id]);
   }
 
-  /// Updates the profile fields collected by the /start and /setinfo wizards.
+  /// Updates the name a member wants to be called.
+  void updatePreferredName(int id, String preferredName) {
+    raw.execute(
+      'UPDATE users SET preferred_name = ? WHERE id = ?',
+      [preferredName, id],
+    );
+  }
+
+  /// @deprecated Use [updatePreferredName].
+  @Deprecated('Use updatePreferredName.')
   void updateProfileInfo(
     int id, {
     String? fullName,

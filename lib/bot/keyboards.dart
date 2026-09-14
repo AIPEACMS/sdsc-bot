@@ -83,7 +83,6 @@ class RoleKeyboard {
   static const List<GridButton> consoleButtons = [
     GridButton('hold', '/hold', RoleColor.console),
     GridButton('unhold', '/unhold', RoleColor.console),
-    GridButton('full-info', '/fullinfo', RoleColor.console),
     ...adminButtons,
   ];
 

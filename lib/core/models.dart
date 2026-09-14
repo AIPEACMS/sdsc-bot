@@ -41,17 +41,26 @@ class User {
   final int ocbcStreak; // consecutive OCBC sessions attended
   final DateTime? registeredAt;
 
-  /// Real name, filled via the /start profile wizard.
-  final String fullName;
+  final String _fullName;
+
+  /// @deprecated No longer collected; use [preferredName].
+  @Deprecated('No longer collected; use preferredName.')
+  String get fullName => _fullName;
 
   /// What the member wants to be called.
   final String preferredName;
 
-  /// Matriculation number.
-  final String matricNo;
+  final String _matricNo;
 
-  /// School email, filled via the /start profile wizard.
-  final String schoolEmail;
+  /// @deprecated No longer collected.
+  @Deprecated('No longer collected.')
+  String get matricNo => _matricNo;
+
+  final String _schoolEmail;
+
+  /// @deprecated No longer collected.
+  @Deprecated('No longer collected.')
+  String get schoolEmail => _schoolEmail;
 
   /// Stored tier: 'member' | 'check' | 'old'. 'console'/'admin' are derived.
   final String memberTier;
@@ -64,12 +73,14 @@ class User {
     this.isAdmin = false,
     this.ocbcStreak = 0,
     this.registeredAt,
-    this.fullName = '',
+    String fullName = '',
     this.preferredName = '',
-    this.matricNo = '',
-    this.schoolEmail = '',
+    String matricNo = '',
+    String schoolEmail = '',
     this.memberTier = MemberTier.member,
-  });
+  }) : _fullName = fullName,
+       _matricNo = matricNo,
+       _schoolEmail = schoolEmail;
 
   User copyWith({
     String? name,
@@ -77,11 +88,11 @@ class User {
     String? group,
     bool? isAdmin,
     int? ocbcStreak,
-    String? fullName,
     String? preferredName,
+    String? memberTier,
+    String? fullName,
     String? matricNo,
     String? schoolEmail,
-    String? memberTier,
   }) {
     return User(
       id: id,
@@ -91,10 +102,10 @@ class User {
       isAdmin: isAdmin ?? this.isAdmin,
       ocbcStreak: ocbcStreak ?? this.ocbcStreak,
       registeredAt: registeredAt,
-      fullName: fullName ?? this.fullName,
+      fullName: fullName ?? _fullName,
       preferredName: preferredName ?? this.preferredName,
-      matricNo: matricNo ?? this.matricNo,
-      schoolEmail: schoolEmail ?? this.schoolEmail,
+      matricNo: matricNo ?? _matricNo,
+      schoolEmail: schoolEmail ?? _schoolEmail,
       memberTier: memberTier ?? this.memberTier,
     );
   }

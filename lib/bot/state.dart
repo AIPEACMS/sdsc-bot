@@ -40,11 +40,10 @@ class BotState {
   /// Users waiting for a text argument (e.g. the message to broadcast).
   final Map<int, PendingArg> pendingArg = {};
 
-  /// Users mid-way through the 4-step profile wizard (full name → preferred
-  /// name → matric no. → school email). Value = the next step index (0..3).
+  /// Users mid-way through the preferred-name profile wizard.
   final Map<int, int> profileStep = {};
 
-  /// Whether the member had profile fields saved *before* the wizard started
+  /// Whether the member had a preferred name saved *before* the wizard started
   /// (drives the Cancel button — only shown when re-running /setinfo over
   /// existing data, never mid-walk over freshly typed answers).
   final Map<int, bool> profileCancel = {};
