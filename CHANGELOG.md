@@ -5,7 +5,7 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [2.0.3] - 2026-09-14
+## [2.0.4] - 2026-09-14
 
 ### Fixed
 
