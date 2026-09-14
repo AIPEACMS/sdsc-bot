@@ -197,9 +197,7 @@ class Flows {
 
     if (isAdmin) {
       sb
-        ..writeln(
-          '\n<b>${user.isGlobalAdmin ? 'Global admin' : 'Admin'}</b>',
-        )
+        ..writeln('\n<b>Admin</b>')
         ..writeln('add-user @handle — add a member (they can then use /start)')
         ..writeln('all-status — cycle state and responders')
         ..writeln('group-status — your group\'s cycle state and responders')
@@ -214,6 +212,7 @@ class Flows {
         ..writeln('/broadcast &lt;message&gt; — message all members');
       if (user.isGlobalAdmin) {
         sb
+          ..writeln('\n<b>Global admin</b>')
           ..writeln('/addadmin @handle — promote a registered user')
           ..writeln('/addcheck @handle — add a checker')
           ..writeln('/demote @handle — demote an admin')

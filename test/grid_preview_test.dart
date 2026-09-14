@@ -269,6 +269,21 @@ void main() {
     },
   );
 
+  test('/start separates admin and global-admin help', () async {
+    final sentBefore = sent.length;
+    await sendText(1, '/start');
+    final text = sent[sentBefore]['text'] as String;
+
+    expect(text, contains('<b>Admin</b>'));
+    expect(text, contains('<b>Global admin</b>'));
+    expect(
+      text.indexOf('<b>Admin</b>'),
+      lessThan(text.indexOf('<b>Global admin</b>')),
+    );
+    expect(text, contains('add-user @handle'));
+    expect(text, contains('/addadmin @handle'));
+  });
+
   test(
     '/grid cycles console+gadmin → gadmin → admin → check → member',
     () async {
