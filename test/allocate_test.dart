@@ -6,6 +6,7 @@ const _amPr = Slot(0, 'sat', 'am', 'pasirRis');
 const _pm = Slot(0, 'sat', 'pm', 'ocbc');
 const _pmPr = Slot(0, 'sat', 'pm', 'pasirRis');
 const _am1 = Slot(1, 'sat', 'am', 'ocbc'); // weekend 1
+const _pm1Pr = Slot(1, 'sat', 'pm', 'pasirRis'); // weekend 1
 
 Availability _avail(int userId,
         {Set<Slot> want = const {}, Set<Slot> slots = const {}}) =>
@@ -107,6 +108,39 @@ void main() {
     );
     expect(result.where((entry) => entry.$1 == 1).map((entry) => entry.$2),
         [1]);
+  });
+
+  test('booked and backup sessions may share a time on different weekends', () {
+    final w1Sessions = _sessions()
+        .map((s) => Session(
+              id: s.id + 10,
+              weekendStart: DateTime(2026, 8, 15),
+              day: s.day,
+              slot: s.slot,
+              location: s.location,
+              start: s.start.add(const Duration(days: 7)),
+              end: s.end.add(const Duration(days: 7)),
+            ))
+        .toList();
+    final result = allocator.run(
+      sessions: [..._sessions(), ...w1Sessions],
+      availability: [
+        _avail(1, want: {_pm}),
+        Availability(
+          weekendStart: DateTime(2026, 8, 15),
+          userId: 1,
+          bundleStart: DateTime(2026, 8, 8),
+          slots: {_pm1Pr},
+          available: true,
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+      ],
+    );
+
+    expect(
+      result.where((entry) => entry.$1 == 1).map((entry) => entry.$2),
+      [3, 14],
+    );
   });
 
   test('want sessions plus one available session in a free time slot', () {

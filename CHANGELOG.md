@@ -5,6 +5,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [1.14.1] - 2026-09-14
+
+### Fixed
+
+- **Cross-weekend allocation.** A booked session and a backup session at the
+  same time on different weekends are now treated as separate allocations.
+
 ## [1.14.0] - 2026-09-14
 
 ### Changed
