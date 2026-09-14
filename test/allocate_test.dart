@@ -39,6 +39,18 @@ List<Session> _sessions() {
   ];
 }
 
+User _user(
+  int id, {
+  Experience experience = Experience.newbie,
+  int ocbcStreak = 0,
+}) => User(
+  id: id,
+  name: '@user$id',
+  experience: experience,
+  group: '1',
+  ocbcStreak: ocbcStreak,
+);
+
 void main() {
   const allocator = Allocator();
 
@@ -78,6 +90,55 @@ void main() {
       availability: [_avail(1, slots: {_am, _amPr, _pm, _pmPr})],
     );
     expect(result.where((e) => e.$1 == 1).length, 1);
+  });
+
+  test('experienced backup members prefer OCBC', () {
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, slots: {_pm, _pmPr})],
+      users: {1: _user(1, experience: Experience.experienced)},
+    );
+    expect(result.single, (1, 3));
+  });
+
+  test('new backup members prefer Pasir Ris', () {
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, slots: {_pm, _pmPr})],
+      users: {1: _user(1)},
+    );
+    expect(result.single, (1, 4));
+  });
+
+  test('OCBC streak rotates experienced backup members to Pasir Ris', () {
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, slots: {_pm, _pmPr})],
+      users: {
+        1: _user(1, experience: Experience.experienced, ocbcStreak: 2),
+      },
+    );
+    expect(result.single, (1, 4));
+  });
+
+  test('OCBC remains the fallback when no Pasir Ris backup is offered', () {
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, slots: {_pm})],
+      users: {
+        1: _user(1, experience: Experience.experienced, ocbcStreak: 2),
+      },
+    );
+    expect(result.single, (1, 3));
+  });
+
+  test('location preference never changes a booked pick', () {
+    final result = allocator.run(
+      sessions: _sessions(),
+      availability: [_avail(1, want: {_pmPr})],
+      users: {1: _user(1, experience: Experience.experienced)},
+    );
+    expect(result.single, (1, 4));
   });
 
   test('backup picks across both bundle weekends allocate only once', () {

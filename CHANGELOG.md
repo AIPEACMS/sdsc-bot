@@ -5,7 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [1.14.1] - 2026-09-14
+## [1.14.2] - 2026-09-14
+
+### Changed
+
+- **Backup allocation preference.** Experienced members prefer OCBC and newer
+  members prefer Pasir Ris when choosing among offered backup sessions. Members
+  with an OCBC attendance streak of two or more prefer Pasir Ris, with a
+  fallback to OCBC when no Pasir Ris option is offered.
 
 ### Fixed
 

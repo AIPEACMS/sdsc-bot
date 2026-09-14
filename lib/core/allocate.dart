@@ -11,7 +11,8 @@ typedef AllocationResult = List<(int userId, int sessionId)>;
 ///    at once, so the two locations of the same slot never both get assigned).
 ///  - Then each member with **available picks** (backup) is allocated to one
 ///    of them across all supplied availability rows, never at a time they
-///    already hold.
+///    already hold. Experienced members prefer OCBC; new members prefer Pasir
+///    Ris. An OCBC streak of two or more makes Pasir Ris the preference.
 ///  - Already-allocated members ([locked]) are never moved: the run only adds
 ///    new allocations, so nobody is ever un-allocated by a later indication.
 class Allocator {
@@ -20,6 +21,7 @@ class Allocator {
   AllocationResult run({
     required List<Session> sessions,
     required List<Availability> availability,
+    Map<int, User> users = const {},
     List<(int userId, int sessionId)> locked = const [],
     Set<int> lockedBackupUserIds = const {},
   }) {
@@ -73,10 +75,12 @@ class Allocator {
       }
     }
 
-    // Pass 2: one available (backup) session per member across the supplied
-    // rows, never at a time they already hold. A retained backup allocation
-    // from an earlier dynamic run counts as that member's one backup.
+    // Pass 2: collect all available (backup) candidates first so preference
+    // ranking can choose across both availability rows. A retained backup
+    // allocation from an earlier dynamic run counts as that member's one
+    // backup.
     final backupAssigned = {...lockedBackupUserIds};
+    final backupCandidates = <int, List<Session>>{};
     for (final av in open) {
       if (backupAssigned.contains(av.userId)) continue;
       for (final slot in av.slots) {
@@ -86,10 +90,30 @@ class Allocator {
             .contains(av.userId)) {
           continue;
         }
-        assign(av.userId, session);
-        backupAssigned.add(av.userId);
-        break; // exactly one available session per member
+        backupCandidates.putIfAbsent(av.userId, () => []).add(session);
       }
+    }
+
+    // Choose one backup per member. This is the only pass where experience
+    // and OCBC rotation affect location; booked picks above remain exact.
+    for (final entry in backupCandidates.entries) {
+      final user = users[entry.key];
+      if (user != null) {
+        final preferredLocation = user.ocbcStreak >= 2 ||
+                user.experience == Experience.newbie
+            ? Location.pasirRis
+            : Location.ocbc;
+        entry.value.sort((a, b) {
+          final locationOrder = (a.location == preferredLocation ? 0 : 1)
+              .compareTo(b.location == preferredLocation ? 0 : 1);
+          if (locationOrder != 0) return locationOrder;
+          final timeOrder = a.start.compareTo(b.start);
+          if (timeOrder != 0) return timeOrder;
+          return a.id.compareTo(b.id);
+        });
+      }
+      assign(entry.key, entry.value.first);
+      backupAssigned.add(entry.key);
     }
 
     return result;
