@@ -706,7 +706,9 @@ class Admin {
   }
 
   Future<void> _confirmBroadcast(Context ctx, String text) async {
-    final preview = text.length > 200 ? '${text.substring(0, 200)}…' : text;
+    final preview = _html(
+      text.length > 200 ? '${text.substring(0, 200)}…' : text,
+    );
     final message = await ctx.reply(
       '📢 Send this to all members?\n\n<i>$preview</i>',
       parseMode: ParseMode.html,
