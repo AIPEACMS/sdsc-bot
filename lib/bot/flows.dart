@@ -129,9 +129,9 @@ class Flows {
     _recordSeen(ctx, userId);
 
     var user = repo.findUser(userId);
-    // The console is the first user and is admin by default. On their first
-    // /start, register them so they get the console grid — nobody has to add
-    // them first. They become the leader of the first group (1).
+    // The console is a separate control-plane identity. On first /start it is
+    // registered only as a regular user; the explicit v2 migration is the
+    // only automatic global-admin appointment.
     if (user == null && config.isConsole(userId)) {
       final name = ctx.from?.username != null
           ? '@${ctx.from!.username}'
@@ -139,7 +139,6 @@ class Flows {
       repo.upsertUser(
         User(id: userId, name: name, experience: Experience.newbie, group: ''),
       );
-      repo.updateAdmin(userId, true);
       user = repo.findUser(userId);
     }
     // A user that no admin has added yet gets silence: no backend traffic,
@@ -173,7 +172,7 @@ class Flows {
     // The console can step down as a member (tier 'old') while keeping the
     // console role: no prompts, no allocation, but backend control stays.
     final retired = user.memberTier == MemberTier.old;
-    final isAdmin = (user.isAdmin || isConsole) && !retired;
+    final isAdmin = (user.isAdmin || user.isGlobalAdmin) && !retired;
 
     final sb = StringBuffer()
       ..writeln('👋 <b>${user.name}</b>, here is what you can do:');
@@ -181,15 +180,12 @@ class Flows {
     if (isConsole) {
       sb
         ..writeln('\n<b>Console</b>')
-        ..writeln('hold — pause the bot: no messages at all')
-        ..writeln('unhold — resume sending')
-        ..writeln('/addadmin @handle — promote a member to admin')
-        ..writeln('/addcheck @handle — add a checker')
-        ..writeln('/demote @handle — demote an admin')
         ..writeln('/setdate | /resetdate — custom or calendar dates')
-        ..writeln('/sync-calendar — push the calendar YAML')
+        ..writeln('/grid | /resetgrid — preview role grids')
         ..writeln('/addkey — register a console app key')
-        ..writeln('/keys | /rmkey — manage console keys');
+        ..writeln('/keys | /rmkey — manage console keys')
+        ..writeln('/add-gadmin @handle — appoint the global admin')
+        ..writeln('/rm-gadmin [@handle] — remove the global admin');
     }
 
     if (retired) {
@@ -201,7 +197,9 @@ class Flows {
 
     if (isAdmin) {
       sb
-        ..writeln('\n<b>Admin</b>')
+        ..writeln(
+          '\n<b>${user.isGlobalAdmin ? 'Global admin' : 'Admin'}</b>',
+        )
         ..writeln('add-user @handle — add a member (they can then use /start)')
         ..writeln('all-status — cycle state and responders')
         ..writeln('group-status — your group\'s cycle state and responders')
@@ -214,6 +212,14 @@ class Flows {
         ..writeln('/setexp experienced|newbie — change a member\'s experience')
         ..writeln('/allocate — run the allocation now')
         ..writeln('/broadcast &lt;message&gt; — message all members');
+      if (user.isGlobalAdmin) {
+        sb
+          ..writeln('/addadmin @handle — promote a registered user')
+          ..writeln('/addcheck @handle — add a checker')
+          ..writeln('/demote @handle — demote an admin')
+          ..writeln('/sync-calendar — push the calendar YAML')
+          ..writeln('/hold | /unhold — pause or resume the bot');
+      }
     }
 
     if (!retired) {
@@ -330,8 +336,15 @@ class Flows {
       return;
     }
 
-    const order = ['console', 'admin', 'check', 'member'];
-    final current = state.gridPreview[userId] ?? 'console';
+    final ownUser = repo.findUser(userId);
+    final ownGrid = RoleKeyboard.roleFor(
+      isConsole: true,
+      isGlobalAdmin: ownUser?.isGlobalAdmin ?? false,
+      isAdmin: ownUser?.isAdmin ?? false,
+      tier: ownUser?.memberTier ?? MemberTier.member,
+    );
+    final order = [ownGrid, 'gadmin', 'admin', 'check', 'member'];
+    final current = state.gridPreview[userId] ?? ownGrid;
     final next = order[(order.indexOf(current) + 1) % order.length];
     state.gridPreview[userId] = next;
 
@@ -359,9 +372,16 @@ class Flows {
     }
 
     state.gridPreview.remove(userId);
+    final user = repo.findUser(userId);
+    final ownGrid = RoleKeyboard.roleFor(
+      isConsole: true,
+      isGlobalAdmin: user?.isGlobalAdmin ?? false,
+      isAdmin: user?.isAdmin ?? false,
+      tier: user?.memberTier ?? MemberTier.member,
+    );
     await ctx.reply(
       'Back to your console grid.',
-      replyMarkup: RoleKeyboard.build('console'),
+      replyMarkup: RoleKeyboard.build(ownGrid),
     );
   }
 
@@ -374,6 +394,7 @@ class Flows {
     final user = repo.findUser(userId);
     return RoleKeyboard.roleFor(
       isConsole: config.isConsole(userId),
+      isGlobalAdmin: user?.isGlobalAdmin ?? false,
       isAdmin: user?.isAdmin ?? false,
       tier: user?.memberTier ?? MemberTier.member,
     );
@@ -416,8 +437,7 @@ class Flows {
 
   /// True for members/admins/console — anyone with availability duties.
   bool _isActive(User user) {
-    final tier = MemberTier.of(user, isConsole: config.isConsole(user.id));
-    return MemberTier.isActive(tier);
+    return MemberTier.isActive(user.memberTier);
   }
 
   // ------------------------------------------------------- /mystatus

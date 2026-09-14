@@ -2,15 +2,23 @@ import 'package:test/test.dart';
 import 'package:sdsc_bot/bot/keyboards.dart';
 
 void main() {
-  test('grids are strictly nested: member ⊂ admin ⊂ console', () {
+  test('gadmin inherits admin and console composition is explicit', () {
     final member = RoleKeyboard.memberButtons.map((b) => b.command).toSet();
     final admin = RoleKeyboard.adminButtons.map((b) => b.command).toSet();
+    final gadmin = RoleKeyboard.globalAdminButtons
+        .map((b) => b.command)
+        .toSet();
     final console = RoleKeyboard.consoleButtons.map((b) => b.command).toSet();
+    final combined = RoleKeyboard.consoleGlobalAdminButtons
+        .map((b) => b.command)
+        .toSet();
 
     expect(member.difference(admin).isEmpty, isTrue);
-    expect(admin.difference(console).isEmpty, isTrue);
+    expect(admin.difference(gadmin).isEmpty, isTrue);
+    expect(console.difference(combined).isEmpty, isTrue);
+    expect(gadmin.difference(combined).isEmpty, isTrue);
     expect(admin.length, greaterThan(member.length));
-    expect(console.length, greaterThan(admin.length));
+    expect(combined.length, greaterThan(gadmin.length));
   });
 
   test('labels carry no leading slash', () {
@@ -18,6 +26,7 @@ void main() {
       ...RoleKeyboard.memberButtons,
       ...RoleKeyboard.adminButtons,
       ...RoleKeyboard.consoleButtons,
+      ...RoleKeyboard.globalAdminButtons,
     ]) {
       expect(b.label.startsWith('/'), isFalse, reason: b.label);
     }
@@ -28,6 +37,7 @@ void main() {
       ...RoleKeyboard.memberButtons,
       ...RoleKeyboard.adminButtons,
       ...RoleKeyboard.consoleButtons,
+      ...RoleKeyboard.globalAdminButtons,
     ]) {
       for (final word in b.label.split(RegExp(r'[ -]'))) {
         if (word == 'broadcast') continue;
@@ -45,13 +55,14 @@ void main() {
       RoleKeyboard.memberButtons,
       RoleKeyboard.adminButtons,
       RoleKeyboard.consoleButtons,
+      RoleKeyboard.globalAdminButtons,
     ]) {
       final labels = grid.map((b) => b.label).toSet();
       expect(labels.length, grid.length, reason: 'duplicate label in grid');
     }
   });
 
-  test('colors: member=green, admin=blue, console=red', () {
+  test('colors: member=green, admin=blue, global-admin=red, console=green', () {
     for (final b in RoleKeyboard.memberButtons) {
       expect(b.color, RoleColor.member, reason: b.label);
     }
@@ -61,6 +72,13 @@ void main() {
     expect(adminOnly.isNotEmpty, isTrue);
     for (final b in adminOnly) {
       expect(b.color, RoleColor.admin, reason: b.label);
+    }
+    final globalAdminOnly = RoleKeyboard.globalAdminButtons
+        .where((b) => b.color != RoleColor.member)
+        .toList();
+    expect(globalAdminOnly, isNotEmpty);
+    for (final b in globalAdminOnly) {
+      expect(b.color, RoleColor.globalAdmin, reason: b.label);
     }
     final consoleOnly = RoleKeyboard.consoleButtons
         .where((b) => b.color != RoleColor.admin && b.color != RoleColor.member)
@@ -72,7 +90,8 @@ void main() {
     // Telegram style values.
     expect(RoleColor.member.style, 'success');
     expect(RoleColor.admin.style, 'primary');
-    expect(RoleColor.console.style, 'danger');
+    expect(RoleColor.globalAdmin.style, 'danger');
+    expect(RoleColor.console.style, 'success');
   });
 
   test('roleFor picks the highest role', () {
@@ -80,6 +99,22 @@ void main() {
     expect(RoleKeyboard.roleFor(isConsole: false, isAdmin: true), 'admin');
     expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: false), 'console');
     expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: true), 'console');
+    expect(
+      RoleKeyboard.roleFor(
+        isConsole: false,
+        isGlobalAdmin: true,
+        isAdmin: false,
+      ),
+      'gadmin',
+    );
+    expect(
+      RoleKeyboard.roleFor(
+        isConsole: true,
+        isGlobalAdmin: true,
+        isAdmin: false,
+      ),
+      'console-gadmin',
+    );
   });
 
   test('roleFor honours the check/old tiers', () {
@@ -98,26 +133,29 @@ void main() {
     );
     expect(
       RoleKeyboard.roleFor(isConsole: true, isAdmin: false, tier: 'old'),
-      'console',
+      'console-old',
     );
   });
 
   test('gridButtons resolves each role', () {
     expect(RoleKeyboard.gridButtons('console'), RoleKeyboard.consoleButtons);
+    expect(
+      RoleKeyboard.gridButtons('gadmin'),
+      RoleKeyboard.globalAdminButtons,
+    );
     expect(RoleKeyboard.gridButtons('admin'), RoleKeyboard.adminButtons);
     expect(RoleKeyboard.gridButtons('member'), RoleKeyboard.memberButtons);
     expect(RoleKeyboard.gridButtons('check'), RoleKeyboard.checkButtons);
     expect(RoleKeyboard.gridButtons('old'), isEmpty);
   });
 
-  test('console keeps its two extra buttons', () {
+  test('console-only grid contains control-plane buttons', () {
     final console = RoleKeyboard.consoleButtons.toSet();
     final admin = RoleKeyboard.adminButtons.toSet();
     final consoleOnly = console.difference(admin);
-    expect(consoleOnly.map((b) => b.command), hasLength(2));
     expect(
       consoleOnly.map((b) => b.command),
-      containsAll(['/hold', '/unhold']),
+      containsAll(['/addkey', '/keys', '/rmkey', '/setdate', '/resetdate']),
     );
   });
 

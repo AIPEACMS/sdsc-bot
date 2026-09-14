@@ -8,7 +8,8 @@ import '../core/models.dart';
 enum RoleColor {
   member('success', 'green'),
   admin('primary', 'blue'),
-  console('danger', 'red');
+  globalAdmin('danger', 'red'),
+  console('success', 'green');
 
   /// The Telegram style value for this color.
   final String style;
@@ -22,7 +23,8 @@ enum RoleColor {
   tg.StyleType get styleType => switch (this) {
     RoleColor.member => tg.StyleType.success,
     RoleColor.admin => tg.StyleType.primary,
-    RoleColor.console => tg.StyleType.danger,
+    RoleColor.globalAdmin => tg.StyleType.danger,
+    RoleColor.console => tg.StyleType.success,
   };
 }
 
@@ -38,14 +40,12 @@ class GridButton {
 
 /// Reply-keyboard grids (the persistent button grid above the message bar).
 ///
-/// Three grids, one per role, strictly nested:
-///   member  ⊂  admin  ⊂  console
-/// A user sees the grid of their highest role — the grids never merge or
-/// compete. The console can temporarily preview the admin/member grids via
-/// /grid (a debug view; see [gridButtons]).
+/// Separate grids exist for the member, admin, global-admin, and console
+/// roles. A console who is also the global admin sees their two grids composed
+/// explicitly; unrelated roles never merge implicitly.
 ///
-/// Colors: member buttons are green, admin blue, console red. A member sees
-/// only green; an admin sees blue + green; the console sees all three.
+/// Colors: member buttons are green, admin blue, global-admin red, and
+/// console green.
 class RoleKeyboard {
   RoleKeyboard._();
 
@@ -78,18 +78,50 @@ class RoleKeyboard {
     ...memberButtons,
   ];
 
-  /// The console keeps exactly two extra buttons: hold and unhold. Everything
-  /// else the console used to do lives in the desktop console app now.
-  static const List<GridButton> consoleButtons = [
-    GridButton('hold', '/hold', RoleColor.console),
-    GridButton('unhold', '/unhold', RoleColor.console),
-    ...adminButtons,
+  static const List<GridButton> globalAdminButtons = [
+    GridButton('hold', '/hold', RoleColor.globalAdmin),
+    GridButton('unhold', '/unhold', RoleColor.globalAdmin),
+    GridButton('add-user', '/adduser', RoleColor.globalAdmin),
+    GridButton('all-status', '/status', RoleColor.globalAdmin),
+    GridButton('group-status', '/groupstatus', RoleColor.globalAdmin),
+    GridButton('all-users', '/users', RoleColor.globalAdmin),
+    GridButton('group-users', '/groupusers', RoleColor.globalAdmin),
+    GridButton('ask', '/ask', RoleColor.globalAdmin),
+    GridButton('mark-attend', '/confirm', RoleColor.globalAdmin),
+    GridButton('set-exp', '/setexp', RoleColor.globalAdmin),
+    GridButton('broadcast', '/broadcast', RoleColor.globalAdmin),
+    ...memberButtons,
   ];
 
-  /// The full button list for [role] ('console' | 'admin' | 'check' |
-  /// 'member' | 'old').
+  static const List<GridButton> consoleOnlyButtons = [
+    GridButton('add-key', '/addkey', RoleColor.console),
+    GridButton('keys', '/keys', RoleColor.console),
+    GridButton('rm-key', '/rmkey', RoleColor.console),
+    GridButton('set-date', '/setdate', RoleColor.console),
+    GridButton('reset-date', '/resetdate', RoleColor.console),
+    GridButton('grid', '/grid', RoleColor.console),
+    GridButton('reset-grid', '/resetgrid', RoleColor.console),
+    GridButton('add-gadmin', '/add-gadmin', RoleColor.console),
+    GridButton('rm-gadmin', '/rm-gadmin', RoleColor.console),
+  ];
+
+  static const List<GridButton> consoleButtons = [
+    ...consoleOnlyButtons,
+    ...memberButtons,
+  ];
+
+  static const List<GridButton> consoleGlobalAdminButtons = [
+    ...consoleOnlyButtons,
+    ...globalAdminButtons,
+  ];
+
+  /// The full button list for [role] ('console' | 'gadmin' | 'admin' |
+  /// 'console-gadmin' | 'console-old' | 'check' | 'member' | 'old').
   static List<GridButton> gridButtons(String role) => switch (role) {
     'console' => consoleButtons,
+    'gadmin' => globalAdminButtons,
+    'console-gadmin' => consoleGlobalAdminButtons,
+    'console-old' => consoleOnlyButtons,
     'admin' => adminButtons,
     'check' => checkButtons,
     'old' => oldButtons,
@@ -99,10 +131,16 @@ class RoleKeyboard {
   /// The grid a user should see by default (highest tier wins).
   static String roleFor({
     required bool isConsole,
+    bool isGlobalAdmin = false,
     required bool isAdmin,
     String tier = MemberTier.member,
   }) {
-    if (isConsole) return 'console';
+    if (isConsole) {
+      if (isGlobalAdmin) return 'console-gadmin';
+      if (tier == MemberTier.old) return 'console-old';
+      return 'console';
+    }
+    if (isGlobalAdmin) return 'gadmin';
     if (isAdmin) return 'admin';
     return MemberTier.order.contains(tier) ? tier : MemberTier.member;
   }

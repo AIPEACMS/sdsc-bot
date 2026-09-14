@@ -101,9 +101,8 @@ class Admin {
   bool _isAdmin(Context ctx) {
     final userId = ctx.from?.id;
     if (userId == null) return false;
-    // The console has admin rights but is not an admin per se.
-    if (config.isConsole(userId)) return true;
-    return repo.findUser(userId)?.isAdmin ?? false;
+    final user = repo.findUser(userId);
+    return user?.isAdmin == true || user?.isGlobalAdmin == true;
   }
 
   void Function(Context) _guard(Future<void> Function(Context) handler) {
@@ -163,43 +162,6 @@ class Admin {
 
   /// The handle awaiting confirmation per admin, from the /adduser wizard.
   final Map<int, String> _pendingAddUser = {};
-
-  /// Registers a member picked from the seen-users list (add-admin picker).
-  Future<void> _addSeenById(
-    Context ctx,
-    int memberId, {
-    required bool isAdmin,
-  }) async {
-    final username = repo.seenUsername(memberId);
-    if (username == null) return;
-    final existing = repo.findUser(memberId);
-    if (existing != null) {
-      final alreadyAdmin = existing.isAdmin;
-      if (isAdmin && !alreadyAdmin) repo.updateAdmin(memberId, true);
-      await ctx.editMessageText(
-        isAdmin
-            ? (alreadyAdmin
-                  ? '✅ @$username is already an admin.'
-                  : '✅ @$username is now an admin.')
-            : '✅ @$username is already a member.',
-      );
-      return;
-    }
-    repo.upsertUser(
-      User(
-        id: memberId,
-        name: '@$username',
-        experience: Experience.newbie,
-        group: '',
-      ),
-    );
-    if (isAdmin) repo.updateAdmin(memberId, true); // gets their own group
-    await ctx.editMessageText(
-      isAdmin
-          ? '✅ @$username promoted to admin.'
-          : '✅ @$username added. They can now use /start to see their commands.',
-    );
-  }
 
   /// Registers (or queues) @handle and returns the outcome message.
   String _addOutcome(String rawHandle, {required bool isAdmin}) {
@@ -315,17 +277,20 @@ class Admin {
     String? group,
   }) async {
     final users = repo.allUsers().where((u) {
-      // The console shows only while still a member (or admin); once demoted
-      // out of membership entirely, they disappear from the list.
+      // Archived users are retained for recovery but not shown in Telegram
+      // roster views.
+      if (u.memberTier == MemberTier.old) return false;
       if (group != null && u.group != group) return false;
-      if (!config.isConsole(u.id)) return true;
-      return u.isAdmin || MemberTier.isActive(u.memberTier);
+      return true;
     }).toList();
     final lines = users.map((u) {
       final isConsole = config.isConsole(u.id);
-      final tier = isConsole
-          ? (u.isAdmin ? MemberTier.admin : MemberTier.member)
-          : MemberTier.of(u, isConsole: false);
+      final groups = <String>[];
+      if (isConsole) groups.add(MemberTier.console);
+      if (u.isGlobalAdmin) groups.add(MemberTier.globalAdmin);
+      if (u.isAdmin) groups.add(MemberTier.admin);
+      if (groups.isEmpty) groups.add(u.memberTier);
+      final tier = groups.join(' + ');
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
       final stats = repo.attendanceStats(u.id);
       return '• <b>${_displayName(u)}</b>\n   ($tier, '
@@ -822,25 +787,6 @@ class Admin {
       }
       final memberId = int.tryParse(target);
       if (memberId != null) await _askPick(ctx, memberId);
-      return;
-    }
-    if (action == 'addadmin') {
-      if (target == 'prev' || target == 'next') {
-        final seen = repo.unregisteredSeen();
-        await ctx.editMessageText(
-          '➕ Promote which member to admin?',
-          replyMarkup: Pickers.memberPicker(
-            action: action,
-            members: seen,
-            page: target == 'prev' ? page - 1 : page + 1,
-          ),
-        );
-        return;
-      }
-      final memberId = int.tryParse(target);
-      if (memberId != null) {
-        await _addSeenById(ctx, memberId, isAdmin: true);
-      }
       return;
     }
   }

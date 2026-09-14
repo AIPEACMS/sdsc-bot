@@ -158,6 +158,7 @@ void main() {
       ),
     );
     repo.updateAdmin(1, true);
+    expect(repo.appointGlobalAdmin(1), GlobalAdminResult.success);
     repo.upsertUser(
       User(
         id: 2,
@@ -269,10 +270,10 @@ void main() {
   );
 
   test(
-    '/grid cycles console → admin → check → member for the console',
+    '/grid cycles console+gadmin → gadmin → admin → check → member',
     () async {
       await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: admin grid'));
+      expect(sent.last['text'], contains('Preview: gadmin grid'));
       expect(
         keyboardTexts(sent.last),
         containsAll([
@@ -288,6 +289,10 @@ void main() {
       expect(keyboardTexts(sent.last), isNot(contains('allocate')));
 
       await sendText(1, '/grid');
+      expect(sent.last['text'], contains('Preview: admin grid'));
+      expect(keyboardTexts(sent.last), contains('all-status'));
+
+      await sendText(1, '/grid');
       expect(sent.last['text'], contains('Preview: check grid'));
       expect(keyboardTexts(sent.last), contains('check-status'));
 
@@ -296,7 +301,7 @@ void main() {
       expect(keyboardTexts(sent.last), contains('re-pick'));
 
       await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: console grid'));
+      expect(sent.last['text'], contains('Preview: console-gadmin grid'));
       expect(keyboardTexts(sent.last), contains('hold'));
       expect(keyboardTexts(sent.last), isNot(contains('full-info')));
     },
