@@ -40,19 +40,22 @@ class Allocator {
       return null;
     }
 
-    // Per (day:slot): members already placed in that time slot (any location).
+    // Per (weekend, day, slot): members already placed in that time slot (any
+    // location). The two bundle weekends have independent schedules.
     final takenBySlot = <String, Set<int>>{};
+    String slotKey(DateTime weekendStart, String day, String slot) =>
+        '${weekendStart.toIso8601String()}:$day:$slot';
     Set<int> takenOf(String key) => takenBySlot.putIfAbsent(key, () => {});
 
     // Locked members occupy their locked session's time slot.
     for (final (uid, sid) in locked) {
       final s = sessionById[sid];
-      if (s != null) takenOf('${s.day}:${s.slot}').add(uid);
+      if (s != null) takenOf(slotKey(s.weekendStart, s.day, s.slot)).add(uid);
     }
 
     void assign(int userId, Session s) {
       result.add((userId, s.id));
-      takenOf('${s.day}:${s.slot}').add(userId);
+      takenOf(slotKey(s.weekendStart, s.day, s.slot)).add(userId);
     }
 
     final open = availability.where((a) => a.available).toList();
@@ -60,9 +63,12 @@ class Allocator {
     // Pass 1: every want pick, one per time slot.
     for (final av in open) {
       for (final slot in av.wantSlots) {
-        if (takenOf('${slot.day}:${slot.slot}').contains(av.userId)) continue;
         final session = sessionFor(av, slot);
         if (session == null) continue;
+        if (takenOf(slotKey(session.weekendStart, session.day, session.slot))
+            .contains(av.userId)) {
+          continue;
+        }
         assign(av.userId, session);
       }
     }
@@ -74,9 +80,12 @@ class Allocator {
     for (final av in open) {
       if (backupAssigned.contains(av.userId)) continue;
       for (final slot in av.slots) {
-        if (takenOf('${slot.day}:${slot.slot}').contains(av.userId)) continue;
         final session = sessionFor(av, slot);
         if (session == null) continue;
+        if (takenOf(slotKey(session.weekendStart, session.day, session.slot))
+            .contains(av.userId)) {
+          continue;
+        }
         assign(av.userId, session);
         backupAssigned.add(av.userId);
         break; // exactly one available session per member
