@@ -714,6 +714,7 @@ class Flows {
     try {
       await ctx.editMessageText(
         text,
+        parseMode: ParseMode.html,
         replyMarkup: CycleService.buildKeyboard(
           w,
           (want, available),

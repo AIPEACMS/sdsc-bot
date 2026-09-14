@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- **Availability picker formatting.** Slot edits now render emphasis instead of
+  showing literal HTML tags.
+- **Broadcast confirmation previews.** Operator-supplied text is escaped before
+  HTML rendering, so angle brackets cannot break the confirmation.
+
 ## [1.13.1] - 2026-09-09
 
 ### Fixed

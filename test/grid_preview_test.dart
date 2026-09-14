@@ -449,6 +449,10 @@ void main() {
   test(
     'direct broadcasts survive confirmation and are discarded on cancel',
     () async {
+      await sendText(2, '/broadcast <draft>');
+      expect(sent.last['text'], contains('<i>&lt;draft&gt;</i>'));
+      expect(sent.last['parse_mode'], 'HTML');
+
       sent.clear();
       await sendText(2, '/broadcast stale');
       await sendCallback(2, 'bcast|no');
@@ -467,6 +471,16 @@ void main() {
       expect(sent.last['text'], contains('Sent to 2 members'));
     },
   );
+
+  test('availability picker slot edits use HTML parsing', () async {
+    final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
+    final bundleStart = w.sat0.toIso8601String().split('T').first;
+    await sendText(2, '/repick');
+    await sendCallback(2, 'slot|$bundleStart|0:sat:am:ocbc');
+
+    expect(edited.last['text'], contains('<b>once</b>'));
+    expect(edited.last['parse_mode'], 'HTML');
+  });
 
   test(
     '/mystatus shows profile fields and dated unavailable responses',
