@@ -5,6 +5,21 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.0] - 2026-09-14
+
+### Added
+
+- **Global administrator role.** The bot now supports exactly one persisted
+  global admin, with atomic appointment/removal and safe migration of the
+  existing console administrator.
+
+### Changed
+
+- **Role separation.** Console controls and global-admin controls are now
+  independent, with command ownership and Telegram grids reflecting each role.
+- **Archived users.** Former users remain stored for recovery but are hidden
+  from Telegram roster and status views.
+
 ## [1.14.2] - 2026-09-14
 
 ### Changed

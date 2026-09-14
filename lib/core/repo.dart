@@ -22,6 +22,12 @@ class ConsoleKey {
   });
 }
 
+enum GlobalAdminResult {
+  success,
+  noSuchUser,
+  alreadyExists,
+}
+
 /// Data access layer over SQLite. All dates are stored as ISO-8601 strings in
 /// the bot's local timezone (UTC+8).
 class Repo {
@@ -192,18 +198,106 @@ ON CONFLICT(id) DO UPDATE SET
     );
   }
 
-  /// Grants or strips the admin flag. Promotion automatically gives the new
+  /// Grants or strips the normal-admin flag. Promotion automatically gives the new
   /// admin their own group (the lowest free group number); demotion dissolves
   /// their group — every member (including the demoted admin) loses their
   /// group until reassigned.
-  void updateAdmin(int id, bool isAdmin) {
+  bool updateAdmin(int id, bool isAdmin) {
+    final user = findUser(id);
+    if (user == null || user.isGlobalAdmin) return false;
     if (isAdmin) {
       raw.execute('UPDATE users SET is_admin = 1 WHERE id = ?', [id]);
       _assignGroupOnPromotion(id);
     } else {
-      final user = findUser(id);
-      if (user != null) _dissolveGroup(user.group);
       raw.execute('UPDATE users SET is_admin = 0 WHERE id = ?', [id]);
+      _dissolveGroup(user.group);
+    }
+    return true;
+  }
+
+  /// Demotes a normal admin to a regular active member and dissolves their
+  /// group. This is the explicit Telegram `/demote` operation.
+  bool demoteAdmin(int id) {
+    final user = findUser(id);
+    if (user == null || !user.isAdmin || user.isGlobalAdmin) return false;
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      _dissolveGroup(user.group);
+      tx.execute(
+        'UPDATE users SET is_admin = 0, member_tier = ?, group_id = \'\' '
+        'WHERE id = ?',
+        [MemberTier.member, id],
+      );
+      tx.execute('COMMIT');
+      return true;
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  User? globalAdmin() {
+    final rows = raw.select(
+      'SELECT * FROM users WHERE is_global_admin = 1 LIMIT 1',
+    );
+    return rows.isEmpty ? null : User.fromRow(rows.first);
+  }
+
+  /// Promotes a registered user to the singleton global-admin role. A member
+  /// gets a group only when they do not already have one; an existing normal
+  /// admin keeps their group while its admin flag is cleared.
+  GlobalAdminResult appointGlobalAdmin(int id) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      final user = findUser(id);
+      if (user == null) {
+        tx.execute('ROLLBACK');
+        return GlobalAdminResult.noSuchUser;
+      }
+      if (globalAdmin() != null) {
+        tx.execute('ROLLBACK');
+        return GlobalAdminResult.alreadyExists;
+      }
+
+      tx.execute(
+        'UPDATE users SET is_admin = 0, is_global_admin = 1, '
+        'member_tier = ? WHERE id = ?',
+        [MemberTier.member, id],
+      );
+      if (user.group.isEmpty) _assignGroupOnPromotion(id);
+      tx.execute('COMMIT');
+      return GlobalAdminResult.success;
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// Removes the current global admin and archives them. The optional id is
+  /// checked inside the transaction so a confirmation cannot remove a new
+  /// global admin after a handoff.
+  bool removeGlobalAdmin(int id) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      final user = findUser(id);
+      if (user == null || !user.isGlobalAdmin) {
+        tx.execute('ROLLBACK');
+        return false;
+      }
+      _dissolveGroup(user.group);
+      tx.execute(
+        'UPDATE users SET is_global_admin = 0, is_admin = 0, '
+        'member_tier = ?, group_id = \'\' WHERE id = ?',
+        [MemberTier.old, id],
+      );
+      tx.execute('COMMIT');
+      return true;
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
     }
   }
 
@@ -212,14 +306,18 @@ ON CONFLICT(id) DO UPDATE SET
   /// group; every other tier clears admin and dissolves the admin's group.
   /// The console tier itself is never stored — it is derived from the
   /// console id.
-  void setTier(int id, String tier) {
+  bool setTier(int id, String tier) {
+    if (![MemberTier.admin, MemberTier.check, MemberTier.member, MemberTier.old]
+        .contains(tier)) {
+      return false;
+    }
     final isAdminNext = tier == MemberTier.admin;
     final stored =
         (tier == MemberTier.admin || tier == MemberTier.member)
             ? MemberTier.member
             : tier;
     final user = findUser(id);
-    if (user == null) return;
+    if (user == null || user.isGlobalAdmin) return false;
     if (isAdminNext && !user.isAdmin) {
       // Promotion: the new admin leads the lowest free group.
       raw.execute(
@@ -240,6 +338,7 @@ ON CONFLICT(id) DO UPDATE SET
         [stored, user.isAdmin ? 1 : 0, id],
       );
     }
+    return true;
   }
 
   // ------------------------------------------------------------ groups
@@ -250,7 +349,8 @@ ON CONFLICT(id) DO UPDATE SET
   String? _lowestFreeGroup() {
     final used = raw
         .select(
-          "SELECT DISTINCT group_id FROM users WHERE is_admin = 1 AND group_id != ''",
+          "SELECT DISTINCT group_id FROM users WHERE "
+          "(is_admin = 1 OR is_global_admin = 1) AND group_id != ''",
         )
         .map((r) => r['group_id'] as String)
         .toSet();
@@ -291,15 +391,18 @@ ON CONFLICT(id) DO UPDATE SET
   Map<String, int> autoAssignGroups() {
     final users = allUsers();
     // Defensive: every admin must hold a group.
-    for (final u in users.where((u) => u.isAdmin)) {
+    for (final u in users.where((u) => u.isAdmin || u.isGlobalAdmin)) {
       if (u.group.isEmpty) _assignGroupOnPromotion(u.id);
     }
-    final leaders = users.where((u) => u.isAdmin && u.group.isNotEmpty).toList();
+    final leaders = users
+        .where((u) => (u.isAdmin || u.isGlobalAdmin) && u.group.isNotEmpty)
+        .toList();
     if (leaders.isEmpty) return {};
     final leaderGroups = leaders.map((a) => a.group).toList();
     final candidates = users
         .where((u) =>
             !u.isAdmin &&
+            !u.isGlobalAdmin &&
             u.memberTier == MemberTier.member &&
             u.group.isEmpty)
         .toList()
@@ -791,7 +894,8 @@ ON CONFLICT(user_id, session_id) DO UPDATE SET
   User? groupAdmin(String groupId) {
     if (groupId.isEmpty) return null;
     final rows = raw.select(
-      'SELECT * FROM users WHERE group_id = ? AND is_admin = 1 LIMIT 1',
+      'SELECT * FROM users WHERE group_id = ? AND '
+      '(is_admin = 1 OR is_global_admin = 1) LIMIT 1',
       [groupId],
     );
     return rows.isEmpty ? null : User.fromRow(rows.first);

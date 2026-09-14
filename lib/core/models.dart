@@ -8,22 +8,32 @@ enum Location { ocbc, pasirRis }
 
 enum HolidayKind { middle, winter, summer }
 
-/// Member tiers, in display/sort order: console > admin > check > member > old.
-/// `console` and `admin` are derived (console id + is_admin); `check`, `member`
-/// and `old` are stored in [User.memberTier].
+/// Member tiers, in display/sort order: console > gadmin > admin > check >
+/// member > old. `console` is derived from the configured console id;
+/// `gadmin` and `admin` are stored flags; the remaining tiers are stored in
+/// [User.memberTier].
 class MemberTier {
   static const String console = 'console';
+  static const String globalAdmin = 'gadmin';
   static const String admin = 'admin';
   static const String check = 'check';
   static const String member = 'member';
   static const String old = 'old';
 
   /// Display/sort order: first defined = top.
-  static const List<String> order = [console, admin, check, member, old];
+  static const List<String> order = [
+    console,
+    globalAdmin,
+    admin,
+    check,
+    member,
+    old,
+  ];
 
   /// The tier of [user], given whether their id is the console.
   static String of(User user, {required bool isConsole}) {
     if (isConsole) return console;
+    if (user.isGlobalAdmin) return globalAdmin;
     if (user.isAdmin) return admin;
     return user.memberTier;
   }
@@ -38,6 +48,7 @@ class User {
   final Experience experience;
   final String group; // 'A' or 'B'
   final bool isAdmin;
+  final bool isGlobalAdmin;
   final int ocbcStreak; // consecutive OCBC sessions attended
   final DateTime? registeredAt;
 
@@ -71,6 +82,7 @@ class User {
     required this.experience,
     required this.group,
     this.isAdmin = false,
+    this.isGlobalAdmin = false,
     this.ocbcStreak = 0,
     this.registeredAt,
     String fullName = '',
@@ -87,6 +99,7 @@ class User {
     Experience? experience,
     String? group,
     bool? isAdmin,
+    bool? isGlobalAdmin,
     int? ocbcStreak,
     String? preferredName,
     String? memberTier,
@@ -100,6 +113,7 @@ class User {
       experience: experience ?? this.experience,
       group: group ?? this.group,
       isAdmin: isAdmin ?? this.isAdmin,
+      isGlobalAdmin: isGlobalAdmin ?? this.isGlobalAdmin,
       ocbcStreak: ocbcStreak ?? this.ocbcStreak,
       registeredAt: registeredAt,
       fullName: fullName ?? _fullName,
@@ -118,6 +132,7 @@ class User {
         : Experience.newbie,
     group: row['group_id'] as String,
     isAdmin: (row['is_admin'] as int) == 1,
+    isGlobalAdmin: (row['is_global_admin'] as int? ?? 0) == 1,
     ocbcStreak: (row['ocbc_streak'] as int? ?? 0),
     registeredAt: row['created_at'] == null
         ? null

@@ -288,6 +288,107 @@ void main() {
     expect(repo.findUser(7)!.isAdmin, false);
   });
 
+  test('v2 startup migration converts the existing console admin', () {
+    repo.upsertUser(
+      User(
+        id: 1,
+        name: '@console',
+        experience: Experience.experienced,
+        group: '7',
+        isAdmin: true,
+      ),
+    );
+    repo.raw.execute(
+      "DELETE FROM settings WHERE key = 'global_admin_migration_v2'",
+    );
+    db.close();
+    db = Database.open(
+      Config(
+        botToken: 'test',
+        dbPath: '${tmp.path}/test.db',
+        consoleId: 1,
+        groupAContact: 'TBD',
+        groupBContact: 'TBD',
+        ocbcCapacity: 2,
+        prCapacity: 20,
+        slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+        promptHour: 18,
+        reminderHour: 18,
+        deadlineHour: 18,
+        allocationHour: 9,
+        bailHour: 12,
+        timezoneOffsetHours: 8,
+      ),
+    );
+    repo = Repo(db);
+    final console = repo.findUser(1)!;
+    expect(console.isGlobalAdmin, isTrue);
+    expect(console.isAdmin, isFalse);
+    expect(console.group, '7');
+  });
+
+  test('global admin is singleton and mutually exclusive with admin', () {
+    addUser(1, group: '3');
+    addUser(2, group: '4');
+    repo.upsertUser(
+      User(
+        id: 1,
+        name: 'Member 1',
+        experience: Experience.newbie,
+        group: '3',
+        isAdmin: true,
+      ),
+    );
+    expect(repo.appointGlobalAdmin(1), GlobalAdminResult.success);
+    expect(repo.findUser(1)!.isAdmin, isFalse);
+    expect(repo.findUser(1)!.isGlobalAdmin, isTrue);
+    expect(repo.findUser(1)!.group, '3');
+    expect(repo.appointGlobalAdmin(2), GlobalAdminResult.alreadyExists);
+    expect(
+      () => repo.raw.execute(
+        'UPDATE users SET is_admin = 1 WHERE id = 1',
+      ),
+      throwsException,
+    );
+  });
+
+  test('global-admin removal archives and dissolves the group atomically', () {
+    addUser(1, group: '3');
+    addUser(2, group: '3');
+    repo.upsertUser(
+      User(
+        id: 1,
+        name: 'Member 1',
+        experience: Experience.newbie,
+        group: '3',
+        isAdmin: true,
+      ),
+    );
+    expect(repo.appointGlobalAdmin(1), GlobalAdminResult.success);
+    expect(repo.removeGlobalAdmin(1), isTrue);
+    final archived = repo.findUser(1)!;
+    expect(archived.isGlobalAdmin, isFalse);
+    expect(archived.isAdmin, isFalse);
+    expect(archived.memberTier, MemberTier.old);
+    expect(archived.group, isEmpty);
+    expect(repo.findUser(2)!.group, isEmpty);
+    expect(repo.globalAdmin(), isNull);
+  });
+
+  test('ordinary upsert does not clear global-admin state', () {
+    addUser(1);
+    expect(repo.appointGlobalAdmin(1), GlobalAdminResult.success);
+    repo.upsertUser(
+      User(
+        id: 1,
+        name: 'Updated',
+        experience: Experience.experienced,
+        group: '',
+      ),
+    );
+    expect(repo.findUser(1)!.isGlobalAdmin, isTrue);
+  });
+
   test('setTier promotes to admin and demotes elsewhere', () {
     addUser(7);
     expect(repo.findUser(7)!.memberTier, 'member');

@@ -16,13 +16,13 @@ class Database {
     final db = sqlite.sqlite3.open(config.dbPath);
     db.execute('PRAGMA foreign_keys = ON;');
     db.execute('PRAGMA journal_mode = WAL;');
-    _applySchema(db);
+    _applySchema(db, config);
     return Database._(db);
   }
 
   sqlite.Database get raw => _db;
 
-  static void _applySchema(sqlite.Database db) {
+  static void _applySchema(sqlite.Database db, Config config) {
     db.execute('''
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY,
@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS users (
   experience TEXT NOT NULL DEFAULT 'newbie',
   group_id TEXT NOT NULL DEFAULT '',
   is_admin INTEGER NOT NULL DEFAULT 0,
+  is_global_admin INTEGER NOT NULL DEFAULT 0
+    CHECK (is_global_admin IN (0, 1)),
   ocbc_streak INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
   full_name TEXT NOT NULL DEFAULT '',
@@ -150,6 +152,62 @@ CREATE TABLE IF NOT EXISTS console_keys (
       );
     } catch (_) {
       // column already present
+    }
+
+    // Global-admin state was added after the original users table. Keep the
+    // migration idempotent for existing databases.
+    final userColumnsAfterTier = db
+        .select('PRAGMA table_info(users)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (!userColumnsAfterTier.contains('is_global_admin')) {
+      db.execute(
+        'ALTER TABLE users ADD COLUMN is_global_admin INTEGER NOT NULL '
+        'DEFAULT 0 CHECK (is_global_admin IN (0, 1))',
+      );
+    }
+    db.execute('''
+CREATE UNIQUE INDEX IF NOT EXISTS users_one_global_admin
+  ON users (is_global_admin) WHERE is_global_admin = 1
+''');
+    db.execute('''
+CREATE TRIGGER IF NOT EXISTS users_role_exclusive_insert
+BEFORE INSERT ON users
+WHEN NEW.is_admin = 1 AND NEW.is_global_admin = 1
+BEGIN
+  SELECT RAISE(ABORT, 'a user cannot be both admin and global admin');
+END;
+''');
+    db.execute('''
+CREATE TRIGGER IF NOT EXISTS users_role_exclusive_update
+BEFORE UPDATE OF is_admin, is_global_admin ON users
+WHEN NEW.is_admin = 1 AND NEW.is_global_admin = 1
+BEGIN
+  SELECT RAISE(ABORT, 'a user cannot be both admin and global admin');
+END;
+''');
+
+    // Explicit one-time v2 bootstrap: only the configured console's
+    // pre-existing normal-admin role is converted automatically. The marker
+    // prevents a later restart from inferring a replacement after removal.
+    final migrationDone = db.select(
+      "SELECT 1 FROM settings WHERE key = 'global_admin_migration_v2'",
+    ).isNotEmpty;
+    if (!migrationDone) {
+      final hasGlobalAdmin = db.select(
+        'SELECT 1 FROM users WHERE is_global_admin = 1 LIMIT 1',
+      ).isNotEmpty;
+      if (!hasGlobalAdmin) {
+        db.execute(
+          'UPDATE users SET is_admin = 0, is_global_admin = 1 '
+          'WHERE id = ? AND is_admin = 1',
+          [config.consoleId],
+        );
+      }
+      db.execute(
+        "INSERT INTO settings (key, value) VALUES "
+        "('global_admin_migration_v2', '1')",
+      );
     }
 
     // Profile fields for databases created before they existed. The legacy

@@ -302,17 +302,18 @@ class AdminApi {
     };
   }
 
-  /// The user's full set of groups, most significant first: console >
-  /// admin > check/member/old. 'member' is implied by admin (admin is always
-  /// a member) but shown explicitly for a plain member — including a console
-  /// who stepped down as admin (console | member).
+  /// The user's full set of groups, most significant first. The console and
+  /// global-admin identities are independent and can both be present.
   static List<String> _groupsOf(User u, {required bool isConsole}) {
     final groups = <String>[];
     if (isConsole) groups.add(MemberTier.console);
+    if (u.isGlobalAdmin) groups.add(MemberTier.globalAdmin);
     if (u.isAdmin) groups.add(MemberTier.admin);
     if (u.memberTier == MemberTier.check || u.memberTier == MemberTier.old) {
       groups.add(u.memberTier);
-    } else if (u.memberTier == MemberTier.member && !u.isAdmin) {
+    } else if (u.memberTier == MemberTier.member &&
+        !u.isAdmin &&
+        !u.isGlobalAdmin) {
       groups.add(MemberTier.member);
     }
     if (groups.isEmpty) groups.add(MemberTier.member);
@@ -344,10 +345,20 @@ class AdminApi {
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
     final body = _jsonBody(bodyText);
     final tier = (body['tier'] as String?) ?? '';
-    if (!MemberTier.order.contains(tier) || tier == MemberTier.console) {
+    if (![
+      MemberTier.admin,
+      MemberTier.check,
+      MemberTier.member,
+      MemberTier.old,
+    ].contains(tier)) {
       return (400, {'ok': false, 'error': 'bad tier'});
     }
-    repo.setTier(id, tier);
+    if (!repo.setTier(id, tier)) {
+      return (
+        409,
+        {'ok': false, 'error': 'global admin role requires Telegram handoff'},
+      );
+    }
     final updated = repo.findUser(id)!;
     LogRing.log(
       'admin API: ${user.name} ${user.isAdmin ? 'admin' : ''} → tier $tier',
@@ -374,7 +385,12 @@ class AdminApi {
     if (admin is! bool) {
       return (400, {'ok': false, 'error': 'expected {"admin": bool}'});
     }
-    repo.updateAdmin(id, admin);
+    if (!repo.updateAdmin(id, admin)) {
+      return (
+        409,
+        {'ok': false, 'error': 'global admin role requires Telegram handoff'},
+      );
+    }
     final updated = repo.findUser(id)!;
     LogRing.log(
       'admin API: ${updated.name} ${admin ? 'granted' : 'stripped'} admin',
@@ -414,7 +430,7 @@ class AdminApi {
   Future<(int, Object)> _setUserGroup(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    if (user.isAdmin) {
+    if (user.isAdmin || user.isGlobalAdmin) {
       return (
         400,
         {'ok': false, 'error': 'admin owns their group — demote first'},
@@ -425,7 +441,8 @@ class AdminApi {
     if (group.isNotEmpty && group != user.group) {
       final adminGroups = repo
           .allUsers()
-          .where((u) => u.isAdmin && u.group.isNotEmpty)
+          .where((u) =>
+              (u.isAdmin || u.isGlobalAdmin) && u.group.isNotEmpty)
           .map((u) => u.group)
           .toSet();
       if (!adminGroups.contains(group)) {

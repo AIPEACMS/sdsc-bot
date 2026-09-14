@@ -7,8 +7,8 @@ class Config {
 
   /// The console user's Telegram id, read from the `CONSOLE_ID` environment
   /// variable (kept in the secret env file, never committed). The console is
-  /// the first user: they have admin rights + debug rights, but are not
-  /// themselves an admin — they can step down from admin later.
+  /// a separate control-plane identity; the v2 migration handles any existing
+  /// global-admin appointment explicitly.
   final int consoleId;
 
   final String groupAContact;
