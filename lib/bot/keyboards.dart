@@ -81,39 +81,14 @@ class RoleKeyboard {
   static const List<GridButton> globalAdminButtons = [
     GridButton('hold', '/hold', RoleColor.globalAdmin),
     GridButton('unhold', '/unhold', RoleColor.globalAdmin),
-    GridButton('add-user', '/adduser', RoleColor.globalAdmin),
-    GridButton('all-status', '/status', RoleColor.globalAdmin),
-    GridButton('group-status', '/groupstatus', RoleColor.globalAdmin),
-    GridButton('all-users', '/users', RoleColor.globalAdmin),
-    GridButton('group-users', '/groupusers', RoleColor.globalAdmin),
-    GridButton('ask', '/ask', RoleColor.globalAdmin),
-    GridButton('mark-attend', '/confirm', RoleColor.globalAdmin),
-    GridButton('set-exp', '/setexp', RoleColor.globalAdmin),
-    GridButton('broadcast', '/broadcast', RoleColor.globalAdmin),
-    ...memberButtons,
+    ...adminButtons,
   ];
 
-  static const List<GridButton> consoleOnlyButtons = [
-    GridButton('add-key', '/addkey', RoleColor.console),
-    GridButton('keys', '/keys', RoleColor.console),
-    GridButton('rm-key', '/rmkey', RoleColor.console),
-    GridButton('set-date', '/setdate', RoleColor.console),
-    GridButton('reset-date', '/resetdate', RoleColor.console),
-    GridButton('grid', '/grid', RoleColor.console),
-    GridButton('reset-grid', '/resetgrid', RoleColor.console),
-    GridButton('add-gadmin', '/add-gadmin', RoleColor.console),
-    GridButton('rm-gadmin', '/rm-gadmin', RoleColor.console),
-  ];
+  /// Console-only commands remain typed commands, not grid buttons. A console
+  /// who is only a regular member therefore sees the green member grid.
+  static const List<GridButton> consoleButtons = memberButtons;
 
-  static const List<GridButton> consoleButtons = [
-    ...consoleOnlyButtons,
-    ...memberButtons,
-  ];
-
-  static const List<GridButton> consoleGlobalAdminButtons = [
-    ...consoleOnlyButtons,
-    ...globalAdminButtons,
-  ];
+  static const List<GridButton> consoleGlobalAdminButtons = globalAdminButtons;
 
   /// The full button list for [role] ('console' | 'gadmin' | 'admin' |
   /// 'console-gadmin' | 'console-old' | 'check' | 'member' | 'old').
@@ -121,7 +96,7 @@ class RoleKeyboard {
     'console' => consoleButtons,
     'gadmin' => globalAdminButtons,
     'console-gadmin' => consoleGlobalAdminButtons,
-    'console-old' => consoleOnlyButtons,
+    'console-old' => oldButtons,
     'admin' => adminButtons,
     'check' => checkButtons,
     'old' => oldButtons,

@@ -2,7 +2,7 @@ import 'package:test/test.dart';
 import 'package:sdsc_bot/bot/keyboards.dart';
 
 void main() {
-  test('gadmin inherits admin and console composition is explicit', () {
+  test('gadmin adds only hold controls to the normal admin grid', () {
     final member = RoleKeyboard.memberButtons.map((b) => b.command).toSet();
     final admin = RoleKeyboard.adminButtons.map((b) => b.command).toSet();
     final gadmin = RoleKeyboard.globalAdminButtons
@@ -15,10 +15,10 @@ void main() {
 
     expect(member.difference(admin).isEmpty, isTrue);
     expect(admin.difference(gadmin).isEmpty, isTrue);
-    expect(console.difference(combined).isEmpty, isTrue);
-    expect(gadmin.difference(combined).isEmpty, isTrue);
+    expect(console, member);
+    expect(combined, gadmin);
     expect(admin.length, greaterThan(member.length));
-    expect(combined.length, greaterThan(gadmin.length));
+    expect(gadmin.difference(admin), {'/hold', '/unhold'});
   });
 
   test('labels carry no leading slash', () {
@@ -74,18 +74,19 @@ void main() {
       expect(b.color, RoleColor.admin, reason: b.label);
     }
     final globalAdminOnly = RoleKeyboard.globalAdminButtons
-        .where((b) => b.color != RoleColor.member)
+        .where((b) => !RoleKeyboard.adminButtons.contains(b))
         .toList();
-    expect(globalAdminOnly, isNotEmpty);
+    expect(globalAdminOnly, hasLength(2));
     for (final b in globalAdminOnly) {
       expect(b.color, RoleColor.globalAdmin, reason: b.label);
     }
-    final consoleOnly = RoleKeyboard.consoleButtons
-        .where((b) => b.color != RoleColor.admin && b.color != RoleColor.member)
-        .toList();
-    expect(consoleOnly.isNotEmpty, isTrue);
-    for (final b in consoleOnly) {
-      expect(b.color, RoleColor.console, reason: b.label);
+    for (final b in RoleKeyboard.globalAdminButtons
+        .where(RoleKeyboard.adminButtons.contains)) {
+      expect(
+        b.color == RoleColor.admin || b.color == RoleColor.member,
+        isTrue,
+        reason: b.label,
+      );
     }
     // Telegram style values.
     expect(RoleColor.member.style, 'success');
@@ -149,14 +150,12 @@ void main() {
     expect(RoleKeyboard.gridButtons('old'), isEmpty);
   });
 
-  test('console-only grid contains control-plane buttons', () {
-    final console = RoleKeyboard.consoleButtons.toSet();
-    final admin = RoleKeyboard.adminButtons.toSet();
-    final consoleOnly = console.difference(admin);
-    expect(
-      consoleOnly.map((b) => b.command),
-      containsAll(['/addkey', '/keys', '/rmkey', '/setdate', '/resetdate']),
-    );
+  test('console commands remain command-only', () {
+    final commands = RoleKeyboard.consoleButtons.map((b) => b.command);
+    expect(commands, RoleKeyboard.memberButtons.map((b) => b.command));
+    expect(commands, isNot(contains('/addkey')));
+    expect(commands, isNot(contains('/add-gadmin')));
+    expect(commands, isNot(contains('/grid')));
   });
 
   test('admin grid no longer has set-group', () {
