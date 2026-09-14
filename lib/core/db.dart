@@ -32,6 +32,10 @@ CREATE TABLE IF NOT EXISTS users (
   is_admin INTEGER NOT NULL DEFAULT 0,
   ocbc_streak INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  full_name TEXT NOT NULL DEFAULT '',
+  preferred_name TEXT NOT NULL DEFAULT '',
+  matric_no TEXT NOT NULL DEFAULT '',
+  school_email TEXT NOT NULL DEFAULT '',
   member_tier TEXT NOT NULL DEFAULT 'member'
 );
 
@@ -148,18 +152,21 @@ CREATE TABLE IF NOT EXISTS console_keys (
       // column already present
     }
 
-    // Profile fields (full name, preferred name, matric no., school email)
-    // for databases created before they existed.
+    // Profile fields for databases created before they existed. The legacy
+    // fields remain for compatibility but are no longer collected or shown.
+    final userColumns = db
+        .select('PRAGMA table_info(users)')
+        .map((row) => row['name'] as String)
+        .toSet();
     for (final col in [
       'full_name',
       'preferred_name',
       'matric_no',
       'school_email',
     ]) {
-      try {
+      if (!userColumns.contains(col)) {
         db.execute("ALTER TABLE users ADD COLUMN $col TEXT NOT NULL DEFAULT ''");
-      } catch (_) {
-        // column already present
+        userColumns.add(col);
       }
     }
 

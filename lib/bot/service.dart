@@ -567,9 +567,7 @@ class CycleService {
       '${sat.day.toString().padLeft(2, '0')}';
 
   static String _displayName(User user) {
-    final human = user.preferredName.isNotEmpty
-        ? user.preferredName
-        : user.fullName;
+    final human = user.preferredName;
     if (human.isEmpty) return _html(user.name);
     return '${_html(human)} ${_html(user.name)}';
   }

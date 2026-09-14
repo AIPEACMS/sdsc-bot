@@ -833,7 +833,7 @@ void main() {
         );
       }
 
-      // /setinfo opens step 1 of 4.
+      // /setinfo opens the one-step preferred-name wizard.
       await cmd(
         1,
         '/setinfo',
@@ -843,43 +843,18 @@ void main() {
       );
       expect(state.profileStep[42], 0);
       expect(
-        sent.any((s) => (s['text'] as String).contains('full name')),
-        isTrue,
-      );
-
-      await cmd(2, 'Alice Tan');
-      expect(
         sent.any((s) => (s['text'] as String).contains('preferred name')),
         isTrue,
       );
-      // A fresh walk offers no Cancel — not even after the first answer
-      // (it only appears when re-running /setinfo over existing data).
-      final step2 = sent.last;
-      expect(step2['reply_markup'], isNull);
 
-      await cmd(3, 'Ali');
-      expect(
-        sent.any((s) => (s['text'] as String).contains('matric no.')),
-        isTrue,
-      );
-
-      await cmd(4, 'U1234567A');
-      expect(
-        sent.any((s) => (s['text'] as String).contains('school email')),
-        isTrue,
-      );
-
-      await cmd(5, 'alice@e.ntu.edu.sg');
+      await cmd(2, 'Ali');
 
       await bot.stop();
       await startFuture;
       await server.close(force: true);
 
       final user = repo.findUser(42)!;
-      expect(user.fullName, 'Alice Tan');
       expect(user.preferredName, 'Ali');
-      expect(user.matricNo, 'U1234567A');
-      expect(user.schoolEmail, 'alice@e.ntu.edu.sg');
       expect(state.profileStep.containsKey(42), isFalse);
       expect(
         sent.any((s) => (s['text'] as String).contains('Profile saved')),
@@ -888,7 +863,7 @@ void main() {
     },
   );
 
-  test('pfcancel aborts the profile wizard, keeping saved fields', () async {
+  test('pfcancel aborts the profile wizard, keeping the saved name', () async {
     final sent = <Map<String, dynamic>>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
@@ -931,7 +906,7 @@ void main() {
         name: '@alice',
         experience: Experience.newbie,
         group: '1',
-        fullName: 'Alice Tan',
+        preferredName: 'Alice',
       ),
     );
 
@@ -956,7 +931,7 @@ void main() {
     final startFuture = bot.start();
     await Future<void>.delayed(const Duration(milliseconds: 300));
 
-    // alice has a full name already → the first prompt carries Cancel.
+    // alice has a preferred name already → the first prompt carries Cancel.
     await bot.handleUpdate(
       Update.fromJson({
         'update_id': 1,
@@ -988,7 +963,7 @@ void main() {
             'message_id': 1,
             'date': 1,
             'chat': {'id': 42, 'type': 'private'},
-            'text': '1/4 — What is your full name?',
+            'text': '1/1 — What is your preferred name?',
           },
           'data': 'pfcancel|0',
         },
@@ -1000,8 +975,7 @@ void main() {
     await server.close(force: true);
 
     expect(state.profileStep.containsKey(42), isFalse);
-    expect(repo.findUser(42)!.fullName, 'Alice Tan');
-    expect(repo.findUser(42)!.preferredName, '');
+    expect(repo.findUser(42)!.preferredName, 'Alice');
   });
 
   test('/start prompts the profile wizard when fields are empty', () async {
@@ -1091,7 +1065,7 @@ void main() {
     final texts = sent.map((s) => s['text'] as String).toList();
     expect(texts.any((t) => t.contains('re-pick')), isTrue);
     expect(
-      texts.any((t) => t.contains('1/4') && t.contains('full name')),
+      texts.any((t) => t.contains('1/1') && t.contains('preferred name')),
       isTrue,
     );
   });
