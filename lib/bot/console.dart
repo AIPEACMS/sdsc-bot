@@ -88,16 +88,16 @@ class Console {
     commandBoth(
       bot,
       state,
-      'add-gadmin',
+      'addg',
       _consoleGuard(_addGlobalAdminConfirm),
-      label: 'add-gadmin',
+      label: 'addg',
     );
     commandBoth(
       bot,
       state,
-      'rm-gadmin',
+      'rmg',
       _consoleGuard(_removeGlobalAdminConfirm),
-      label: 'rm-gadmin',
+      label: 'rmg',
     );
 
     // Hold/unhold callbacks, console only.
@@ -237,14 +237,14 @@ class Console {
     await ctx.reply('✅ @$handle is now an admin.');
   }
 
-  // -------------------------------------------------- /add-gadmin /rm-gadmin
+  // -------------------------------------------------------- /addg /rmg
 
   final Map<int, int> _pendingGlobalAdmin = {};
   final Map<int, int> _pendingGlobalAdminRemoval = {};
 
   Future<void> _addGlobalAdminConfirm(Context ctx) async {
     if (ctx.args.length != 1) {
-      await ctx.reply('Usage: /add-gadmin @handle');
+      await ctx.reply('Usage: /addg @handle');
       return;
     }
     final handle = ctx.args.single.replaceFirst('@', '').trim();
@@ -273,7 +273,7 @@ class Console {
       return;
     }
     if (ctx.args.length > 1) {
-      await ctx.reply('Usage: /rm-gadmin [@handle]');
+      await ctx.reply('Usage: /rmg [@handle]');
       return;
     }
     if (ctx.args.length == 1) {
