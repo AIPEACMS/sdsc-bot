@@ -5,6 +5,18 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.0.3] - 2026-09-14
+
+### Fixed
+
+- **Broadcast cancellation.** The broadcast wizard's Cancel button no longer
+  enters the member availability-cancellation flow.
+
+### Changed
+
+- **Role display.** Global admins appear above normal admins in roster views,
+  and a console global admin is displayed as `gadmin` only.
+
 ## [2.0.2] - 2026-09-14
 
 ### Changed

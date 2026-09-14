@@ -88,7 +88,7 @@ class Admin {
         'adduser',
         'prompt',
         'remind',
-        'cancel',
+        'admincancel',
       };
       if (mine.contains(head)) {
         await _onAdminCallback(ctx);
@@ -135,7 +135,7 @@ class Admin {
       final message = await ctx.reply(
         '➕ Send me the handle to add (e.g. <b>@username</b>), or tap Cancel.',
         parseMode: ParseMode.html,
-        replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
+        replyMarkup: InlineKeyboard().text('❌ Cancel', 'admincancel|0'),
       );
       state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
@@ -282,15 +282,16 @@ class Admin {
       if (u.memberTier == MemberTier.old) return false;
       if (group != null && u.group != group) return false;
       return true;
-    }).toList();
+    }).toList()
+      ..sort((a, b) {
+        final tierComparison = _displayTierRank(a).compareTo(
+          _displayTierRank(b),
+        );
+        if (tierComparison != 0) return tierComparison;
+        return _displayName(a).compareTo(_displayName(b));
+      });
     final lines = users.map((u) {
-      final isConsole = config.isConsole(u.id);
-      final groups = <String>[];
-      if (isConsole) groups.add(MemberTier.console);
-      if (u.isGlobalAdmin) groups.add(MemberTier.globalAdmin);
-      if (u.isAdmin) groups.add(MemberTier.admin);
-      if (groups.isEmpty) groups.add(u.memberTier);
-      final tier = groups.join(' + ');
+      final tier = _displayTier(u);
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
       final stats = repo.attendanceStats(u.id);
       return '• <b>${_displayName(u)}</b>\n   ($tier, '
@@ -302,6 +303,18 @@ class Admin {
       '(${users.length})</b>\n${lines.join('\n')}',
       parseMode: ParseMode.html,
     );
+  }
+
+  String _displayTier(User user) {
+    if (user.isGlobalAdmin) return MemberTier.globalAdmin;
+    if (config.isConsole(user.id)) return MemberTier.console;
+    if (user.isAdmin) return MemberTier.admin;
+    return user.memberTier;
+  }
+
+  int _displayTierRank(User user) {
+    final index = MemberTier.order.indexOf(_displayTier(user));
+    return index < 0 ? MemberTier.order.length : index;
   }
 
   Future<void> _groupUsers(Context ctx) async {
@@ -571,7 +584,7 @@ class Admin {
     for (final (label, value) in choices) {
       kb = kb.text(label, 'setval|$kind|$value').row();
     }
-    kb = kb.text('❌ Cancel', 'cancel|0');
+    kb = kb.text('❌ Cancel', 'admincancel|0');
     await ctx.reply(
       kind == 'setexp' ? 'Set experience to:' : 'Set group to:',
       replyMarkup: kb,
@@ -642,7 +655,7 @@ class Admin {
       state.pendingArg[userId] = PendingArg('broadcast');
       final message = await ctx.reply(
         '📢 Send me the message to broadcast to all members, or tap Cancel.',
-        replyMarkup: InlineKeyboard().text('❌ Cancel', 'cancel|0'),
+        replyMarkup: InlineKeyboard().text('❌ Cancel', 'admincancel|0'),
       );
       state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
@@ -752,7 +765,7 @@ class Admin {
           yes ? 'Sending reminders…' : 'Cancelled — nothing was sent.',
         );
         if (yes) await service.sendReminders(_window());
-      case 'cancel':
+      case 'admincancel':
         await ctx.answerCallbackQuery();
         state.pendingArg.remove(ctx.from!.id);
         _pendingBroadcast.remove(ctx.from!.id);
