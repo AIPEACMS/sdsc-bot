@@ -232,6 +232,19 @@ void main() {
     }),
   );
 
+  Future<void> sendPlainText(int userId, String text) => bot.handleUpdate(
+    Update.fromJson({
+      'update_id': 3,
+      'message': {
+        'message_id': 1,
+        'date': 1,
+        'chat': {'id': userId, 'type': 'private'},
+        'from': {'id': userId, 'is_bot': false, 'first_name': 'u'},
+        'text': text,
+      },
+    }),
+  );
+
   Future<void> sendCallback(int userId, String data) => bot.handleUpdate(
     Update.fromJson({
       'update_id': 2,
@@ -278,7 +291,7 @@ void main() {
     expect(text, contains('<b>Global admin</b>'));
     expect(
       text.indexOf('<b>Admin</b>'),
-      lessThan(text.indexOf('<b>Global admin</b>')),
+      greaterThan(text.indexOf('<b>Global admin</b>')),
     );
     expect(text, contains('add-user @handle'));
     expect(text, contains('/addadmin @handle'));
@@ -321,6 +334,37 @@ void main() {
       expect(keyboardTexts(sent.last), isNot(contains('full-info')));
     },
   );
+
+  test('all-users and group-users show gadmin above admin', () async {
+    await sendText(1, '/users');
+    var text = sent.last['text'] as String;
+    expect(text, contains('@console</b>\n   (gadmin,'));
+    expect(text, isNot(contains('console + gadmin')));
+    expect(text.indexOf('@console'), lessThan(text.indexOf('@admin')));
+
+    repo.setGroup(2, repo.findUser(1)!.group);
+    await sendText(2, '/groupusers');
+    text = sent.last['text'] as String;
+    expect(text, contains('@console</b>\n   (gadmin,'));
+    expect(text, isNot(contains('console + gadmin')));
+    expect(text.indexOf('@console'), lessThan(text.indexOf('@admin')));
+  });
+
+  test('plain broadcast button text opens the broadcast flow', () async {
+    await sendPlainText(2, 'broadcast');
+    expect(sent.last['text'], contains('Send me the message to broadcast'));
+    expect(sent.last['text'], isNot(contains('availability')));
+  });
+
+  test('broadcast wizard cancel does not enter availability cancel flow', () async {
+    await sendText(2, '/broadcast');
+    await sendCallback(2, 'admincancel|0');
+    expect(sent.last['text'], 'Cancelled.');
+    expect(
+      sent.where((body) => body['text'] == 'Your previous availability is kept.'),
+      isEmpty,
+    );
+  });
 
   test('/grid is rejected for non-console users', () async {
     await sendText(2, '/grid');

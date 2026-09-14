@@ -195,6 +195,16 @@ class Flows {
       );
     }
 
+    if (user.isGlobalAdmin) {
+      sb
+        ..writeln('\n<b>Global admin</b>')
+        ..writeln('/addadmin @handle — promote a registered user')
+        ..writeln('/addcheck @handle — add a checker')
+        ..writeln('/demote @handle — demote an admin')
+        ..writeln('/sync-calendar — push the calendar YAML')
+        ..writeln('/hold | /unhold — pause or resume the bot');
+    }
+
     if (isAdmin) {
       sb
         ..writeln('\n<b>Admin</b>')
@@ -210,15 +220,6 @@ class Flows {
         ..writeln('/setexp experienced|newbie — change a member\'s experience')
         ..writeln('/allocate — run the allocation now')
         ..writeln('/broadcast &lt;message&gt; — message all members');
-      if (user.isGlobalAdmin) {
-        sb
-          ..writeln('\n<b>Global admin</b>')
-          ..writeln('/addadmin @handle — promote a registered user')
-          ..writeln('/addcheck @handle — add a checker')
-          ..writeln('/demote @handle — demote an admin')
-          ..writeln('/sync-calendar — push the calendar YAML')
-          ..writeln('/hold | /unhold — pause or resume the bot');
-      }
     }
 
     if (!retired) {
