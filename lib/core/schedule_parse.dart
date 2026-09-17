@@ -3,6 +3,8 @@
 /// tokens (resolved separately against the locations table, aliases included).
 library;
 
+import 'models.dart';
+
 /// One parsed schedule line. [locationToken] is still the raw text — the
 /// caller resolves it to a location key.
 class ParsedSession {
@@ -80,6 +82,37 @@ Object parseSessionLine(String line) {
     }
   }
   return (sessions: sessions, errors: errors);
+}
+
+/// Builds schedule-template rows from parsed lines.
+///
+/// [resolveToken] maps a raw location token to a location key (or null when it
+/// is unknown); lines whose token cannot be resolved are skipped. Rows sharing
+/// (day, start, end) share a slot label, so availability treats them as one
+/// time window.
+List<ScheduleSlot> buildTemplate(
+  List<ParsedSession> lines, {
+  required String? Function(String token) resolveToken,
+}) {
+  final rows = <ScheduleSlot>[];
+  final slotByGroup = <String, String>{};
+  var n = 1;
+  for (final line in lines) {
+    final key = resolveToken(line.locationToken);
+    if (key == null) continue;
+    final group = '${line.day}|${line.start}|${line.end}';
+    final slot = slotByGroup.putIfAbsent(group, () => 's${n++}');
+    rows.add(
+      ScheduleSlot(
+        day: line.day,
+        slot: slot,
+        start: line.start,
+        end: line.end,
+        location: key,
+      ),
+    );
+  }
+  return rows;
 }
 
 /// Normalizes a clock token to 'HH:MM', or null when it is not a time.
