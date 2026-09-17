@@ -232,13 +232,30 @@ class Admin {
         'Lock W2: ${_day(w.deadline1)}',
       )
       ..writeln('Registered members: ${users.length}')
-      ..writeln(
-        'Responded: $responders/${users.length} '
-        '(+${pending.length} pending)',
-      );
+      ..writeln('Responded: $responders/${users.length}');
 
+    // Everyone registered is accounted for: the members who still need to
+    // answer, plus the ones the quiet rule skips because they answered a
+    // recent bundle (they were not prompted this cycle).
+    final quiet = users
+        .where(
+          (u) => !responderIds.contains(u.id) && repo.isQuiet(u.id, w.sat0),
+        )
+        .toList();
     if (pending.isNotEmpty) {
-      sb.writeln('⏳ Pending: ${pending.map(_displayName).join(', ')}');
+      sb.writeln(
+        '⏳ Still to respond (${pending.length}): '
+        '${pending.map(_displayName).join(', ')}',
+      );
+    }
+    if (quiet.isNotEmpty) {
+      sb.writeln(
+        '💤 Not prompted this cycle — answered recently '
+        '(${quiet.length}): ${quiet.map(_displayName).join(', ')}',
+      );
+    }
+    if (pending.isEmpty && quiet.isEmpty) {
+      sb.writeln('✅ Everyone has answered this bundle.');
     }
 
     // The full allocation table for both weekends of the bundle — the same
