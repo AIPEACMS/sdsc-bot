@@ -185,7 +185,10 @@ class Flows {
         ..writeln('/addkey — register a console app key')
         ..writeln('/keys | /rmkey — manage console keys')
         ..writeln('/addg @handle — appoint the global admin')
-        ..writeln('/rmg [@handle] — remove the global admin');
+        ..writeln('/rmg [@handle] — remove the global admin')
+        ..writeln('/locations — list locations and their aliases')
+        ..writeln('/addlocation &lt;name&gt; — approve or add a location')
+        ..writeln('/addalias &lt;location&gt; — add aliases (send done to end)');
     }
 
     if (retired) {
@@ -202,6 +205,7 @@ class Flows {
         ..writeln('/addcheck @handle — add a checker')
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/sync-calendar — push the calendar YAML')
+        ..writeln('/settime — set the activity days, times and locations')
         ..writeln('/hold | /unhold — pause or resume the bot');
     }
 
