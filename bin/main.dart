@@ -149,8 +149,24 @@ Future<void> main() async {
   flows.onAddAliasText = console.onAddAliasText;
   flows.onAvailabilitySaved = scheduler.scheduleDynamicAllocation;
 
+  // Long polling hits the odd transient network hiccup; the bot retries by
+  // itself and keeps running. Log those once per window instead of dumping the
+  // full exception every time, but log anything else in full.
+  var lastNetworkLog = DateTime.fromMillisecondsSinceEpoch(0);
   bot.onError((error) {
-    processLog('bot error: ${error.error}');
+    final text = error.error.toString();
+    final transient = text.contains('Error during long polling') ||
+        text.contains('Network request failed') ||
+        text.contains('Unknown network error');
+    if (transient) {
+      final now = DateTime.now();
+      if (now.difference(lastNetworkLog).inMinutes >= 30) {
+        lastNetworkLog = now;
+        processLog('bot: transient long-poll network hiccup (auto-retrying)');
+      }
+      return;
+    }
+    processLog('bot error: $text');
   });
 
   final stopCompleter = Completer<void>();

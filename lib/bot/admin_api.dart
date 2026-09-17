@@ -493,7 +493,8 @@ class AdminApi {
   /// Appoints or removes the singleton global admin, the chat-side equivalent
   /// of `/addg` / `/rmg`. The repo enforces the one-global-admin rule inside a
   /// transaction: appointing fails while another global admin exists, and
-  /// removing archives the target as `old` and dissolves their group.
+  /// removing returns the target to a regular member and dissolves their
+  /// group.
   Future<(int, Object)> _setUserGlobalAdmin(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
@@ -793,6 +794,10 @@ class AdminApi {
             'slot': s.slot,
             'start': s.start.toIso8601String(),
             'end': s.end.toIso8601String(),
+            // Whether the session has begun — attendance can only be marked
+            // once it has, so the console hides future sessions from its
+            // "unmarked" reminder.
+            'started': !s.start.isAfter(now),
             'members': [
               for (final u in bySession[s.id] ?? const <User>[])
                 {

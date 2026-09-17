@@ -5,6 +5,21 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.6] - 2026-09-17
+
+### Changed
+
+- **Removing the global admin returns them to a regular member.** It used to
+  archive them as `old` (no prompts, no allocation); now their group is
+  dissolved and they stay an active member.
+- Transient long-polling network hiccups are logged once per 30 minutes
+  ("auto-retrying") instead of dumping the full exception on every retry.
+
+### Added
+
+- The attendance payload marks each session with `started`, so the console can
+  tell which sessions can be marked yet.
+
 ## [3.0.5] - 2026-09-17
 
 ### Changed

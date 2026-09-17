@@ -694,7 +694,7 @@ void main() {
       );
       expect(repo.globalAdmin()!.id, 7);
 
-      // Remove @carol: archived as old, group dissolved.
+      // Remove @carol: back to a regular member, group dissolved.
       final (removed, removedBody) = await call(
         'POST',
         '/api/users/7/gadmin',
@@ -703,7 +703,7 @@ void main() {
       expect(removed, 200);
       expect((removedBody as Map<String, dynamic>)['gadmin'], false);
       expect(repo.globalAdmin(), isNull);
-      expect(repo.findUser(7)!.memberTier, 'old');
+      expect(repo.findUser(7)!.memberTier, 'member');
       expect(repo.findUser(7)!.group, '');
 
       // The slot is free again, so the second user can take it.

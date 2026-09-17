@@ -341,7 +341,7 @@ void main() {
     );
   });
 
-  test('global-admin removal archives and dissolves the group atomically', () {
+  test('global-admin removal returns a member and dissolves the group', () {
     addUser(1, group: '3');
     addUser(2, group: '3');
     repo.upsertUser(
@@ -355,11 +355,11 @@ void main() {
     );
     expect(repo.appointGlobalAdmin(1), GlobalAdminResult.success);
     expect(repo.removeGlobalAdmin(1), isTrue);
-    final archived = repo.findUser(1)!;
-    expect(archived.isGlobalAdmin, isFalse);
-    expect(archived.isAdmin, isFalse);
-    expect(archived.memberTier, MemberTier.old);
-    expect(archived.group, isEmpty);
+    final removed = repo.findUser(1)!;
+    expect(removed.isGlobalAdmin, isFalse);
+    expect(removed.isAdmin, isFalse);
+    expect(removed.memberTier, MemberTier.member);
+    expect(removed.group, isEmpty);
     expect(repo.findUser(2)!.group, isEmpty);
     expect(repo.globalAdmin(), isNull);
   });
