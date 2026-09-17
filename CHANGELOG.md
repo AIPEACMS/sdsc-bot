@@ -5,6 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.2] - 2026-09-17
+
+### Fixed
+
+- **`/start` help now lists the new commands.** The console section gains
+  `/locations`, `/addlocation` and `/addalias`, and the global-admin section
+  gains `/settime`.
+
 ## [3.0.1] - 2026-09-17
 
 ### Fixed

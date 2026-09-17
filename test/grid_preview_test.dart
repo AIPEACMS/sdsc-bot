@@ -279,6 +279,8 @@ void main() {
       await sendText(1, '/start');
       final welcome = sent[sentBefore];
       expect(welcome['text'], contains('/broadcast &lt;message&gt;'));
+      expect(welcome['text'], contains('/addlocation'));
+      expect(welcome['text'], contains('/addalias'));
       expect(welcome['parse_mode'], 'HTML');
     },
   );
@@ -296,6 +298,7 @@ void main() {
     );
     expect(text, contains('add-user @handle'));
     expect(text, contains('/addadmin @handle'));
+    expect(text, contains('/settime'));
   });
 
   test(
