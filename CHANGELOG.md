@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [2.1.0] - 2026-09-17
+
+### Added
+
+- **Console global-admin management.** The admin API can now appoint and
+  remove the singleton global admin (`POST /api/users/{id}/gadmin`), so the
+  desktop console no longer needs the Telegram `/addg` `/rmg` commands to
+  hand the role over. The one-global-admin rule is enforced in the same
+  transaction as the change.
+
 ## [2.0.5] - 2026-09-14
 
 ### Changed

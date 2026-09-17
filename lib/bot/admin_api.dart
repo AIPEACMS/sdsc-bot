@@ -36,6 +36,7 @@ import 'service.dart';
 ///   POST  /api/users                    -> { "handle": "@name" } (register-or-queue)
 ///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|old" }
 ///   POST  /api/users/{id}/admin         -> { "admin": true|false } (keeps member tier)
+///   POST  /api/users/{id}/gadmin        -> { "gadmin": true|false } (singleton handoff)
 ///   POST  /api/users/{id}/exp           -> { "exp": "experienced|newbie" }
 ///   POST  /api/users/{id}/group         -> { "group": "" | "1" | "2" | ... } (member only)
 ///   POST  /api/assign-groups            -> randomly assign ungrouped members to admin groups
@@ -214,6 +215,8 @@ class AdminApi {
               return _setTier(id, bodyText);
             case 'admin':
               return _setUserAdmin(id, bodyText);
+            case 'gadmin':
+              return _setUserGlobalAdmin(id, bodyText);
             case 'exp':
               return _setUserExp(id, bodyText);
             case 'group':
@@ -400,6 +403,54 @@ class AdminApi {
       {
         'ok': true,
         'admin': admin,
+        'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
+      },
+    );
+  }
+
+  /// Appoints or removes the singleton global admin, the chat-side equivalent
+  /// of `/addg` / `/rmg`. The repo enforces the one-global-admin rule inside a
+  /// transaction: appointing fails while another global admin exists, and
+  /// removing archives the target as `old` and dissolves their group.
+  Future<(int, Object)> _setUserGlobalAdmin(int id, String bodyText) async {
+    final user = repo.findUser(id);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    final body = _jsonBody(bodyText);
+    final gadmin = body['gadmin'];
+    if (gadmin is! bool) {
+      return (400, {'ok': false, 'error': 'expected {"gadmin": bool}'});
+    }
+
+    if (gadmin) {
+      final result = repo.appointGlobalAdmin(id);
+      if (result == GlobalAdminResult.alreadyExists) {
+        return (409, {'ok': false, 'error': 'a global admin already exists'});
+      }
+      if (result == GlobalAdminResult.noSuchUser) {
+        return (404, {'ok': false, 'error': 'no such user'});
+      }
+      final updated = repo.findUser(id)!;
+      LogRing.log('admin API: ${updated.name} appointed global admin');
+      return (
+        200,
+        {
+          'ok': true,
+          'gadmin': true,
+          'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
+        },
+      );
+    }
+
+    if (!repo.removeGlobalAdmin(id)) {
+      return (409, {'ok': false, 'error': 'that user is not the global admin'});
+    }
+    final updated = repo.findUser(id)!;
+    LogRing.log('admin API: ${updated.name} removed as global admin');
+    return (
+      200,
+      {
+        'ok': true,
+        'gadmin': false,
         'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
       },
     );
