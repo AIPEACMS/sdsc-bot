@@ -104,7 +104,7 @@ class SetTime {
     }
 
     final errors = <String>[];
-    var added = 0;
+    final firstIndex = draft.lines.length + 1;
     for (final raw in trimmed.split('\n')) {
       final line = raw.trim();
       if (line.isEmpty) continue;
@@ -114,25 +114,33 @@ class SetTime {
         continue;
       }
       draft.lines.add(parsed as ParsedSession);
-      added++;
     }
+    final total = draft.lines.length;
+    final added = total - firstIndex + 1;
 
     // Re-arm so the next message continues the wizard.
     state.pendingArg[userId] = PendingArg('settime');
 
     final sb = StringBuffer();
-    if (added > 0) {
-      sb.writeln('✅ Added $added session(s).');
+    if (added == 1) {
+      sb.writeln('✅ Added session $total ($total so far):');
+    } else if (added > 1) {
+      sb.writeln('✅ Added sessions $firstIndex-$total ($total so far):');
+    }
+    // Show exactly what was just added, numbered as in the final confirmation.
+    for (var i = firstIndex; i <= total; i++) {
+      sb.writeln(_sessionLine(draft, draft.lines[i - 1], i));
     }
     if (errors.isNotEmpty) {
+      if (added > 0) sb.writeln();
       sb.write(errors.join('\n'));
     }
-    if (sb.isEmpty) {
+    if (added == 0 && errors.isEmpty) {
       sb.write('Send a session line, or <b>done</b> to finish.');
     } else {
       sb.write('\nSend more, or <b>done</b> to finish.');
     }
-    await ctx.reply(sb.toString(), parseMode: ParseMode.html);
+    await ctx.reply(sb.toString().trimRight(), parseMode: ParseMode.html);
   }
 
   /// Turns the draft into a confirmation, or asks about unknown locations.
@@ -309,20 +317,26 @@ class SetTime {
     );
   }
 
+  /// One draft line rendered the same way in the acknowledgements and in the
+  /// final confirmation, e.g.
+  /// "Session 2: Saturday 9:00 to 13:00 at location: OCBC".
+  String _sessionLine(_Draft draft, ParsedSession line, int n) {
+    final key = draft.resolved[line.locationToken] ??
+        repo.resolveLocation(line.locationToken)?.key;
+    final loc = key != null
+        ? repo.locationName(key)
+        : (draft.requestedNames[line.locationToken] ?? line.locationToken);
+    return 'Session $n: ${Slot.dayName(line.day)} '
+        '${prettyClock(line.start)} to ${prettyClock(line.end)} '
+        'at location: $loc';
+  }
+
   String _confirmationText(_Draft draft) {
     final sb = StringBuffer(
       'Thank you, the new activity list from now on will be:\n',
     );
-    var n = 1;
-    for (final line in draft.lines) {
-      final key = draft.resolved[line.locationToken] ??
-          repo.resolveLocation(line.locationToken)?.key;
-      final name = key == null ? line.locationToken : repo.locationName(key);
-      sb.writeln(
-        'Session ${n++}: ${Slot.dayName(line.day)} '
-        '${prettyClock(line.start)} to ${prettyClock(line.end)} '
-        'at location: $name',
-      );
+    for (var i = 0; i < draft.lines.length; i++) {
+      sb.writeln(_sessionLine(draft, draft.lines[i], i + 1));
     }
     return sb.toString().trimRight();
   }
