@@ -657,6 +657,100 @@ void main() {
     },
   );
 
+  // ------------------------------------------------------- global admin
+
+  test(
+    'POST /api/users/{id}/gadmin appoints and removes the singleton global admin',
+    () async {
+      repo.upsertUser(
+        User(id: 7, name: '@carol', experience: Experience.newbie, group: 'A'),
+      );
+      repo.upsertUser(
+        User(id: 8, name: '@dave', experience: Experience.newbie, group: 'B'),
+      );
+
+      // Appoint @carol — mutually exclusive with the normal-admin flag.
+      final (status, body) = await call(
+        'POST',
+        '/api/users/7/gadmin',
+        body: {'gadmin': true},
+      );
+      expect(status, 200);
+      expect((body as Map<String, dynamic>)['gadmin'], true);
+      expect(repo.globalAdmin()!.id, 7);
+      expect(repo.findUser(7)!.isAdmin, false);
+
+      // The one-global-admin rule: a second appointment is refused.
+      final (conflict, conflictBody) = await call(
+        'POST',
+        '/api/users/8/gadmin',
+        body: {'gadmin': true},
+      );
+      expect(conflict, 409);
+      expect(
+        (conflictBody as Map<String, dynamic>)['error'],
+        contains('already exists'),
+      );
+      expect(repo.globalAdmin()!.id, 7);
+
+      // Remove @carol: archived as old, group dissolved.
+      final (removed, removedBody) = await call(
+        'POST',
+        '/api/users/7/gadmin',
+        body: {'gadmin': false},
+      );
+      expect(removed, 200);
+      expect((removedBody as Map<String, dynamic>)['gadmin'], false);
+      expect(repo.globalAdmin(), isNull);
+      expect(repo.findUser(7)!.memberTier, 'old');
+      expect(repo.findUser(7)!.group, '');
+
+      // The slot is free again, so the second user can take it.
+      final (again, _) = await call(
+        'POST',
+        '/api/users/8/gadmin',
+        body: {'gadmin': true},
+      );
+      expect(again, 200);
+      expect(repo.globalAdmin()!.id, 8);
+    },
+  );
+
+  test('POST /api/users/{id}/gadmin rejects unknown ids and bad bodies', () async {
+    repo.upsertUser(
+      User(id: 7, name: '@carol', experience: Experience.newbie, group: 'A'),
+    );
+
+    final (missing, missingBody) = await call(
+      'POST',
+      '/api/users/999/gadmin',
+      body: {'gadmin': true},
+    );
+    expect(missing, 404);
+    expect(
+      (missingBody as Map<String, dynamic>)['error'],
+      contains('no such user'),
+    );
+
+    final (bad, badBody) = await call(
+      'POST',
+      '/api/users/7/gadmin',
+      body: {'gadmin': 'yes'},
+    );
+    expect(bad, 400);
+    expect((badBody as Map<String, dynamic>)['error'], contains('gadmin'));
+
+    // Removing a user who is not the global admin is refused and changes
+    // nothing.
+    final (notGadmin, _) = await call(
+      'POST',
+      '/api/users/7/gadmin',
+      body: {'gadmin': false},
+    );
+    expect(notGadmin, 409);
+    expect(repo.findUser(7)!.memberTier, 'member');
+  });
+
   test(
     'the console can demote themselves to old (no prompts, no allocation)',
     () async {
