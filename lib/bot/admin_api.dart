@@ -791,6 +791,8 @@ class AdminApi {
             'weekendStart': s.weekendStart.toIso8601String(),
             'day': s.day,
             'slot': s.slot,
+            'start': s.start.toIso8601String(),
+            'end': s.end.toIso8601String(),
             'members': [
               for (final u in bySession[s.id] ?? const <User>[])
                 {
