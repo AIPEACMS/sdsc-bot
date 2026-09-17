@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.1] - 2026-09-17
+
+### Fixed
+
+- **Leftover sessions from the old Saturday-only model no longer appear.**
+  Startup now hides and removes any session that is not part of the current
+  schedule template, so stale rows cannot resurface in the pickers or the
+  allocation pool.
+
 ## [3.0.0] - 2026-09-17
 
 ### Added

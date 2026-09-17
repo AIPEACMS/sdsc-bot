@@ -202,24 +202,50 @@ void main() {
       expect(repo.availabilityForWeekend(sat), isNotEmpty);
 
       repo.clearWeekendAvailabilityAndAllocations(sat);
-      repo.replaceSessionsForWeekend(
-        sat,
-        const [
-          ScheduleSlot(
-            day: 'sat',
-            slot: 's1',
-            start: '09:00',
-            end: '13:00',
-            location: 'pasirRis',
-          ),
-        ],
-        tzOffsetHours: 8,
-      );
+      const newRows = [
+        ScheduleSlot(
+          day: 'sat',
+          slot: 's1',
+          start: '09:00',
+          end: '13:00',
+          location: 'pasirRis',
+        ),
+      ];
+      repo.replaceScheduleTemplate(newRows);
+      repo.replaceSessionsForWeekend(sat, newRows, tzOffsetHours: 8);
 
       expect(repo.availabilityForWeekend(sat), isEmpty);
       final sessions = repo.sessionsForWeekend(sat);
       expect(sessions.length, 1);
       expect(sessions.single.slot, 's1');
+    });
+
+    test('sessions outside the template are cleaned up on startup', () {
+      // A leftover row from an older model (Sunday sessions existed once).
+      repo.raw.execute(
+        'INSERT INTO sessions '
+        '(weekend_start, day, slot, location, start_at, end_at) '
+        "VALUES ('2026-08-15','sun','am','ocbc',"
+        "'2026-08-16 09:00:00','2026-08-16 12:00:00')",
+      );
+      expect(
+        repo.raw
+            .select("SELECT COUNT(*) AS n FROM sessions WHERE day = 'sun'")
+            .first['n'],
+        1,
+      );
+      // It is hidden immediately (template membership) and deleted on the next
+      // open, so it can never resurface.
+      expect(repo.sessionsForWeekend(DateTime(2026, 8, 15)), isEmpty);
+      db.close();
+      db = Database.open(_config(tmp));
+      repo = Repo(db);
+      expect(
+        repo.raw
+            .select("SELECT COUNT(*) AS n FROM sessions WHERE day = 'sun'")
+            .first['n'],
+        0,
+      );
     });
 
     test('/settime is not in any role grid', () {
