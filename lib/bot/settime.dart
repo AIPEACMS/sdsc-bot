@@ -315,7 +315,8 @@ class SetTime {
     );
     var n = 1;
     for (final line in draft.lines) {
-      final key = draft.resolved[line.locationToken];
+      final key = draft.resolved[line.locationToken] ??
+          repo.resolveLocation(line.locationToken)?.key;
       final name = key == null ? line.locationToken : repo.locationName(key);
       sb.writeln(
         'Session ${n++}: ${Slot.dayName(line.day)} '
@@ -347,9 +348,17 @@ class SetTime {
   }
 
   /// Stores the template and rebuilds every open weekend, then re-prompts the
-  /// members whose availability was cleared.
+  /// members whose availability it cleared.
   Future<void> _apply(Context ctx, int userId, _Draft draft) async {
-    final rows = draft.toScheduleSlots();
+    final rows = draft.parseRows(repo);
+    if (rows.isEmpty) {
+      // Never wipe the schedule because a location could not be resolved.
+      await ctx.editMessageText(
+        '⚠️ Nothing was saved — I could not resolve any of the locations. '
+        'The activity list is unchanged.',
+      );
+      return;
+    }
     repo.replaceScheduleTemplate(rows);
 
     final now = config.toLocal(Config.nowUtc());
@@ -358,11 +367,13 @@ class SetTime {
       promptHour: config.promptHour,
       reminderHour: config.reminderHour,
     );
+    // Only members who actually indicated availability need to pick again:
+    // anyone who did not respond, or answered "not available", is left alone.
     final affected = <int>{};
     for (final sat in [w.sat0, w.sat1]) {
       if (w.locked(sat, now)) continue; // open weekends only
       for (final a in repo.availabilityForWeekend(sat)) {
-        affected.add(a.userId);
+        if (a.available) affected.add(a.userId);
       }
       repo.clearWeekendAvailabilityAndAllocations(sat);
       repo.setWeekendAllocated(sat, false);
@@ -377,6 +388,7 @@ class SetTime {
       final user = repo.findUser(uid);
       if (user == null) continue;
       state.forgetAvailability(uid);
+      state.availabilityMessages.remove(uid);
       try {
         await service.showAvailability(
           user,
@@ -395,7 +407,7 @@ class SetTime {
     );
     await ctx.editMessageText(
       '✅ <b>Saved.</b> The activity list is updated'
-      '${affected.isEmpty ? '.' : ' and $affected.length member prompts were refreshed.'}',
+      '${affected.isEmpty ? '.' : ' — ${affected.length} member(s) asked to pick again.'}',
       parseMode: ParseMode.html,
     );
   }
@@ -436,27 +448,11 @@ class _Draft {
     return out.toList();
   }
 
-  /// Builds the template rows. Rows sharing (day, start, end) share a slot
-  /// label, so availability treats them as one time window.
-  List<ScheduleSlot> toScheduleSlots() {
-    final rows = <ScheduleSlot>[];
-    final slotByGroup = <String, String>{};
-    var n = 1;
-    for (final line in lines) {
-      final key = resolved[line.locationToken];
-      if (key == null) continue;
-      final group = '${line.day}|${line.start}|${line.end}';
-      final slot = slotByGroup.putIfAbsent(group, () => 's${n++}');
-      rows.add(
-        ScheduleSlot(
-          day: line.day,
-          slot: slot,
-          start: line.start,
-          end: line.end,
-          location: key,
-        ),
+  /// Builds the template rows, resolving every token (explicit choice first,
+  /// then the approved locations and their aliases).
+  List<ScheduleSlot> parseRows(Repo repo) => buildTemplate(
+        lines,
+        resolveToken: (token) =>
+            resolved[token] ?? repo.resolveLocation(token)?.key,
       );
-    }
-    return rows;
-  }
 }

@@ -5,6 +5,19 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.3] - 2026-09-17
+
+### Fixed
+
+- **`/settime` no longer saves an empty schedule.** A location that resolves
+  automatically (a built-in name, or any approved alias) is now written into
+  the draft, so the confirmed activity list is saved as real sessions. If no
+  location resolves, the save is refused instead of wiping the schedule.
+- **Only members who indicated availability are asked to pick again** after a
+  schedule change. Members who did not respond, or answered "not available",
+  are left alone.
+- The save confirmation reports the number of re-prompted members correctly.
+
 ## [3.0.2] - 2026-09-17
 
 ### Fixed
