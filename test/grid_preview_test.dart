@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:televerse/telegram.dart' show Update;
 import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
+import 'test_helpers.dart';
 
 import 'package:sdsc_bot/bot/admin.dart';
 import 'package:sdsc_bot/bot/console.dart';
@@ -182,12 +183,12 @@ void main() {
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
     repo.ensureSessionsForWeekend(
       w.sat0,
-      config.slotTimes,
+      defaultTemplate(),
       tzOffsetHours: config.timezoneOffsetHours,
     );
     repo.ensureSessionsForWeekend(
       w.sat1,
-      config.slotTimes,
+      defaultTemplate(),
       tzOffsetHours: config.timezoneOffsetHours,
     );
     final s0 = repo.sessionsForWeekend(w.sat0);

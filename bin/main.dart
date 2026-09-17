@@ -13,6 +13,7 @@ import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/hold.dart';
 import 'package:sdsc_bot/bot/scheduler.dart';
 import 'package:sdsc_bot/bot/service.dart';
+import 'package:sdsc_bot/bot/settime.dart';
 import 'package:sdsc_bot/bot/state.dart';
 
 Future<void> main() async {
@@ -84,6 +85,14 @@ Future<void> main() async {
 
   final calendarSync = CalendarSync(repo: repo, config: config);
 
+  final setTime = SetTime(
+    bot: bot,
+    repo: repo,
+    config: config,
+    state: state,
+    service: service,
+  );
+
   final console = Console(
     bot: bot,
     repo: repo,
@@ -91,6 +100,7 @@ Future<void> main() async {
     state: state,
     calendarSync: calendarSync,
     holdGate: holdGate,
+    setTime: setTime,
   );
 
   final scheduler = Scheduler(repo: repo, config: config, service: service);
@@ -118,11 +128,13 @@ Future<void> main() async {
       port: config.adminApiPort,
       service: service,
     );
+    adminApi.onLocationApproved = setTime.onLocationApproved;
   }
 
   flows.register();
   admin.register();
   console.register();
+  setTime.register();
 
   // The /broadcast wizard asks the admin to type the message; the text lands
   // in Flows' text middleware, which hands it back to Admin for confirmation.
@@ -132,6 +144,9 @@ Future<void> main() async {
   flows.onAddUserText = admin.onAddUserText;
   flows.onSetDateText = console.onSetDateText;
   flows.onSyncCalendarText = console.onSyncCalendarText;
+  flows.onSetTimeText = setTime.onText;
+  flows.onSetTimeNewNameText = setTime.onNewNameText;
+  flows.onAddAliasText = console.onAddAliasText;
   flows.onAvailabilitySaved = scheduler.scheduleDynamicAllocation;
 
   bot.onError((error) {

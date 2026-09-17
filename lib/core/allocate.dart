@@ -7,8 +7,9 @@ typedef AllocationResult = List<(int userId, int sessionId)>;
 ///
 /// Rules:
 ///  - **Want picks** (the member's commitment) are allocated first — every
-///    one of them, one session per time slot (a member can't be in two places
-///    at once, so the two locations of the same slot never both get assigned).
+///    one of them, as long as their times do not overlap (a member can't be in
+///    two places at once, so two sessions at the same time never both get
+///    assigned, whatever their location).
 ///  - Then each member with **available picks** (backup) is allocated to one
 ///    of them across all supplied availability rows, never at a time they
 ///    already hold. Experienced members prefer OCBC; new members prefer Pasir
@@ -35,42 +36,38 @@ class Allocator {
         if (s.weekendStart == availability.weekendStart &&
             s.day == slot.day &&
             s.slot == slot.slot &&
-            s.location == Location.values.byName(slot.location)) {
+            s.location == slot.location) {
           return s;
         }
       }
       return null;
     }
 
-    // Per (weekend, day, slot): members already placed in that time slot (any
-    // location). The two bundle weekends have independent schedules.
-    final takenBySlot = <String, Set<int>>{};
-    String slotKey(DateTime weekendStart, String day, String slot) =>
-        '${weekendStart.toIso8601String()}:$day:$slot';
-    Set<int> takenOf(String key) => takenBySlot.putIfAbsent(key, () => {});
+    // Sessions each member already holds in this run, so a candidate can be
+    // rejected when its time overlaps one they hold (same weekend).
+    final heldByUser = <int, List<Session>>{};
+    bool conflicts(int userId, Session s) =>
+        (heldByUser[userId] ?? const <Session>[]).any((h) => h.overlaps(s));
 
-    // Locked members occupy their locked session's time slot.
+    // Locked members already hold their locked session's time.
     for (final (uid, sid) in locked) {
       final s = sessionById[sid];
-      if (s != null) takenOf(slotKey(s.weekendStart, s.day, s.slot)).add(uid);
+      if (s != null) heldByUser.putIfAbsent(uid, () => []).add(s);
     }
 
     void assign(int userId, Session s) {
       result.add((userId, s.id));
-      takenOf(slotKey(s.weekendStart, s.day, s.slot)).add(userId);
+      heldByUser.putIfAbsent(userId, () => []).add(s);
     }
 
     final open = availability.where((a) => a.available).toList();
 
-    // Pass 1: every want pick, one per time slot.
+    // Pass 1: every want pick, as long as its time does not overlap one held.
     for (final av in open) {
       for (final slot in av.wantSlots) {
         final session = sessionFor(av, slot);
         if (session == null) continue;
-        if (takenOf(slotKey(session.weekendStart, session.day, session.slot))
-            .contains(av.userId)) {
-          continue;
-        }
+        if (conflicts(av.userId, session)) continue;
         assign(av.userId, session);
       }
     }
@@ -86,10 +83,7 @@ class Allocator {
       for (final slot in av.slots) {
         final session = sessionFor(av, slot);
         if (session == null) continue;
-        if (takenOf(slotKey(session.weekendStart, session.day, session.slot))
-            .contains(av.userId)) {
-          continue;
-        }
+        if (conflicts(av.userId, session)) continue;
         backupCandidates.putIfAbsent(av.userId, () => []).add(session);
       }
     }
@@ -101,8 +95,8 @@ class Allocator {
       if (user != null) {
         final preferredLocation = user.ocbcStreak >= 2 ||
                 user.experience == Experience.newbie
-            ? Location.pasirRis
-            : Location.ocbc;
+            ? Locations.pasirRis
+            : Locations.ocbc;
         entry.value.sort((a, b) {
           final locationOrder = (a.location == preferredLocation ? 0 : 1)
               .compareTo(b.location == preferredLocation ? 0 : 1);

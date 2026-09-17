@@ -294,9 +294,13 @@ class Admin {
       final tier = _displayTier(u);
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
       final stats = repo.attendanceStats(u.id);
+      final byLoc = stats.byLocation.entries
+          .where((e) => e.value > 0)
+          .map((e) => '${e.value} ${repo.locationName(e.key)}')
+          .join(', ');
       return '• <b>${_displayName(u)}</b>\n   ($tier, '
           'group ${u.group.isEmpty ? 'none' : u.group}, '
-          '$exp, ocbc × ${stats.ocbc}, pr × ${stats.pasirRis})';
+          '$exp${byLoc.isEmpty ? '' : ', $byLoc'})';
     });
     await ctx.reply(
       '<b>${group == null ? 'All users' : 'Group $group users'} '
@@ -458,9 +462,16 @@ class Admin {
     var kb = InlineKeyboard();
     for (final s in sessions) {
       final mark = _sessionMark(s, group);
-      final loc = s.location == Location.ocbc ? 'OCBC' : 'PR';
+      final loc = repo.locationName(s.location);
       kb = kb
-          .text('$mark$loc Sat ${s.slot.toUpperCase()}', 'att_sess|${s.id}')
+          .text(
+            '$mark$loc ${Slot.dayLabel(s.day)} '
+            '${s.start.hour.toString().padLeft(2, '0')}:'
+            '${s.start.minute.toString().padLeft(2, '0')}-'
+            '${s.end.hour.toString().padLeft(2, '0')}:'
+            '${s.end.minute.toString().padLeft(2, '0')}',
+            'att_sess|${s.id}',
+          )
           .row();
     }
     await ctx.reply(

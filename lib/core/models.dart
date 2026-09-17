@@ -4,7 +4,67 @@ import 'week.dart';
 
 enum Experience { experienced, newbie }
 
-enum Location { ocbc, pasirRis }
+/// Built-in location keys. Locations are dynamic (DB-backed) — these are the
+/// two seeded ones, referenced where behaviour is inherently location-specific
+/// (the OCBC attendance streak, the allocator's default preference).
+class Locations {
+  static const String ocbc = 'ocbc';
+  static const String pasirRis = 'pasirRis';
+}
+
+/// One row of the activity-schedule template: a session that recurs on [day]
+/// from [start] to [end] ('HH:MM') at the location [location] (a location
+/// key). [slot] groups rows that share the same time window (like the old
+/// AM/PM slots) so availability picks stay stable across sessions.
+class ScheduleSlot {
+  final String day; // 'sat' | 'sun' | 'mon' | ... | 'fri'
+  final String slot; // stable label, e.g. 's1'
+  final String start; // 'HH:MM'
+  final String end; // 'HH:MM'
+  final String location; // location key
+
+  const ScheduleSlot({
+    required this.day,
+    required this.slot,
+    required this.start,
+    required this.end,
+    required this.location,
+  });
+}
+
+/// A place sessions happen at. Locations are dynamic: the two built-in ones
+/// are seeded, and the console can approve new ones (with aliases) when a
+/// global admin requests them from /settime.
+class LocationInfo {
+  final int id;
+  final String key; // stable id used on sessions/slots (e.g. 'pasirRis')
+  final String name; // display name, e.g. 'Pasir Ris'
+  final List<String> aliases; // extra spellings the parser accepts
+  final String status; // 'approved' | 'pending'
+  final int? requestedBy;
+
+  const LocationInfo({
+    required this.id,
+    required this.key,
+    required this.name,
+    required this.aliases,
+    required this.status,
+    this.requestedBy,
+  });
+
+  bool get isApproved => status == 'approved';
+
+  factory LocationInfo.fromRow(Map<String, Object?> row) => LocationInfo(
+    id: row['id'] as int,
+    key: row['key'] as String,
+    name: row['name'] as String,
+    aliases: ((jsonDecode((row['aliases'] as String?) ?? '[]')) as List)
+        .whereType<String>()
+        .toList(),
+    status: (row['status'] as String?) ?? 'approved',
+    requestedBy: row['requested_by'] as int?,
+  );
+}
 
 enum HolidayKind { middle, winter, summer }
 
@@ -146,37 +206,52 @@ class User {
 }
 
 /// One session of one weekend, e.g. `0:sat:am:ocbc` = weekend 0, Saturday AM,
-/// OCBC. Format: `{weekendIndex}:{day}:{slot}:{location}` where day is
-/// {sat}, slot in {am,pm}, location in {ocbc,pasirRis}.
+/// OCBC. Format: `{weekendIndex}:{day}:{slot}:{location}`, where day is a
+/// weekday token and slot/location identify the schedule-template row.
 class Slot {
   final int weekendIndex; // 0 or 1
-  final String day; // 'sat'
-  final String slot; // 'am' | 'pm'
-  final String location; // 'ocbc' | 'pasirRis'
+  final String day; // 'sat' | 'sun' | 'mon' | ...
+  final String slot; // template row label, e.g. 's1'
+  final String location; // location key, e.g. 'ocbc' | 'pasirRis'
 
   const Slot(this.weekendIndex, this.day, this.slot, this.location);
 
-  static const allDays = [
-    'sat',
-  ]; // Saturday only — there are no Sunday sessions
-  static const allSlots = ['am', 'pm'];
-  static const allLocations = ['ocbc', 'pasirRis'];
+  /// The bundled weekend runs Saturday → Friday, in that order.
+  static const allDays = ['sat', 'sun', 'mon', 'tue', 'wed', 'thu', 'fri'];
 
   String encode() => '$weekendIndex:$day:$slot:$location';
 
-  String get dayLabel => day == 'sat' ? 'Sat' : 'Sun';
-  String get slotLabel => slot == 'am' ? 'AM' : 'PM';
-  String get locationLabel => location == 'ocbc' ? 'OCBC' : 'PR';
+  /// Human day label, e.g. 'Sat' / 'Sunday'.
+  static String dayLabel(String day) => switch (day) {
+    'sat' => 'Sat',
+    'sun' => 'Sun',
+    'mon' => 'Mon',
+    'tue' => 'Tue',
+    'wed' => 'Wed',
+    'thu' => 'Thu',
+    'fri' => 'Fri',
+    _ => day,
+  };
+
+  /// Full day name, e.g. 'Saturday'.
+  static String dayName(String day) => switch (day) {
+    'sat' => 'Saturday',
+    'sun' => 'Sunday',
+    'mon' => 'Monday',
+    'tue' => 'Tuesday',
+    'wed' => 'Wednesday',
+    'thu' => 'Thursday',
+    'fri' => 'Friday',
+    _ => day,
+  };
 
   static Slot? parse(String raw) {
     final parts = raw.split(':');
     if (parts.length != 4) return null;
     final wi = int.tryParse(parts[0]);
     if (wi == null || wi < 0 || wi > 1) return null;
-    if (!allDays.contains(parts[1]) || !allSlots.contains(parts[2])) {
-      return null;
-    }
-    if (!allLocations.contains(parts[3])) return null;
+    if (!allDays.contains(parts[1])) return null;
+    if (parts[2].isEmpty || parts[3].isEmpty) return null;
     return Slot(wi, parts[1], parts[2], parts[3]);
   }
 
@@ -189,15 +264,13 @@ class Slot {
       final parts = key.split(':');
       if (parts.length == 3) {
         // Legacy slot-level picks (before locations): available for both
-        // locations of that slot.
+        // seeded locations of that slot.
         final wi = int.tryParse(parts[0]);
         if (wi == null || wi < 0 || wi > 1) continue;
-        if (!allDays.contains(parts[1]) || !allSlots.contains(parts[2])) {
-          continue;
-        }
+        if (!allDays.contains(parts[1])) continue;
         result.addAll([
-          Slot(wi, parts[1], parts[2], 'ocbc'),
-          Slot(wi, parts[1], parts[2], 'pasirRis'),
+          Slot(wi, parts[1], parts[2], Locations.ocbc),
+          Slot(wi, parts[1], parts[2], Locations.pasirRis),
         ]);
       } else {
         final slot = Slot.parse(key);
@@ -209,8 +282,8 @@ class Slot {
 
   @override
   String toString() =>
-      'Weekend ${weekendIndex + 1} · $locationLabel · '
-      '$dayLabel $slotLabel';
+      'Weekend ${weekendIndex + 1} · $location · '
+      '${dayLabel(day)} $slot';
 
   @override
   bool operator ==(Object other) =>
@@ -303,11 +376,11 @@ class RollingWindow {
 class Session {
   final int id;
 
-  /// The Saturday date of the session's weekend.
+  /// The Saturday date of the session's weekend (the bundle anchor).
   final DateTime weekendStart;
-  final String day; // 'sat' (Saturday only — no Sunday sessions)
-  final String slot; // 'am' | 'pm'
-  final Location location;
+  final String day; // 'sat' | 'sun' | 'mon' | ... (from the template)
+  final String slot; // template row label, e.g. 's1'
+  final String location; // location key
   final DateTime start; // actual date+time
   final DateTime end;
 
@@ -323,14 +396,20 @@ class Session {
 
   String slotKey() => '$day:$slot';
 
+  /// Whether this session and [other] need the same person at the same time
+  /// (same weekend, overlapping interval). Replaces the old "one pick per
+  /// AM/PM slot" rule now that times are free-form.
+  bool overlaps(Session other) =>
+      weekendStart == other.weekendStart &&
+      start.isBefore(other.end) &&
+      other.start.isBefore(end);
+
   factory Session.fromRow(Map<String, Object?> row) => Session(
     id: row['id'] as int,
     weekendStart: DateTime.parse(row['weekend_start'] as String),
     day: row['day'] as String,
     slot: row['slot'] as String,
-    location: (row['location'] as String) == 'ocbc'
-        ? Location.ocbc
-        : Location.pasirRis,
+    location: row['location'] as String,
     start: DateTime.parse(row['start_at'] as String),
     end: DateTime.parse(row['end_at'] as String),
   );

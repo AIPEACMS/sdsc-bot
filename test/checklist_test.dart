@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
+import 'test_helpers.dart';
 
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
@@ -62,10 +63,7 @@ void main() {
 
   test('checkListText formats the weekend allocation by session', () {
     final sat = DateTime(2026, 8, 15);
-    repo.ensureSessionsForWeekend(sat, {
-      'am': ('09:00', '12:00'),
-      'pm': ('13:00', '17:00'),
-    }, tzOffsetHours: 8);
+    repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
     add(1, 'Console', '1');
     add(2, 'Admin 2', '1');
     add(5, 'Member 5', '1');
@@ -118,10 +116,7 @@ void main() {
       });
 
       final sat = DateTime(2026, 8, 15);
-      repo.ensureSessionsForWeekend(sat, {
-        'am': ('09:00', '12:00'),
-        'pm': ('13:00', '17:00'),
-      }, tzOffsetHours: 8);
+      repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
       add(1, 'Console', '1'); // console: not check tier
       add(2, 'Admin 2', '1'); // admin: not check tier
       add(3, 'Checker 3', '1', tier: 'check');

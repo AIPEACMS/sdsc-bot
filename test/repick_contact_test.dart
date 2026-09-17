@@ -5,6 +5,7 @@ import 'package:televerse/telegram.dart' show Update;
 import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
+import 'test_helpers.dart';
 
 import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/service.dart';
@@ -223,9 +224,11 @@ void main() {
   test('confirmation lists booked 🔒 and offered 🟢 slots separately', () {
     const want = Slot(0, 'sat', 'am', 'ocbc');
     const avail = Slot(0, 'sat', 'pm', 'pasirRis');
-    final text = messages.msg3(const [want], const [avail]);
-    expect(text, contains('🔒 Weekend 1 · OCBC · Sat AM'));
-    expect(text, contains('🟢 Weekend 1 · PR · Sat PM'));
+    final text = messages.msg3(const [want], const [avail],
+        label: (s) => '${s.location == 'ocbc' ? 'OCBC' : 'PR'} '
+            '${Slot.dayLabel(s.day)} ${s.slot.toUpperCase()}');
+    expect(text, contains('🔒 OCBC Sat AM'));
+    expect(text, contains('🟢 PR Sat PM'));
   });
 
   test('the allocation hour is the next sharp hour after indicating', () {
@@ -238,7 +241,13 @@ void main() {
   test('cancel button appears only after the member has responded', () {
     final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
     final now = DateTime(2026, 8, 12); // Wednesday, both weekends open
-    final kbNo = CycleService.buildKeyboard(w, (const {}, const {}), now: now);
+    final kbNo = CycleService.buildKeyboard(
+      w,
+      (const {}, const {}),
+      now: now,
+      sessions: defaultSessions(w.sat0),
+      locationName: (k) => k,
+    );
     final labelsNo = kbNo.inlineKeyboard
         .expand((r) => r)
         .map((b) => b.text)
@@ -249,6 +258,8 @@ void main() {
       (const {}, const {}),
       now: now,
       hasIndicated: true,
+      sessions: defaultSessions(w.sat0),
+      locationName: (k) => k,
     );
     final labelsYes = kbYes.inlineKeyboard
         .expand((r) => r)
@@ -692,7 +703,7 @@ void main() {
     final sat1 = DateTime(2026, 8, 22);
     repo.ensureSessionsForWeekend(
       sat1,
-      config.slotTimes,
+      defaultTemplate(),
       tzOffsetHours: config.timezoneOffsetHours,
     );
     final sessions = repo.sessionsForWeekend(sat1);

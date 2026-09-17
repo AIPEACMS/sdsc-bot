@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
+import 'test_helpers.dart';
 
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
@@ -79,10 +80,7 @@ void main() {
         DateTime(2026, 8, 15),
         DateTime(2026, 8, 22),
       ]) {
-        repo.ensureSessionsForWeekend(sat, {
-          'am': ('09:00', '12:00'),
-          'pm': ('13:00', '17:00'),
-        }, tzOffsetHours: 8);
+        repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
       }
 
       void add(int id, String name, String group, {bool isAdmin = false}) {

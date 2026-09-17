@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
+import 'test_helpers.dart';
 
 void main() {
   late Directory tmp;
@@ -82,19 +83,13 @@ void main() {
 
   test('sessions are created once and idempotently per weekend', () {
     final sat = DateTime(2026, 8, 15);
-    repo.ensureSessionsForWeekend(sat, {
-      'am': ('09:00', '12:00'),
-      'pm': ('13:00', '17:00'),
-    }, tzOffsetHours: 8);
+    repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
     expect(
       repo.sessionsForWeekend(sat).length,
       4,
     ); // Saturday: 2 slots x 2 locations
 
-    repo.ensureSessionsForWeekend(sat, {
-      'am': ('09:00', '12:00'),
-      'pm': ('13:00', '17:00'),
-    }, tzOffsetHours: 8);
+    repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
     expect(repo.sessionsForWeekend(sat).length, 4);
   });
 
@@ -129,10 +124,7 @@ void main() {
       const Slot(0, 'sat', 'am', 'pasirRis'),
     });
 
-    repo.ensureSessionsForWeekend(sat, {
-      'am': ('09:00', '12:00'),
-      'pm': ('13:00', '17:00'),
-    }, tzOffsetHours: 8);
+    repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
     final sessions = repo.sessionsForWeekend(sat);
 
     final result = const Allocator().run(
@@ -153,7 +145,7 @@ void main() {
     // Both experienced should be on OCBC.
     final expOcbc = allocated
         .where((a) => a.$1.experience == Experience.experienced)
-        .every((a) => a.$2.location == Location.ocbc);
+        .every((a) => a.$2.location == Locations.ocbc);
     expect(expOcbc, true);
 
     expect(repo.weekendAllocated(sat), false);
@@ -214,13 +206,10 @@ void main() {
     addUser(1);
     addUser(2);
     final sat = DateTime(2026, 8, 15);
-    repo.ensureSessionsForWeekend(sat, {
-      'am': ('09:00', '12:00'),
-      'pm': ('13:00', '17:00'),
-    }, tzOffsetHours: 8);
+    repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
     final sessions = repo.sessionsForWeekend(sat);
-    final ocbc = sessions.firstWhere((s) => s.location == Location.ocbc);
-    final pr = sessions.firstWhere((s) => s.location == Location.pasirRis);
+    final ocbc = sessions.firstWhere((s) => s.location == Locations.ocbc);
+    final pr = sessions.firstWhere((s) => s.location == Locations.pasirRis);
     repo.setAttendanceState(1, ocbc.id, attended: true);
     repo.setAttendanceState(1, ocbc.id, attended: true); // same session upserts
     repo.setAttendanceState(1, pr.id, attended: true);
@@ -230,8 +219,8 @@ void main() {
 
     final stats = repo.attendanceStats(1);
     expect(stats.total, 2);
-    expect(stats.ocbc, 1);
-    expect(stats.pasirRis, 1);
+    expect(stats.byLocation['ocbc'] ?? 0, 1);
+    expect(stats.byLocation['pasirRis'] ?? 0, 1);
     expect(repo.attendanceStats(2).total, 0);
     final prMarks = repo.attendanceForSession(pr.id);
     expect(prMarks.firstWhere((a) => a.userId == 2).attended, false);
@@ -473,10 +462,7 @@ void main() {
         DateTime(2026, 8, 22),
       ];
       for (final sat in sats) {
-        repo.ensureSessionsForWeekend(sat, {
-          'am': ('09:00', '12:00'),
-          'pm': ('13:00', '17:00'),
-        }, tzOffsetHours: 8);
+        repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
       }
       final latestSat = DateTime(2026, 8, 22);
 

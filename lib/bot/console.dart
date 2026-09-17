@@ -9,6 +9,7 @@ import 'calendar_sync.dart';
 import 'command_both.dart';
 import 'hold.dart';
 import 'pickers.dart';
+import 'settime.dart';
 import 'state.dart';
 
 /// Console control-plane commands. The console is separate from the global
@@ -21,6 +22,10 @@ class Console {
   final CalendarSync? calendarSync;
   final HoldGate holdGate;
 
+  /// Set from main.dart: resumed when a new location is approved so the
+  /// waiting global admin gets the updated session list.
+  SetTime? setTime;
+
   Console({
     required this.bot,
     required this.repo,
@@ -28,6 +33,7 @@ class Console {
     required this.state,
     this.calendarSync,
     required this.holdGate,
+    this.setTime,
   });
 
   void register() {
@@ -98,6 +104,27 @@ class Console {
       'rmg',
       _consoleGuard(_removeGlobalAdminConfirm),
       label: 'rmg',
+    );
+    commandBoth(
+      bot,
+      state,
+      'locations',
+      _consoleGuard(_locations),
+      label: 'locations',
+    );
+    commandBoth(
+      bot,
+      state,
+      'addlocation',
+      _consoleGuard(_addLocation),
+      label: 'add-location',
+    );
+    commandBoth(
+      bot,
+      state,
+      'addalias',
+      _consoleGuard(_addAlias),
+      label: 'add-alias',
     );
 
     // Hold/unhold callbacks, console only.
@@ -509,6 +536,122 @@ class Console {
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
         '${d.day.toString().padLeft(2, '0')} $h:$m';
   }
+
+  // ------------------------------------- /locations /addlocation /addalias
+
+  /// Alias wizard state: userId → (location key, aliases typed so far).
+  final Map<int, (String, List<String>)> _aliasFlow = {};
+
+  Future<void> _locations(Context ctx) async {
+    final approved = repo.approvedLocations();
+    final pending = repo.pendingLocations();
+    final sb = StringBuffer('📍 <b>Locations</b>\n');
+    if (approved.isEmpty) sb.writeln('(none approved)');
+    for (final l in approved) {
+      sb.writeln(
+        '• <b>${l.name}</b>'
+        '${l.aliases.isEmpty ? '' : ' — aliases: ${l.aliases.join(', ')}'}',
+      );
+    }
+    if (pending.isNotEmpty) {
+      sb.writeln(
+        '\n🕓 <b>Pending</b> — approve with /addlocation &lt;name&gt;:',
+      );
+      for (final l in pending) {
+        sb.writeln('• ${l.name}');
+      }
+    }
+    await ctx.reply(sb.toString().trimRight(), parseMode: ParseMode.html);
+  }
+
+  Future<void> _addLocation(Context ctx) async {
+    if (ctx.args.isEmpty) {
+      await ctx.reply('Usage: /addlocation <name>');
+      return;
+    }
+    final name = ctx.args.join(' ').trim();
+    if (name.isEmpty) {
+      await ctx.reply('Usage: /addlocation <name>');
+      return;
+    }
+    final pending = repo
+        .pendingLocations()
+        .where((l) => _norm(l.name) == _norm(name))
+        .toList();
+    final LocationInfo loc;
+    if (pending.isNotEmpty) {
+      repo.approveLocation(pending.first.id);
+      loc = repo.locationByKey(pending.first.key)!;
+    } else {
+      loc = repo.addLocation(name);
+    }
+    LogRing.log('console: location approved: ${loc.name}');
+    await setTime?.onLocationApproved(loc);
+    await ctx.reply(
+      '✅ <b>${loc.name}</b> is now an approved location.\n'
+      'Add aliases with <code>/addalias ${loc.name}</code>.',
+      parseMode: ParseMode.html,
+    );
+  }
+
+  Future<void> _addAlias(Context ctx) async {
+    if (ctx.args.isEmpty) {
+      await ctx.reply('Usage: /addalias <location>');
+      return;
+    }
+    final token = ctx.args.join(' ').trim();
+    final loc = repo.resolveLocation(token);
+    if (loc == null) {
+      await ctx.reply('No location matches "$token". See /locations.');
+      return;
+    }
+    final userId = ctx.from!.id;
+    _aliasFlow[userId] = (loc.key, <String>[]);
+    state.pendingArg[userId] = PendingArg('addalias');
+    await ctx.reply(
+      'Adding aliases to <b>${loc.name}</b>.\n'
+      'Send one alias per message (several per message also works, separated '
+      'by commas). Send <b>done</b> when you are finished.',
+      parseMode: ParseMode.html,
+    );
+  }
+
+  /// Entry point for the /addalias wizard: the console typed an alias.
+  Future<void> onAddAliasText(Context ctx, int userId, String text) async {
+    final flow = _aliasFlow[userId];
+    if (flow == null) return;
+    final trimmed = text.trim();
+    if (trimmed.toLowerCase() == 'done') {
+      repo.addAliases(flow.$1, flow.$2);
+      _aliasFlow.remove(userId);
+      final loc = repo.locationByKey(flow.$1);
+      LogRing.log('console: aliases updated for ${loc?.name ?? flow.$1}');
+      await ctx.reply(
+        '✅ <b>${loc?.name ?? flow.$1}</b> aliases: '
+        '${(loc?.aliases ?? const <String>[]).join(', ')}',
+        parseMode: ParseMode.html,
+      );
+      return;
+    }
+    if (trimmed.toLowerCase() == 'cancel') {
+      _aliasFlow.remove(userId);
+      await ctx.reply('❌ Cancelled — no aliases added.');
+      return;
+    }
+    final parts = trimmed
+        .split(RegExp(r'[,\n]'))
+        .map((p) => p.trim())
+        .where((p) => p.isNotEmpty);
+    flow.$2.addAll(parts);
+    state.pendingArg[userId] = PendingArg('addalias');
+    await ctx.reply(
+      'Added ${flow.$2.length} alias(es) so far. Send more, or <b>done</b>.',
+      parseMode: ParseMode.html,
+    );
+  }
+
+  static String _norm(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 
   // ------------------------------------------- /addkey /keys /rmkey
 

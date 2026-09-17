@@ -42,9 +42,10 @@ class Messages {
   /// bookings, [available] the 🟢 offers. [allocateAt] is the sharp hour the
   /// allocation message goes out (e.g. "6:00 PM").
   String msg3(Iterable<Slot> want, Iterable<Slot> available,
-      {String? allocateAt}) {
-    final wantList = want.map((s) => '🔒 ${s.toString()}').toList();
-    final availList = available.map((s) => '🟢 ${s.toString()}').toList();
+      {String? allocateAt, String Function(Slot)? label}) {
+    String show(Slot s) => label?.call(s) ?? s.toString();
+    final wantList = want.map((s) => '🔒 ${show(s)}').toList();
+    final availList = available.map((s) => '🟢 ${show(s)}').toList();
     final all = [...wantList, ...availList];
     final list = all.isEmpty ? '(none)' : all.join('\n');
     final alloc = allocateAt == null
