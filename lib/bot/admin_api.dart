@@ -50,6 +50,9 @@ import 'service.dart';
 ///   POST  /api/attendance               -> { "sessionId": `id`, "userId": `id` } (toggle)
 ///   GET   /api/logs                     -> { "lines": [...] }
 ///   POST  /api/log-retention            -> { "days": 14 }
+///   GET   /api/locations                -> approved + pending locations + aliases
+///   POST  /api/locations                -> { "name": "...", "aliases": [...] }
+///   POST  /api/locations/{id}/approve   -> { "name": "...", "aliases": [...] }
 class AdminApi {
   final Repo repo;
   final Config config;
@@ -63,6 +66,10 @@ class AdminApi {
   /// endpoints (prompt/remind/allocate/ask/broadcast) require it; everything
   /// else works without it (and does in tests).
   final CycleService? service;
+
+  /// Wired from main.dart: called after a location is added/approved so the
+  /// waiting global admin is told and can confirm the new session list.
+  Future<void> Function(LocationInfo location)? onLocationApproved;
   final NonceGuard _nonces = NonceGuard();
 
   HttpServer? _server;
@@ -225,6 +232,23 @@ class AdminApi {
         }
       case 'assign-groups':
         if (method == 'POST') return _assignGroups();
+      case 'locations':
+        if (method == 'GET' && segs.length == 2) {
+          return (200, _locationsBody());
+        }
+        if (method == 'POST' && segs.length == 2) {
+          return _createLocation(bodyText);
+        }
+        if (method == 'POST' &&
+            segs.length == 4 &&
+            segs[3] == 'approve' &&
+            segs[2].isNotEmpty) {
+          final id = int.tryParse(segs[2]);
+          if (id == null) {
+            return (400, {'ok': false, 'error': 'bad location id'});
+          }
+          return _approveLocation(id, bodyText);
+        }
       case 'hold':
         if (method == 'POST') return _setHold(bodyText);
       case 'date':
@@ -336,8 +360,9 @@ class AdminApi {
           'ocbcStreak': u.ocbcStreak,
           'attendance': {
             'total': repo.attendanceStats(u.id).total,
-            'ocbc': repo.attendanceStats(u.id).ocbc,
-            'pasirRis': repo.attendanceStats(u.id).pasirRis,
+            'ocbc': repo.attendanceStats(u.id).byLocation['ocbc'] ?? 0,
+            'pasirRis': repo.attendanceStats(u.id).byLocation['pasirRis'] ?? 0,
+            'byLocation': repo.attendanceStats(u.id).byLocation,
           },
         },
     ];
@@ -406,6 +431,63 @@ class AdminApi {
         'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
       },
     );
+  }
+
+  /// Locations: approved + pending, each with its aliases.
+  Map<String, Object?> _locationsBody() => {
+    'ok': true,
+    'approved': [for (final l in repo.approvedLocations()) _locationJson(l)],
+    'pending': [for (final l in repo.pendingLocations()) _locationJson(l)],
+  };
+
+  static Map<String, Object?> _locationJson(LocationInfo l) => {
+    'id': l.id,
+    'key': l.key,
+    'name': l.name,
+    'aliases': l.aliases,
+    'status': l.status,
+  };
+
+  /// Adds (or approves) a location by name. Used by the console app in place
+  /// of the chat `/addlocation`.
+  Future<(int, Object)> _createLocation(String bodyText) async {
+    final body = _jsonBody(bodyText);
+    final name = (body['name'] as String?)?.trim() ?? '';
+    if (name.isEmpty) {
+      return (400, {'ok': false, 'error': 'expected {"name": "..."}'});
+    }
+    final aliases =
+        (body['aliases'] as List?)?.whereType<String>().toList() ??
+        const <String>[];
+    final pending = repo
+        .pendingLocations()
+        .where((l) => l.name.toLowerCase() == name.toLowerCase())
+        .toList();
+    final LocationInfo loc;
+    if (pending.isNotEmpty) {
+      repo.approveLocation(pending.first.id, aliases: aliases);
+      loc = repo.locationByKey(pending.first.key)!;
+    } else {
+      loc = repo.addLocation(name, aliases: aliases);
+    }
+    LogRing.log('admin API: location added: ${loc.name}');
+    await onLocationApproved?.call(loc);
+    return (200, {'ok': true, 'location': _locationJson(loc)});
+  }
+
+  /// Approves a pending location, optionally renaming it and setting aliases.
+  Future<(int, Object)> _approveLocation(int id, String bodyText) async {
+    if (repo.locationById(id) == null) {
+      return (404, {'ok': false, 'error': 'no such location'});
+    }
+    final body = _jsonBody(bodyText);
+    final name = body['name'] as String?;
+    final aliases = (body['aliases'] as List?)?.whereType<String>().toList();
+    repo.approveLocation(id, name: name, aliases: aliases);
+    final loc = repo.locationById(id)!;
+    LogRing.log('admin API: location approved: ${loc.name}');
+    await onLocationApproved?.call(loc);
+    return (200, {'ok': true, 'location': _locationJson(loc)});
   }
 
   /// Appoints or removes the singleton global admin, the chat-side equivalent
@@ -705,7 +787,7 @@ class AdminApi {
           {
             'id': s.id,
             'label': _sessionLabel(s),
-            'location': s.location.name,
+            'location': s.location,
             'weekendStart': s.weekendStart.toIso8601String(),
             'day': s.day,
             'slot': s.slot,
@@ -777,7 +859,7 @@ class AdminApi {
     return (200, {'ok': true, 'state': state});
   }
 
-  static String _sessionLabel(Session s) {
+  String _sessionLabel(Session s) {
     const months = [
       'Jan',
       'Feb',
@@ -792,10 +874,13 @@ class AdminApi {
       'Nov',
       'Dec',
     ];
-    final loc = s.location == Location.ocbc ? 'OCBC' : 'Pasir Ris';
-    final day = s.day == 'sat' ? 'Saturday' : 'Sunday';
-    final slot = s.slot == 'am' ? 'AM' : 'PM';
-    return '$loc · $day ${s.start.day} ${months[s.start.month - 1]} $slot';
+    final loc = repo.locationName(s.location);
+    final day = Slot.dayName(s.day);
+    final time = '${s.start.hour.toString().padLeft(2, '0')}:'
+        '${s.start.minute.toString().padLeft(2, '0')}-'
+        '${s.end.hour.toString().padLeft(2, '0')}:'
+        '${s.end.minute.toString().padLeft(2, '0')}';
+    return '$loc · $day ${s.start.day} ${months[s.start.month - 1]} $time';
   }
 
   Future<(int, Object)> _setHold(String bodyText) async {

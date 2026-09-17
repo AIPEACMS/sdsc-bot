@@ -611,40 +611,278 @@ ON CONFLICT(username) DO UPDATE SET
   /// The rolling window covering [today] (bundle = current + next weekend).
   RollingWindow windowFor(DateTime today) => RollingWindow.forDate(today);
 
+  // -------------------------------------------------------------- locations
+
+  /// Every location: approved first, then pending, alphabetical by name.
+  List<LocationInfo> allLocations() => raw
+      .select(
+        "SELECT * FROM locations ORDER BY (status = 'pending'), "
+        'name COLLATE NOCASE',
+      )
+      .map(LocationInfo.fromRow)
+      .toList();
+
+  List<LocationInfo> approvedLocations() =>
+      allLocations().where((l) => l.isApproved).toList();
+
+  List<LocationInfo> pendingLocations() =>
+      allLocations().where((l) => !l.isApproved).toList();
+
+  LocationInfo? locationByKey(String key) {
+    final rows = raw.select('SELECT * FROM locations WHERE key = ?', [key]);
+    return rows.isEmpty ? null : LocationInfo.fromRow(rows.first);
+  }
+
+  LocationInfo? locationById(int id) {
+    final rows = raw.select('SELECT * FROM locations WHERE id = ?', [id]);
+    return rows.isEmpty ? null : LocationInfo.fromRow(rows.first);
+  }
+
+  /// Display name for a location key, falling back to the key itself.
+  String locationName(String key) => locationByKey(key)?.name ?? key;
+
+  /// Resolves a typed token to an approved location (case-insensitive,
+  /// punctuation-insensitive, substring-tolerant). Null when nothing matches.
+  LocationInfo? resolveLocation(String token) {
+    final norm = _normLocation(token);
+    if (norm.isEmpty) return null;
+    final approved = approvedLocations();
+    for (final l in approved) {
+      if (_normLocation(l.key) == norm || _normLocation(l.name) == norm) {
+        return l;
+      }
+      for (final a in l.aliases) {
+        if (_normLocation(a) == norm) return l;
+      }
+    }
+    for (final l in approved) {
+      for (final c in [
+        _normLocation(l.key),
+        _normLocation(l.name),
+        ...l.aliases.map(_normLocation),
+      ]) {
+        if (c.isNotEmpty && (c.contains(norm) || norm.contains(c))) return l;
+      }
+    }
+    return null;
+  }
+
+  static String _normLocation(String s) =>
+      s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
+
+  /// Derives a unique camelCase key from a display name.
+  String _locationKey(String name) {
+    final words =
+        _normLocation(name).split(' ').where((w) => w.isNotEmpty).toList();
+    if (words.isEmpty) return 'loc';
+    final base = words.first +
+        words
+            .skip(1)
+            .map((w) => w[0].toUpperCase() + w.substring(1))
+            .join();
+    var key = base;
+    var n = 2;
+    while (locationByKey(key) != null) {
+      key = '$base$n';
+      n++;
+    }
+    return key;
+  }
+
+  /// Creates an approved location (console-driven add). Idempotent by name:
+  /// an existing location with the same normalized name is returned, and any
+  /// new aliases are merged into it.
+  LocationInfo addLocation(String name, {List<String> aliases = const []}) {
+    final clean = name.trim();
+    final existing = approvedLocations()
+        .where((l) => _normLocation(l.name) == _normLocation(clean))
+        .toList();
+    if (existing.isNotEmpty) {
+      if (aliases.isNotEmpty) addAliases(existing.first.key, aliases);
+      return existing.first;
+    }
+    raw.execute(
+      'INSERT INTO locations (key, name, aliases, status) '
+      "VALUES (?, ?, ?, 'approved')",
+      [_locationKey(clean), clean, jsonEncode(_cleanAliases(aliases))],
+    );
+    return allLocations().firstWhere(
+      (l) => _normLocation(l.name) == _normLocation(clean),
+    );
+  }
+
+  /// Records a gadmin's request for a not-yet-known location (pending until
+  /// the console approves it). Re-requesting the same name reuses the row.
+  LocationInfo requestLocation(String name, {required int requestedBy}) {
+    final clean = name.trim();
+    final existing = allLocations()
+        .where((l) => _normLocation(l.name) == _normLocation(clean))
+        .toList();
+    if (existing.isNotEmpty) return existing.first;
+    raw.execute(
+      'INSERT INTO locations (key, name, aliases, status, requested_by) '
+      "VALUES (?, ?, '[]', 'pending', ?)",
+      [_locationKey(clean), clean, requestedBy],
+    );
+    return allLocations().firstWhere(
+      (l) => _normLocation(l.name) == _normLocation(clean),
+    );
+  }
+
+  /// Approves a pending location, optionally renaming it and setting aliases.
+  bool approveLocation(int id, {String? name, List<String>? aliases}) {
+    final loc = locationById(id);
+    if (loc == null) return false;
+    final finalName =
+        (name == null || name.trim().isEmpty) ? loc.name : name.trim();
+    final merged = _cleanAliases([...loc.aliases, ...?aliases]);
+    raw.execute(
+      "UPDATE locations SET status = 'approved', name = ?, aliases = ? "
+      'WHERE id = ?',
+      [finalName, jsonEncode(merged), id],
+    );
+    return true;
+  }
+
+  /// Adds aliases to a location, de-duplicated (case-insensitive).
+  void addAliases(String locationKey, List<String> aliases) {
+    final loc = locationByKey(locationKey);
+    if (loc == null) return;
+    final merged = _cleanAliases([...loc.aliases, ...aliases]);
+    raw.execute(
+      'UPDATE locations SET aliases = ? WHERE key = ?',
+      [jsonEncode(merged), locationKey],
+    );
+  }
+
+  static List<String> _cleanAliases(List<String> aliases) {
+    final seen = <String>{};
+    final out = <String>[];
+    for (final a in aliases) {
+      final t = a.trim();
+      final norm = _normLocation(t);
+      if (norm.isEmpty || !seen.add(norm)) continue;
+      out.add(t);
+    }
+    return out;
+  }
+
   // --------------------------------------------------------------- sessions
 
-  /// Creates the 4 sessions (Saturday x am/pm x 2 locations) of [sat]'s
-  /// weekend, using the given slot time windows. There are no Sunday
-  /// sessions. Idempotent.
+  /// The active activity-schedule template (ordered). Seeded from the
+  /// environment slot windows on first run; replaced wholesale by /settime.
+  List<ScheduleSlot> scheduleTemplate() => raw
+      .select('SELECT * FROM schedule_template ORDER BY id')
+      .map(
+        (r) => ScheduleSlot(
+          day: r['day'] as String,
+          slot: r['slot'] as String,
+          start: r['start_at'] as String,
+          end: r['end_at'] as String,
+          location: r['location_key'] as String,
+        ),
+      )
+      .toList();
+
+  /// Replaces the whole template (transactional). [rows] must be non-empty.
+  void replaceScheduleTemplate(List<ScheduleSlot> rows) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      tx.execute('DELETE FROM schedule_template');
+      for (final r in rows) {
+        tx.execute(
+          'INSERT INTO schedule_template '
+          '(day, slot, start_at, end_at, location_key) VALUES (?, ?, ?, ?, ?)',
+          [r.day, r.slot, r.start, r.end, r.location],
+        );
+      }
+      tx.execute('COMMIT');
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// Creates (idempotently) the sessions for [sat]'s weekend from [template].
+  /// A template row on day D is placed at anchor + offset, where the bundled
+  /// weekend runs Saturday → Friday.
   void ensureSessionsForWeekend(
     DateTime sat,
-    Map<String, (String, String)> slotTimes, {
+    List<ScheduleSlot> template, {
     required int tzOffsetHours,
   }) {
-    const slots = ['am', 'pm'];
-    const locations = [Location.ocbc, Location.pasirRis];
-    for (final slot in slots) {
-      final (startT, endT) = slotTimes[slot]!;
-      final start = _parseTime(sat, startT);
-      final end = _parseTime(sat, endT);
-      for (final loc in locations) {
-        raw.execute(
-          '''
+    for (final t in template) {
+      final date = _sessionDate(sat, t.day);
+      if (date == null) continue;
+      raw.execute(
+        '''
 INSERT OR IGNORE INTO sessions
   (weekend_start, day, slot, location, start_at, end_at)
 VALUES (?, ?, ?, ?, ?, ?)
 ''',
-          [_dayKey(sat), 'sat', slot, loc.name, _fmt(start), _fmt(end)],
-        );
-      }
+        [
+          _dayKey(sat),
+          t.day,
+          t.slot,
+          t.location,
+          _fmt(_parseTime(date, t.start)),
+          _fmt(_parseTime(date, t.end)),
+        ],
+      );
     }
   }
 
-  /// Sessions of one weekend, ordered by start time. Saturday only — Sunday
-  /// sessions are not a thing (and stale rows from older versions are hidden).
+  /// Deletes and recreates [sat]'s sessions from [template]. Destructive:
+  /// callers must also clear availability/allocations for the weekend (see
+  /// [clearWeekendAvailabilityAndAllocations]).
+  void replaceSessionsForWeekend(
+    DateTime sat,
+    List<ScheduleSlot> template, {
+    required int tzOffsetHours,
+  }) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      tx.execute('DELETE FROM sessions WHERE weekend_start = ?', [_dayKey(sat)]);
+      tx.execute('COMMIT');
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+    ensureSessionsForWeekend(sat, template, tzOffsetHours: tzOffsetHours);
+  }
+
+  /// Drops availability and allocations for [sat]'s weekend (used when the
+  /// schedule changes on an open weekend, so members re-pick).
+  void clearWeekendAvailabilityAndAllocations(DateTime sat) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      tx.execute('DELETE FROM allocations WHERE session_id IN '
+          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
+      tx.execute('DELETE FROM availability WHERE weekend_start = ?',
+          [_dayKey(sat)]);
+      tx.execute('COMMIT');
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// The date of the template-day [day] inside [sat]'s bundled weekend
+  /// (Saturday → Friday), or null for an unknown token.
+  static DateTime? _sessionDate(DateTime sat, String day) {
+    final offset = Slot.allDays.indexOf(day);
+    if (offset < 0) return null;
+    return sat.add(Duration(days: offset));
+  }
+
+  /// Sessions of one weekend, ordered by day and start time (any weekday —
+  /// stale rows from older Saturday-only versions are hidden by the template).
   List<Session> sessionsForWeekend(DateTime sat) => raw
       .select(
-        'SELECT * FROM sessions WHERE weekend_start = ? AND day = \'sat\' '
+        'SELECT * FROM sessions WHERE weekend_start = ? '
         'ORDER BY start_at',
         [_dayKey(sat)],
       )
@@ -836,7 +1074,7 @@ SELECT u.*,
 FROM allocations al
 JOIN users u ON u.id = al.user_id
 JOIN sessions s ON s.id = al.session_id
-WHERE s.weekend_start = ? AND s.day = 'sat'
+WHERE s.weekend_start = ?
 ORDER BY s.start_at, u.name
 ''',
       [_dayKey(sat)],
@@ -848,9 +1086,7 @@ ORDER BY s.start_at, u.name
         weekendStart: DateTime.parse(r['session_weekend_start'] as String),
         day: r['session_day'] as String,
         slot: r['session_slot'] as String,
-        location: (r['session_location'] as String) == 'ocbc'
-            ? Location.ocbc
-            : Location.pasirRis,
+        location: r['session_location'] as String,
         start: DateTime.parse(r['session_start_at'] as String),
         end: DateTime.parse(r['session_end_at'] as String),
       );
@@ -865,6 +1101,11 @@ ORDER BY s.start_at, u.name
 
   void markWeekendAllocated(DateTime sat) =>
       setSetting('alloc_${_dayKey(sat)}', '1');
+
+  /// Clears the allocated flag so the dynamic allocator may run again (used
+  /// when the schedule changes for an open weekend).
+  void setWeekendAllocated(DateTime sat, bool value) =>
+      setSetting('alloc_${_dayKey(sat)}', value ? '1' : '0');
 
   // -------------------------------------------------------------- attendance
 
@@ -1023,25 +1264,26 @@ WHERE user_id = ? AND attended = 1 AND confirmed_at >= ?
 
   // ------------------------------------------------------------- attendance
 
-  /// Total positive attendance of [userId], split by location.
-  ({int total, int ocbc, int pasirRis}) attendanceStats(int userId) {
+  /// Total positive attendance of [userId], split by location key.
+  ({int total, Map<String, int> byLocation}) attendanceStats(int userId) {
     final rows = raw.select(
       '''
-SELECT COUNT(*) AS total,
-       SUM(CASE WHEN s.location = 'ocbc' THEN 1 ELSE 0 END) AS ocbc,
-       SUM(CASE WHEN s.location = 'pasirRis' THEN 1 ELSE 0 END) AS pr
+SELECT COUNT(*) AS n, s.location AS location
 FROM attendance a
 JOIN sessions s ON s.id = a.session_id
 WHERE a.user_id = ? AND a.attended = 1
+GROUP BY s.location
 ''',
       [userId],
     );
-    final r = rows.first;
-    return (
-      total: r['total'] as int,
-      ocbc: (r['ocbc'] as int?) ?? 0,
-      pasirRis: (r['pr'] as int?) ?? 0,
-    );
+    var total = 0;
+    final byLocation = <String, int>{};
+    for (final r in rows) {
+      final n = (r['n'] as int?) ?? 0;
+      total += n;
+      byLocation[r['location'] as String] = n;
+    }
+    return (total: total, byLocation: byLocation);
   }
 
   // ------------------------------------------------------------ calendar

@@ -103,7 +103,8 @@ void main() {
       expect(Slot.parse('2:sat:am'), isNull);
       expect(Slot.parse('0:sat:am'), isNull);
       expect(Slot.parse('0:xx:am:ocbc'), isNull);
-      expect(Slot.parse('0:sat:am:xx'), isNull);
+      // Locations are dynamic in v3: any non-empty token is accepted.
+      expect(Slot.parse('0:sat:am:xx')!.location, 'xx');
       expect(Slot.parse('garbage'), isNull);
     });
 
@@ -113,10 +114,12 @@ void main() {
         const Slot(0, 'sat', 'am', 'ocbc'),
         const Slot(0, 'sat', 'am', 'pasirRis'),
       });
-      // New 4-part keys decode as-is; Sunday slots are not a thing and are
-      // dropped.
+      // New 4-part keys decode as-is, and any weekday is allowed in v3.
       final set2 = Slot.decodeSet('["0:sat:am:ocbc","1:sun:pm:pasirRis"]');
-      expect(set2, {const Slot(0, 'sat', 'am', 'ocbc')});
+      expect(set2, {
+        const Slot(0, 'sat', 'am', 'ocbc'),
+        const Slot(1, 'sun', 'pm', 'pasirRis'),
+      });
     });
   });
 }

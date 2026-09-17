@@ -21,21 +21,25 @@ Availability _avail(int userId,
     );
 
 List<Session> _sessions() {
-  Session s(String day, String slot, Location loc, int id) => Session(
-        id: id,
-        weekendStart: DateTime(2026, 8, 8),
-        day: day,
-        slot: slot,
-        location: loc,
-        start: DateTime(2026, 8, 8),
-        end: DateTime(2026, 8, 8, 3),
-      );
+  Session s(String day, String slot, String location, int id) {
+    final startHour = slot == 'am' ? 9 : 13;
+    final endHour = slot == 'am' ? 12 : 17;
+    return Session(
+      id: id,
+      weekendStart: DateTime(2026, 8, 8),
+      day: day,
+      slot: slot,
+      location: location,
+      start: DateTime(2026, 8, 8, startHour),
+      end: DateTime(2026, 8, 8, endHour),
+    );
+  }
   // One weekend: Saturday am/pm, both locations. No Sunday sessions.
   return [
-    s('sat', 'am', Location.ocbc, 1),
-    s('sat', 'am', Location.pasirRis, 2),
-    s('sat', 'pm', Location.ocbc, 3),
-    s('sat', 'pm', Location.pasirRis, 4),
+    s('sat', 'am', Locations.ocbc, 1),
+    s('sat', 'am', Locations.pasirRis, 2),
+    s('sat', 'pm', Locations.ocbc, 3),
+    s('sat', 'pm', Locations.pasirRis, 4),
   ];
 }
 

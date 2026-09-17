@@ -143,6 +143,25 @@ CREATE TABLE IF NOT EXISTS console_keys (
   name TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+CREATE TABLE IF NOT EXISTS locations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  key TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL,
+  aliases TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL DEFAULT 'approved',
+  requested_by INTEGER,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS schedule_template (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  day TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  start_at TEXT NOT NULL,
+  end_at TEXT NOT NULL,
+  location_key TEXT NOT NULL
+);
 ''');
 
     // Column migration for databases created before member_tier existed.
@@ -263,6 +282,39 @@ END;
     // Rolling-model migration: databases created before the weekend-keyed
     // sessions/availability/allocations/attendance must be rebuilt.
     _migrateWeekendModel(db);
+
+    // Dynamic locations (added in v3): seed the two built-in ones once, with
+    // their common aliases. A console can add more later (with aliases).
+    for (final (key, name, aliases) in [
+      ('ocbc', 'OCBC', '["ocbc arena","arena"]'),
+      ('pasirRis', 'Pasir Ris', '["pr","pasir","pasir ris","pasir-ris"]'),
+    ]) {
+      db.execute(
+        "INSERT OR IGNORE INTO locations (key, name, aliases, status) "
+        "VALUES (?, ?, ?, 'approved')",
+        [key, name, aliases],
+      );
+    }
+
+    // Seed the schedule template from the configured slot windows on first
+    // run, so behaviour is unchanged until a global admin sets a new list. A
+    // template the gadmin has set is never overwritten.
+    final templateCount =
+        db.select('SELECT COUNT(*) AS n FROM schedule_template').first['n']
+            as int;
+    if (templateCount == 0) {
+      final am = config.slotTimes['am']!;
+      final pm = config.slotTimes['pm']!;
+      for (final (slot, times) in [('am', am), ('pm', pm)]) {
+        for (final loc in ['ocbc', 'pasirRis']) {
+          db.execute(
+            'INSERT INTO schedule_template '
+            '(day, slot, start_at, end_at, location_key) VALUES (?, ?, ?, ?, ?)',
+            ['sat', slot, times.$1, times.$2, loc],
+          );
+        }
+      }
+    }
   }
 
   /// One-time migration from the legacy cycle-keyed model (sessions keyed by

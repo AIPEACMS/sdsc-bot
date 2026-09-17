@@ -58,14 +58,15 @@ class Scheduler {
       final today = DateTime(now.year, now.month, now.day);
 
       // The window's sessions must exist before anything touches them.
+      final template = repo.scheduleTemplate();
       repo.ensureSessionsForWeekend(
         w.sat0,
-        config.slotTimes,
+        template,
         tzOffsetHours: config.timezoneOffsetHours,
       );
       repo.ensureSessionsForWeekend(
         w.sat1,
-        config.slotTimes,
+        template,
         tzOffsetHours: config.timezoneOffsetHours,
       );
 

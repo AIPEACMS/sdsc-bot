@@ -127,10 +127,11 @@ class CycleService {
   /// per-weekend run is reconciled down to one backup without moving it.
   Future<void> allocateBundle(RollingWindow window) async {
     final weekends = [window.sat0, window.sat1];
+    final template = repo.scheduleTemplate();
     for (final sat in weekends) {
       repo.ensureSessionsForWeekend(
         sat,
-        config.slotTimes,
+        template,
         tzOffsetHours: config.timezoneOffsetHours,
       );
     }
@@ -222,7 +223,7 @@ class CycleService {
   static bool _matches(Session session, Slot slot) =>
       session.day == slot.day &&
       session.slot == slot.slot &&
-      session.location.name == slot.location;
+      session.location == slot.location;
 
   /// 12h "H:MM AM/PM" for human-facing deadlines (e.g. "6:00 PM").
   String _fmt12h(DateTime dt) {
@@ -240,7 +241,7 @@ class CycleService {
     final session = repo.sessionById(sessionId);
     final user = repo.findUser(userId);
     if (session == null || user == null) return;
-    final streak = session.location == Location.ocbc ? user.ocbcStreak + 1 : 0;
+    final streak = session.location == Locations.ocbc ? user.ocbcStreak + 1 : 0;
     repo.setOcbcStreak(userId, streak);
   }
 
@@ -396,6 +397,15 @@ class CycleService {
 
   /// Sends (or edits an existing) availability keyboard message to [user].
   Future<void> showAvailability(User user, RollingWindow w, String text) async {
+    // The window's sessions must exist before we can render them.
+    final template = repo.scheduleTemplate();
+    for (final sat in [w.sat0, w.sat1]) {
+      repo.ensureSessionsForWeekend(
+        sat,
+        template,
+        tzOffsetHours: config.timezoneOffsetHours,
+      );
+    }
     final picked = state.picksFor(user.id);
     final keyboard = buildKeyboard(
       w,
@@ -403,6 +413,11 @@ class CycleService {
       now: config.toLocal(Config.nowUtc()),
       holiday: isHolidayWindow(repo, w),
       hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
+      sessions: [
+        ...repo.sessionsForWeekend(w.sat0),
+        ...repo.sessionsForWeekend(w.sat1),
+      ],
+      locationName: repo.locationName,
     );
 
     final pickerText = '$text\n\n${_hint()}';
@@ -460,11 +475,12 @@ class CycleService {
         : '${singleLine.substring(0, 160)}…';
   }
 
+  /// A human label for a session: location, day and time, e.g.
+  /// "Pasir Ris · Saturday 09:00-13:00 (21 Sep)".
   String sessionLabel(Session s) {
-    final loc = s.location == Location.ocbc ? 'OCBC' : 'Pasir Ris';
-    final day = s.day == 'sat' ? 'Saturday' : 'Sunday';
-    final slot = s.slot == 'am' ? 'AM' : 'PM';
-    return '$loc · $day ${_day(s.start)} $slot';
+    final loc = repo.locationName(s.location);
+    final day = Slot.dayName(s.day);
+    return '$loc · $day ${_fmt(s.start)}-${_fmt(s.end)} (${_day(s.start)})';
   }
 
   static String _day(DateTime d) {
@@ -500,8 +516,9 @@ class CycleService {
       'you book (one per time slot), plus <b>one</b> of your 🟢 backups. '
       'Tap again to unselect.';
 
-  /// Builds the availability inline keyboard for the window's two weekends.
-  /// Weekends whose deadline has passed are not offered (locked). Each slot
+  /// Builds the availability inline keyboard from the window's actual
+  /// sessions — the schedule template decides the days, times and locations.
+  /// Weekends whose deadline has passed are not offered (locked). Each session
   /// toggles off ▫️ → offered 🟢 → booked 🔒 → off. Plus Done and Not
   /// available; on a holiday window a "skip me this holiday" opt-out button
   /// is appended. A Cancel button (abort the in-progress repick, keeping the
@@ -513,37 +530,37 @@ class CycleService {
     bool holiday = false,
     bool hasIndicated = false,
     required DateTime now,
+    required List<Session> sessions,
+    required String Function(String locationKey) locationName,
   }) {
     final (want, available) = picked;
     var kb = InlineKeyboard();
     for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
       if (w.locked(sat, now)) continue; // weekend already locked
       // A non-interactive header naming the date, so the picker says which
-      // weekend each slot belongs to. No arbitrary week numbers — the
+      // weekend each session belongs to. No arbitrary week numbers — the
       // calendar may have breaks between weeks.
       kb = kb.text('Sat ${_day(sat)}', 'noop|$wi').row();
-      for (final day in Slot.allDays) {
-        final dayLabel = day == 'sat' ? 'Sat' : 'Sun';
-        for (final slot in Slot.allSlots) {
-          final slotLabel = slot == 'am' ? 'AM' : 'PM';
-          for (final loc in Slot.allLocations) {
-            final key = '$wi:$day:$slot:$loc';
-            final mark = want.any((s) => s.encode() == key)
-                ? '🔒'
-                : available.any((s) => s.encode() == key)
-                ? '🟢'
-                : '▫️';
-            final locLabel = loc == 'ocbc' ? 'OCBC' : 'PR';
-            // The callback carries the BUNDLE's first Saturday (not the
-            // clicked weekend) so a toggle re-renders the same anchored
-            // window — the header dates and weekend indexes never shift.
-            kb = kb.text(
-              '$mark $locLabel $dayLabel $slotLabel',
+      final weekendSessions =
+          sessions.where((s) => s.weekendStart == sat).toList()
+            ..sort((a, b) => a.start.compareTo(b.start));
+      for (final s in weekendSessions) {
+        final key = '$wi:${s.day}:${s.slot}:${s.location}';
+        final mark = want.any((x) => x.encode() == key)
+            ? '🔒'
+            : available.any((x) => x.encode() == key)
+            ? '🟢'
+            : '▫️';
+        // The callback carries the BUNDLE's first Saturday (not the clicked
+        // weekend) so a toggle re-renders the same anchored window — the
+        // header dates and weekend indexes never shift.
+        kb = kb
+            .text(
+              '$mark ${locationName(s.location)} ${Slot.dayLabel(s.day)} '
+              '${_fmt(s.start)}-${_fmt(s.end)}',
               'slot|${_satKey(w.sat0)}|$key',
-            );
-          }
-          kb = kb.row();
-        }
+            )
+            .row();
       }
       kb = kb.row();
     }

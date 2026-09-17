@@ -5,6 +5,40 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.0] - 2026-09-17
+
+### Added
+
+- **`/settime` (global admin).** Replace the activity schedule from chat: send
+  one line per session (`day startTime endTime location`, e.g.
+  `sat 9:00 13:00 PR`), then `done`; the bot lists the parsed sessions and asks
+  for confirmation with a button. Any weekday is allowed, times accept many
+  spellings (`9`, `9:00`, `9am`, `3pm`), and locations match their names and
+  aliases. A typed command only — it never appears in the role grid.
+- **Dynamic locations.** Sessions are no longer tied to the two built-in
+  places: a console can approve new ones with aliases (`/addlocation`,
+  `/addalias`, `/locations`, or the desktop console app). A location the bot
+  does not recognise in `/settime` becomes a new-location request; once the
+  console approves it, the global admin is told and can confirm the list.
+- **Admin API:** `GET /api/locations`, `POST /api/locations` and
+  `POST /api/locations/{id}/approve`; per-user attendance now also reports a
+  `byLocation` map alongside the `ocbc`/`pasirRis` counts.
+
+### Changed
+
+- **Schedule template instead of fixed AM/PM slots.** Recurring sessions come
+  from a stored template (seeded from the old slot windows on upgrade, so
+  nothing changes until the first `/settime`). Availability pickers, allocation
+  and attendance follow the template's days and times, and a member can no
+  longer be booked into two sessions whose times overlap.
+- Session labels show the real time range (e.g. `Pasir Ris · Saturday
+  09:00-13:00`) instead of AM/PM.
+
+### Fixed
+
+- **Schedule changes rebuild only the open weekends** and re-prompt the members
+  whose availability was cleared; already-locked weekends keep their schedule.
+
 ## [2.1.0] - 2026-09-17
 
 ### Added

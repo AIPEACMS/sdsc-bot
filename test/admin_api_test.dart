@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
+import 'test_helpers.dart';
 import 'package:sdsc_bot/bot/calendar_sync.dart';
 import 'package:sdsc_bot/bot/admin_api.dart';
 import 'package:sdsc_bot/bot/hold.dart';
@@ -939,7 +940,7 @@ void main() {
     final w = RollingWindow.forDate(now);
     repo.ensureSessionsForWeekend(
       w.sat0,
-      api.config.slotTimes,
+      defaultTemplate(),
       tzOffsetHours: api.config.timezoneOffsetHours,
     );
     final sessions = repo.sessionsForWeekend(w.sat0);

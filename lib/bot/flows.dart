@@ -476,10 +476,14 @@ class Flows {
     if (want.isNotEmpty || avail.isNotEmpty) {
       sb.writeln('\n<b>Indicated</b> — 🔒 booked · 🟢 backup:');
       if (want.isNotEmpty) {
-        sb.writeln(want.map((s) => '🔒 ${_slotLabel(s, w)}').join('\n'));
+        sb.writeln(
+          want.map((s) => '🔒 ${_slotLabel(s, w, repo)}').join('\n'),
+        );
       }
       if (avail.isNotEmpty) {
-        sb.writeln(avail.map((s) => '🟢 ${_slotLabel(s, w)}').join('\n'));
+        sb.writeln(
+          avail.map((s) => '🟢 ${_slotLabel(s, w, repo)}').join('\n'),
+        );
       }
     } else if (unavailableDates.isNotEmpty) {
       sb.writeln(
@@ -508,21 +512,38 @@ class Flows {
     }
 
     final stats = repo.attendanceStats(userId);
+    final byLoc = stats.byLocation.entries
+        .where((e) => e.value > 0)
+        .map((e) => '${e.value} ${repo.locationName(e.key)}')
+        .join(' · ');
     sb.writeln(
-      '\n<b>Attendance</b>: ${stats.total} sessions total '
-      '(${stats.ocbc} OCBC · ${stats.pasirRis} PR).',
+      '\n<b>Attendance</b>: ${stats.total} sessions total'
+      '${byLoc.isEmpty ? '' : ' ($byLoc)'}.',
     );
 
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
 
-  static String _slotLabel(Slot slot, RollingWindow w) {
+  static String _slotLabel(Slot slot, RollingWindow w, Repo repo) {
     final date = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
-    final location = slot.location == 'ocbc' ? 'OCBC' : 'Pasir Ris';
-    final day = slot.day == 'sat' ? 'Sat' : 'Sun';
-    final time = slot.slot == 'am' ? 'AM' : 'PM';
-    return '$day ${_day(date)} · $location · $time';
+    final location = repo.locationName(slot.location);
+    final match = repo
+        .sessionsForWeekend(date)
+        .where(
+          (s) =>
+              s.day == slot.day &&
+              s.slot == slot.slot &&
+              s.location == slot.location,
+        )
+        .firstOrNull;
+    if (match == null) return '${Slot.dayLabel(slot.day)} · $location';
+    return '${Slot.dayLabel(match.day)} · $location · '
+        '${_hm(match.start)}-${_hm(match.end)}';
   }
+
+  static String _hm(DateTime d) =>
+      '${d.hour.toString().padLeft(2, '0')}:'
+      '${d.minute.toString().padLeft(2, '0')}';
 
   static String _day(DateTime date) {
     const months = [
@@ -577,7 +598,9 @@ class Flows {
   /// Routes a wizard's pending-input text to the command that requested it.
   /// `broadcast` = the message to send to every member (handled in admin);
   /// `adduser` = the handle to add (handled in admin);
-  /// `setdate` / `synccalendar` = typed console wizard input (in console).
+  /// `setdate` / `synccalendar` = typed console wizard input (in console);
+  /// `settime` / `settime-newname` = the gadmin's schedule wizard; `addalias`
+  /// = the console's alias wizard.
   Future<void> _consumePendingArg(
     Context ctx,
     int userId,
@@ -593,6 +616,12 @@ class Flows {
         await onSetDateText?.call(ctx, userId, text);
       case 'synccalendar':
         await onSyncCalendarText?.call(ctx, userId, text);
+      case 'settime':
+        await onSetTimeText?.call(ctx, userId, text);
+      case 'settime-newname':
+        await onSetTimeNewNameText?.call(ctx, userId, text);
+      case 'addalias':
+        await onAddAliasText?.call(ctx, userId, text);
       default:
         await ctx.reply('That input is not understood. Start over.');
     }
@@ -612,6 +641,16 @@ class Flows {
   /// Set by main.dart: applies the pasted YAML of the /sync-calendar wizard.
   Future<void> Function(Context ctx, int userId, String text)?
   onSyncCalendarText;
+
+  /// Set by main.dart: the gadmin's /settime wizard line(s).
+  Future<void> Function(Context ctx, int userId, String text)? onSetTimeText;
+
+  /// Set by main.dart: the full name typed for a new location in /settime.
+  Future<void> Function(Context ctx, int userId, String text)?
+  onSetTimeNewNameText;
+
+  /// Set by main.dart: one alias typed in the console's /addalias wizard.
+  Future<void> Function(Context ctx, int userId, String text)? onAddAliasText;
 
   // ---------------------------------------------------------- callback
 
@@ -715,6 +754,11 @@ class Flows {
           now: now,
           holiday: CycleService.isHolidayWindow(repo, w),
           hasIndicated: repo.hasBundleResponse(sat0, userId),
+          sessions: [
+            ...repo.sessionsForWeekend(w.sat0),
+            ...repo.sessionsForWeekend(w.sat1),
+          ],
+          locationName: repo.locationName,
         ),
       );
     } catch (_) {
@@ -815,7 +859,12 @@ class Flows {
     await ctx.reply(
       unavailable
           ? messages.msg6()
-          : messages.msg3(want, available, allocateAt: nextSharpHourLabel(now)),
+          : messages.msg3(
+              want,
+              available,
+              allocateAt: nextSharpHourLabel(now),
+              label: (s) => _slotLabel(s, w, repo),
+            ),
       parseMode: ParseMode.html,
     );
   }
