@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.4] - 2026-09-17
+
+### Changed
+
+- **`/status` shows the response tally plainly.** "Responded: x/y" is now
+  followed by "Still to respond (n)" and, when the quiet rule skips someone,
+  "Not prompted this cycle (n)", so the numbers add up to the registered
+  members instead of an ambiguous "+n pending".
+
 ## [3.0.3] - 2026-09-17
 
 ### Fixed

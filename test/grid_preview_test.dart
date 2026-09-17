@@ -408,6 +408,7 @@ void main() {
     final text = sent.last['text'] as String;
     expect(text, contains('All members status'));
     expect(text, contains('Responded:'));
+    expect(text, contains('Still to respond ('));
     expect(text, contains('Allocation · '));
     expect(text, contains('Allen @admin')); // sat0 allocation
     expect(text, contains('@checker')); // sat1 allocation
