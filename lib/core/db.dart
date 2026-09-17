@@ -315,6 +315,25 @@ END;
         }
       }
     }
+
+    // Drop sessions that no longer belong to the template (rows left over from
+    // the Saturday-only or fixed-AM/PM models), so they never surface in the
+    // pickers again. Dependent allocation/attendance rows go first.
+    const staleSessions = '''
+NOT EXISTS (
+  SELECT 1 FROM schedule_template t
+  WHERE t.day = sessions.day AND t.slot = sessions.slot
+    AND t.location_key = sessions.location
+)''';
+    db.execute(
+      'DELETE FROM allocations WHERE session_id IN '
+      '(SELECT id FROM sessions WHERE $staleSessions)',
+    );
+    db.execute(
+      'DELETE FROM attendance WHERE session_id IN '
+      '(SELECT id FROM sessions WHERE $staleSessions)',
+    );
+    db.execute('DELETE FROM sessions WHERE $staleSessions');
   }
 
   /// One-time migration from the legacy cycle-keyed model (sessions keyed by

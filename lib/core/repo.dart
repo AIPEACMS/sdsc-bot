@@ -878,12 +878,22 @@ VALUES (?, ?, ?, ?, ?, ?)
     return sat.add(Duration(days: offset));
   }
 
-  /// Sessions of one weekend, ordered by day and start time (any weekday —
-  /// stale rows from older Saturday-only versions are hidden by the template).
+  /// Sessions of one weekend that belong to the current schedule template,
+  /// ordered by day and start time. Rows left over from an older schedule
+  /// (e.g. the Saturday-only or fixed-AM/PM models) are hidden and removed by
+  /// the schema cleanup, so a template change can never resurrect them.
   List<Session> sessionsForWeekend(DateTime sat) => raw
       .select(
-        'SELECT * FROM sessions WHERE weekend_start = ? '
-        'ORDER BY start_at',
+        '''
+SELECT s.* FROM sessions s
+WHERE s.weekend_start = ?
+  AND EXISTS (
+    SELECT 1 FROM schedule_template t
+    WHERE t.day = s.day AND t.slot = s.slot
+      AND t.location_key = s.location
+  )
+ORDER BY s.start_at
+''',
         [_dayKey(sat)],
       )
       .map(Session.fromRow)
