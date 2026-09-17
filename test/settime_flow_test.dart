@@ -242,9 +242,27 @@ void main() {
 
     // Both `ocbc` and `pr` resolve automatically (no location choice needed).
     await sendText(1, 'sat 9 13 ocbc');
-    expect(sent.last['text'], contains('Added 1 session(s)'));
+    final firstAck = sent.last['text'] as String;
+    expect(firstAck, contains('Added session 1 (1 so far)'));
+    expect(
+      firstAck,
+      contains('Session 1: Saturday 9:00 to 13:00 at location: OCBC'),
+    );
+
     await sendText(1, 'sat 13 17 pr');
-    expect(sent.last['text'], contains('Added 1 session(s)'));
+    final secondAck = sent.last['text'] as String;
+    expect(secondAck, contains('Added session 2 (2 so far)'));
+    expect(
+      secondAck,
+      contains('Session 2: Saturday 13:00 to 17:00 at location: Pasir Ris'),
+    );
+
+    // Several lines in one message are acknowledged as a range.
+    await sendText(1, 'sun 10 12 ocbc\nfri 18 20 pasir');
+    final thirdAck = sent.last['text'] as String;
+    expect(thirdAck, contains('Added sessions 3-4 (4 so far)'));
+    expect(thirdAck, contains('Session 3: Sunday 10:00 to 12:00'));
+    expect(thirdAck, contains('Session 4: Friday 18:00 to 20:00'));
 
     await sendText(1, 'done');
     final confirmation = sent.last['text'] as String;
@@ -255,22 +273,23 @@ void main() {
 
     await sendCallback(1, 'settime|yes');
 
-    // The template is real, not empty.
+    // The template is real, not empty (four lines across three messages).
     final template = repo.scheduleTemplate();
-    expect(template.length, 2);
+    expect(template.length, 4);
     expect(
       template.map((r) => r.location).toSet(),
       {Locations.ocbc, Locations.pasirRis},
     );
 
-    // And the open weekend has sessions built from it.
+    // And the open weekend has sessions built from it, other weekdays included.
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
     final sessions = repo.sessionsForWeekend(w.sat0);
-    expect(sessions.length, 2);
+    expect(sessions.length, 4);
     expect(
       sessions.map((s) => s.location).toSet(),
       {Locations.ocbc, Locations.pasirRis},
     );
+    expect(sessions.map((s) => s.day).toSet(), {'sat', 'sun', 'fri'});
     expect(sessions.first.start.hour, 9);
   });
 

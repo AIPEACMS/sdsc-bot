@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.0.5] - 2026-09-17
+
+### Changed
+
+- **`/settime` acknowledges each line properly.** Instead of "Added 1
+  session(s)" every time, the bot counts up ("Added session 2 (2 so far)")
+  and lists exactly what it just parsed, numbered as in the final
+  confirmation. Several lines in one message are acknowledged as a range.
+
 ## [3.0.4] - 2026-09-17
 
 ### Changed
