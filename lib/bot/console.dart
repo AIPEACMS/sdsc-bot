@@ -313,7 +313,8 @@ class Console {
     }
     _pendingGlobalAdminRemoval[ctx.from!.id] = current.id;
     await ctx.reply(
-      'Remove <b>${current.name}</b> as global admin and archive them?',
+      'Remove <b>${current.name}</b> as global admin? '
+      'They become a regular member and their group is dissolved.',
       parseMode: ParseMode.html,
       replyMarkup: Pickers.confirm('rmgadmin'),
     );
@@ -347,7 +348,9 @@ class Console {
       await ctx.editMessageText('The global admin changed; nothing was removed.');
       return;
     }
-    await ctx.editMessageText('✅ Global admin removed and archived as old.');
+    await ctx.editMessageText(
+      '✅ Global admin removed; they are now a regular member.',
+    );
   }
 
   // --------------------------------------------------------- /setdate /resetdate

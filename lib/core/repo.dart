@@ -275,9 +275,9 @@ ON CONFLICT(id) DO UPDATE SET
     }
   }
 
-  /// Removes the current global admin and archives them. The optional id is
-  /// checked inside the transaction so a confirmation cannot remove a new
-  /// global admin after a handoff.
+  /// Removes the current global admin and returns them to a regular member,
+  /// dissolving their group. The optional id is checked inside the transaction
+  /// so a confirmation cannot remove a new global admin after a handoff.
   bool removeGlobalAdmin(int id) {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
@@ -291,7 +291,7 @@ ON CONFLICT(id) DO UPDATE SET
       tx.execute(
         'UPDATE users SET is_global_admin = 0, is_admin = 0, '
         'member_tier = ?, group_id = \'\' WHERE id = ?',
-        [MemberTier.old, id],
+        [MemberTier.member, id],
       );
       tx.execute('COMMIT');
       return true;
