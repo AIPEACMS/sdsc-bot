@@ -68,8 +68,13 @@ Object parseSessionLine(
   }
   final tail = parts.sublist(3).join(' ');
   final last = int.tryParse(parts.last);
+  final withoutMax = parts.length > 4
+      ? parts.sublist(3, parts.length - 1).join(' ')
+      : tail;
+  final candidateResolves = resolveLocation?.call(withoutMax) != null;
+  final fullResolves = resolveLocation?.call(tail) != null;
   final hasMax = last != null && last > 0 && parts.length > 4 &&
-      (resolveLocation == null || resolveLocation(tail) == null);
+      (resolveLocation == null || candidateResolves || !fullResolves);
   return ParsedSession(
     day: day,
     start: start,
