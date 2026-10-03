@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.1.1] - 2026-10-03
+
+### Fixed
+
+- **Repick window visibility.** Locked weekends remain visible as locked
+  context while the next open weekend stays selectable.
+- **Holiday opt-out labels.** Holiday buttons now name the holiday period,
+  such as recess week, winter holiday, or summer holiday, and opt out across
+  the contiguous period.
+
 ## [3.1.0] - 2026-10-03
 
 ### Added

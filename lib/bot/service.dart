@@ -121,6 +121,24 @@ class CycleService {
   static bool isHolidayWindow(Repo repo, RollingWindow w) =>
       repo.holidayOn(w.sat0) != null || repo.holidayOn(w.sat1) != null;
 
+  static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) {
+    final result = <Holiday>[];
+    for (final sat in [w.sat0, w.sat1]) {
+      final holiday = repo.holidayOn(sat);
+      if (holiday != null &&
+          !result.any((old) => old.kind == holiday.kind)) {
+        result.add(holiday);
+      }
+    }
+    return result;
+  }
+
+  static String holidayName(HolidayKind kind) => switch (kind) {
+        HolidayKind.middle => 'recess week',
+        HolidayKind.winter => 'winter holiday',
+        HolidayKind.summer => 'summer holiday',
+      };
+
   /// Allocates both weekends of [window] as one bundle. Every booked pick is
   /// honored, but a member receives at most one backup pick across both dates.
   /// Already-selected backups are retained in chronological order so an older
@@ -409,7 +427,7 @@ class CycleService {
       w,
       picked,
       now: config.toLocal(Config.nowUtc()),
-      holiday: isHolidayWindow(repo, w),
+      holidays: holidaysForWindow(repo, w),
       hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
       sessions: [
         ...repo.sessionsForWeekend(w.sat0),
@@ -526,6 +544,7 @@ class CycleService {
     RollingWindow w,
     (Set<Slot>, Set<Slot>) picked, {
     bool holiday = false,
+    List<Holiday> holidays = const [],
     bool hasIndicated = false,
     required DateTime now,
     required List<Session> sessions,
@@ -534,11 +553,17 @@ class CycleService {
     final (want, available) = picked;
     var kb = InlineKeyboard();
     for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
-      if (w.locked(sat, now)) continue; // weekend already locked
+      final locked = w.locked(sat, now);
       // A non-interactive header naming the date, so the picker says which
       // weekend each session belongs to. No arbitrary week numbers — the
       // calendar may have breaks between weeks.
-      kb = kb.text('Sat ${_day(sat)}', 'noop|$wi').row();
+      kb = kb
+          .text(
+            'Sat ${_day(sat)}${locked ? ' (locked)' : ''}',
+            locked ? 'locked|$wi' : 'noop|$wi',
+          )
+          .row();
+      if (locked) continue;
       final weekendSessions =
           sessions.where((s) => s.weekendStart == sat).toList()
             ..sort((a, b) => a.start.compareTo(b.start));
@@ -566,11 +591,14 @@ class CycleService {
         .text('✅ Done', 'done|${_satKey(w.sat0)}')
         .row()
         .text('❌ Not available', 'no|${_satKey(w.sat0)}');
-    if (holiday) {
-      kb = kb.row().text(
-        '🔕 Skip me this holiday',
-        'holidayout|${_satKey(w.sat0)}',
-      );
+    final holidayRows = holidays.isEmpty && holiday ? <Holiday>[] : holidays;
+    if (holidayRows.isNotEmpty) {
+      for (final row in holidayRows) {
+        kb = kb.row().text(
+          '🔕 Skip me for the whole ${holidayName(row.kind)}',
+          'holidayout|${_satKey(w.sat0)}|${row.kind.name}',
+        );
+      }
     }
     if (hasIndicated) {
       kb = kb.row().text('❌ Cancel', 'cancel|${_satKey(w.sat0)}');

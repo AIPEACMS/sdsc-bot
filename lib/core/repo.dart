@@ -1302,6 +1302,31 @@ WHERE user_id = ? AND attended = 1 AND confirmed_at >= ?
           .map(Holiday.fromRow)
           .toList();
 
+  /// Returns the contiguous holiday period containing [target].
+  List<Holiday> holidayPeriod(Holiday target) {
+    final sameKind = allHolidays()
+        .where((holiday) => holiday.kind == target.kind)
+        .toList()
+      ..sort((a, b) => a.weekStart.compareTo(b.weekStart));
+    final index = sameKind.indexWhere(
+      (holiday) => holiday.weekStart == target.weekStart,
+    );
+    if (index < 0) return [target];
+    var first = index;
+    var last = index;
+    while (first > 0 &&
+        sameKind[first].weekStart.difference(sameKind[first - 1].weekStart) ==
+            const Duration(days: 7)) {
+      first--;
+    }
+    while (last + 1 < sameKind.length &&
+        sameKind[last + 1].weekStart.difference(sameKind[last].weekStart) ==
+            const Duration(days: 7)) {
+      last++;
+    }
+    return sameKind.sublist(first, last + 1);
+  }
+
   /// Returns the holiday covering the given date, if any.
   Holiday? holidayOn(DateTime date) {
     final monday = WeekMath.mondayOf(date);
