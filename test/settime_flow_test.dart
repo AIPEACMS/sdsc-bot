@@ -244,12 +244,12 @@ void main() {
     expect(sent.last['text'], contains('Set the activity times'));
 
     // Both `ocbc` and `pr` resolve automatically (no location choice needed).
-    await sendText(1, 'sat 9 13 ocbc');
+    await sendText(1, 'sat 9 13 ocbc 4');
     final firstAck = sent.last['text'] as String;
     expect(firstAck, contains('Added session 1 (1 so far)'));
     expect(
       firstAck,
-      contains('Session 1: Saturday 9:00 to 13:00 at location: OCBC'),
+      contains('Session 1: Saturday 9:00 to 13:00 at location: OCBC [max 4]'),
     );
 
     await sendText(1, 'sat 13 17 pr');

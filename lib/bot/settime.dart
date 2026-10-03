@@ -148,13 +148,13 @@ class SetTime {
     await ctx.editMessageText(
       temporary
           ? 'Send one line per session for one week. Use '
-                '<code>mon as 2026-09-21 9:00 13:00 PR</code> for an explicit date, '
-                'or <code>thu 9:00 13:00 PR</code> for the next Thursday.\n\n'
+                '<code>mon as 2026-09-21 9:00 13:00 PR 5</code> for an explicit date, '
+                'or <code>thu 9:00 13:00 PR 5</code> for the next Thursday.\n\n'
                 'The first line chooses the week; all later lines must be in that same week. '
                 'Send <b>done</b> when finished.'
           : 'Send one line per session:\n'
-                '<code>&lt;day&gt; &lt;startTime&gt; &lt;endTime&gt; &lt;location&gt;</code>\n\n'
-                'For example: <code>sat 9:00 13:00 PR</code>\n\n'
+                '<code>&lt;day&gt; &lt;startTime&gt; &lt;endTime&gt; &lt;location&gt; [&lt;max&gt;]</code>\n\n'
+                'For example: <code>sat 9:00 13:00 PR 5</code>\n\n'
                 'Send <b>done</b> when finished.',
       parseMode: ParseMode.html,
       replyMarkup: InlineKeyboard().text('❌ Cancel', 'settime|no'),
@@ -657,7 +657,7 @@ class SetTime {
         ? repo.locationName(key)
         : (draft.requestedNames[line.locationToken] ?? line.locationToken);
     final date = line.targetDate == null ? '' : ' ${_date(line.targetDate!)}';
-    final max = line.maxPeople == null ? '' : ' ${line.maxPeople}';
+    final max = line.maxPeople == null ? '' : ' [max ${line.maxPeople}]';
     return 'Session $n: ${Slot.dayName(line.day)}$date '
         '${prettyClock(line.start)} to ${prettyClock(line.end)} '
         'at location: $loc$max';
@@ -699,7 +699,7 @@ class SetTime {
         '${i + 1}. ${Slot.dayName(row.day)} '
         '${prettyClock(row.start)} to ${prettyClock(row.end)} '
         'at location: ${_html(repo.locationName(row.location))}'
-        '${row.maxPeople == null ? '' : ' ${row.maxPeople}'}',
+        '${row.maxPeople == null ? '' : ' [max ${row.maxPeople}]'}',
       );
     }
   }

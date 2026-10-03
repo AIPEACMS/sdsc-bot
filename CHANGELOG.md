@@ -5,6 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.2.4] - 2026-10-03
+
+### Fixed
+
+- **Capacity visibility while editing schedules.** `/settime` now documents
+  the optional max and echoes `[max N]` in every acknowledgement and
+  confirmation line.
+
 ## [3.2.3] - 2026-10-03
 
 ### Changed
