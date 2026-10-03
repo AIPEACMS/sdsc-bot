@@ -167,6 +167,16 @@ class Flows {
       );
     }
 
+    if (checker && !isConsole) {
+      await ctx.reply(
+        '👋 <b>$name</b>, you are a checker.\n\n'
+        '/check-status — the current week\'s allocation',
+        parseMode: ParseMode.html,
+        replyMarkup: RoleKeyboard.build('check'),
+      );
+      return;
+    }
+
     if (checker) {
       sb
         ..writeln('\n<b>Checker</b>')
@@ -329,7 +339,7 @@ class Flows {
       isAdmin: ownUser?.isAdmin ?? false,
       tier: ownUser?.memberTier,
     );
-    final order = [
+    final order = <String>{
       ownGrid,
       'gadmin',
       'admin',
@@ -338,7 +348,7 @@ class Flows {
       MemberTier.outMember,
       'old',
       'console-only',
-    ].toSet().toList();
+    }.toList();
     final current = state.gridPreview[userId] ?? ownGrid;
     final next = order[(order.indexOf(current) + 1) % order.length];
     state.gridPreview[userId] = next;
