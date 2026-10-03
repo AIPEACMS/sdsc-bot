@@ -125,7 +125,8 @@ class RoleKeyboard {
       if (isGlobalAdmin) return 'gadmin';
       if (isAdmin) return 'admin';
       if (tier == null) return 'console-only';
-      return MemberTier.stored.contains(tier) ? tier : 'console-only';
+    if (tier != null && MemberTier.stored.contains(tier)) return tier;
+    return 'console-only';
     }
     if (isGlobalAdmin) return 'gadmin';
     if (isAdmin) return 'admin';

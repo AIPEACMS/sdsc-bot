@@ -292,7 +292,7 @@ class CycleService {
     if (user == null || user.memberTier == MemberTier.outMember) return;
     repo.setAttendanceState(userId, sessionId, attended: attended);
     final session = repo.sessionById(sessionId);
-    if (session == null || user == null) return;
+    if (session == null) return;
     final streak = session.location == Locations.ocbc ? user.ocbcStreak + 1 : 0;
     repo.setOcbcStreak(userId, streak);
   }
