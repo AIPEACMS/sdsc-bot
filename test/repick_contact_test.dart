@@ -311,7 +311,7 @@ void main() {
       (const {}, const {}),
       now: DateTime(2026, 8, 12),
       sessions: [limited],
-      allocatedCounts: {99: 3},
+      allocatedCounts: {'session:99': 3},
       locationName: (k) => k,
     );
     final buttons = keyboard.inlineKeyboard.expand((row) => row).toList();

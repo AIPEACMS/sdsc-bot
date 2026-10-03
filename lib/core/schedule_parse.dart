@@ -176,6 +176,7 @@ List<ScheduleSlot> buildTemplate(
         end: line.end,
         location: key,
         maxPeople: line.maxPeople,
+        capacityGroup: null,
       ),
     );
   }

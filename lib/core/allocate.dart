@@ -30,7 +30,21 @@ class Allocator {
       for (final (uid, sid) in locked) (uid, sid),
     ];
     final sessionById = {for (final s in sessions) s.id: s};
-    final allocatedBySession = <int, int>{};
+    final allocatedByCapacity = <String, int>{};
+    final maxByCapacity = <String, int?>{};
+    String capacityKey(Session session) =>
+        session.capacityGroup ?? 'session:${session.id}';
+    for (final session in sessions) {
+      final key = capacityKey(session);
+      final current = maxByCapacity[key];
+      if (session.maxPeople != null) {
+        maxByCapacity[key] = current == null
+            ? session.maxPeople
+            : (session.maxPeople! < current ? session.maxPeople : current);
+      } else {
+        maxByCapacity.putIfAbsent(key, () => null);
+      }
+    }
 
     Session? sessionFor(Availability availability, Slot slot) {
       for (final s in sessions) {
@@ -57,17 +71,23 @@ class Allocator {
     }
 
     bool hasCapacity(Session s) =>
-        s.maxPeople == null ||
-        (allocatedBySession[s.id] ?? 0) < s.maxPeople!;
+        maxByCapacity[capacityKey(s)] == null ||
+        (allocatedByCapacity[capacityKey(s)] ?? 0) <
+            maxByCapacity[capacityKey(s)]!;
 
     void assign(int userId, Session s) {
       result.add((userId, s.id));
       heldByUser.putIfAbsent(userId, () => []).add(s);
-      allocatedBySession[s.id] = (allocatedBySession[s.id] ?? 0) + 1;
+      final key = capacityKey(s);
+      allocatedByCapacity[key] = (allocatedByCapacity[key] ?? 0) + 1;
     }
 
     for (final (_, sid) in locked) {
-      allocatedBySession[sid] = (allocatedBySession[sid] ?? 0) + 1;
+      final session = sessionById[sid];
+      if (session != null) {
+        final key = capacityKey(session);
+        allocatedByCapacity[key] = (allocatedByCapacity[key] ?? 0) + 1;
+      }
     }
 
     final open = availability.where((a) => a.available).toList()
