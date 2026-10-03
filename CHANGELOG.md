@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.2.5] - 2026-10-03
+
+### Fixed
+
+- **Set-time conflict UI.** Choosing same-session or separate-session now
+  replaces the conflict prompt instead of leaving its old buttons visible.
+- **Set-time input guidance.** The prompt now names `[<max-num-ppl>]` and shows
+  both a max-limited and an unlimited input example.
+
 ## [3.2.4] - 2026-10-03
 
 ### Fixed

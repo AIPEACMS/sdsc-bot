@@ -242,6 +242,9 @@ void main() {
   test('a lane with known locations is saved as real sessions', () async {
     await sendText(1, '/settime');
     expect(sent.last['text'], contains('Set the activity times'));
+    await sendCallback(1, 'settime-scope|persistent');
+    await sendCallback(1, 'settime-action|rewrite');
+    expect(edited.last['text'], contains('max-num-ppl'));
 
     // Both `ocbc` and `pr` resolve automatically (no location choice needed).
     await sendText(1, 'sat 9 13 ocbc 4');
@@ -337,6 +340,23 @@ void main() {
 
     await sendCallback(1, 'settime|yes');
     expect(repo.scheduleTemplate(), hasLength(3));
+  });
+
+  test('overlap choice replaces its buttons with the final confirmation', () async {
+    await sendText(1, '/settime');
+    await sendText(1, 'sat 9 13 ocbc');
+    await sendText(1, 'sat 9 15 ocbc');
+    await sendText(1, 'done');
+    expect(sent.last['text'], contains('Overlapping sessions found'));
+
+    await sendCallback(1, 'settime-conflict|same');
+    expect(edited.last['text'], contains('Before change:'));
+    final markup = edited.last['reply_markup'] as Map<String, dynamic>;
+    final callbacks = (markup['inline_keyboard'] as List)
+        .expand((row) => row as List)
+        .map((button) => (button as Map)['callback_data'] as String)
+        .toList();
+    expect(callbacks, isNot(contains('settime-conflict|same')));
   });
 }
 
