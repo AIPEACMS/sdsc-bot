@@ -268,6 +268,161 @@ void main() {
     expect(repo.pendingTier('dave'), MemberTier.check);
   });
 
+  test('replacing a pending role overwrites both role components', () {
+    expect(
+      repo.addPendingUser('dave', isAdmin: true, tier: MemberTier.check),
+      isNull,
+    );
+    final previous = repo.addPendingUser(
+      'dave',
+      isAdmin: false,
+      tier: MemberTier.outMember,
+    );
+    expect(previous?.isAdmin, isTrue);
+    expect(previous?.tier, MemberTier.check);
+    expect(repo.pendingIsAdmin('dave'), isFalse);
+    expect(repo.pendingTier('dave'), MemberTier.outMember);
+    expect(
+      repo.replacePendingUser('dave', isAdmin: true)?.tier,
+      MemberTier.outMember,
+    );
+    expect(repo.pendingRole('dave')?.isAdmin, isTrue);
+  });
+
+  test('pending notification preference survives role replacement', () {
+    repo.addPendingUser(
+      'erin',
+      isAdmin: false,
+      tier: MemberTier.outMember,
+      notificationPreference: NotificationPreference.never,
+    );
+    expect(
+      repo.pendingRole('erin')?.notificationPreference,
+      NotificationPreference.never,
+    );
+    repo.replacePendingUser(
+      'erin',
+      isAdmin: false,
+      tier: MemberTier.outMember,
+      notificationPreference: NotificationPreference.everyOther,
+    );
+    expect(
+      repo.pendingRole('erin')?.notificationPreference,
+      NotificationPreference.everyOther,
+    );
+  });
+
+  test('user role and notification fields round-trip through SQL', () {
+    final registered = DateTime(2026, 8, 12, 10, 30);
+    repo.upsertUser(
+      User(
+        id: 42,
+        name: 'Member 42',
+        experience: Experience.experienced,
+        group: '9',
+        isGlobalAdmin: true,
+        ocbcStreak: 4,
+        registeredAt: registered,
+        fullName: 'Legacy Name',
+        preferredName: 'Preferred',
+        matricNo: 'M42',
+        schoolEmail: 'm42@example.test',
+        memberTier: MemberTier.outMember,
+        notificationPreference: NotificationPreference.everyOther,
+        lastPromptState: LastPromptState.responded,
+      ),
+    );
+
+    final stored = repo.findUser(42)!;
+    expect(stored.name, 'Member 42');
+    expect(stored.experience, Experience.experienced);
+    expect(stored.group, '9');
+    expect(stored.isAdmin, isFalse);
+    expect(stored.isGlobalAdmin, isTrue);
+    expect(stored.ocbcStreak, 4);
+    expect(stored.registeredAt, registered);
+    expect(stored.storedFullName, 'Legacy Name');
+    expect(stored.preferredName, 'Preferred');
+    expect(stored.storedMatricNo, 'M42');
+    expect(stored.storedSchoolEmail, 'm42@example.test');
+    expect(stored.memberTier, MemberTier.outMember);
+    expect(stored.notificationPreference, NotificationPreference.everyOther);
+    expect(stored.lastPromptState, LastPromptState.responded);
+  });
+
+  test('member and out-member conversion preserve admin protections', () {
+    addUser(1, group: '3');
+    addUser(2, group: '3');
+    expect(repo.setOutMember(1), isTrue);
+    expect(repo.findUser(1)!.memberTier, MemberTier.outMember);
+    expect(repo.findUser(1)!.group, isEmpty);
+    expect(repo.findUser(2)!.group, '3');
+    expect(repo.setMember(1), isTrue);
+    expect(repo.findUser(1)!.memberTier, MemberTier.member);
+
+    expect(repo.appointGlobalAdmin(1), GlobalAdminResult.success);
+    expect(repo.setOutMember(1), isFalse);
+    expect(
+      MemberTier.of(repo.findUser(1)!, isConsole: true),
+      MemberTier.globalAdmin,
+    );
+    expect(
+      repo.raw.select('SELECT member_tier FROM users WHERE id = 1').first[
+          'member_tier'],
+      MemberTier.member,
+    );
+  });
+
+  test('console identity does not replace the stored member role', () {
+    User user(String tier, {bool admin = false, bool globalAdmin = false}) =>
+        User(
+          id: 99,
+          name: '@user99',
+          experience: Experience.newbie,
+          group: '',
+          isAdmin: admin,
+          isGlobalAdmin: globalAdmin,
+          memberTier: tier,
+        );
+
+    expect(
+      MemberTier.of(user(MemberTier.admin, admin: true), isConsole: true),
+      MemberTier.admin,
+    );
+    expect(
+      MemberTier.of(user(MemberTier.member), isConsole: true),
+      MemberTier.member,
+    );
+    expect(
+      MemberTier.of(user(MemberTier.check), isConsole: true),
+      MemberTier.check,
+    );
+    expect(
+      MemberTier.of(user(MemberTier.outMember), isConsole: true),
+      MemberTier.outMember,
+    );
+    expect(
+      MemberTier.of(user(MemberTier.old), isConsole: true),
+      MemberTier.old,
+    );
+    expect(
+      MemberTier.of(
+        user(MemberTier.member, globalAdmin: true),
+        isConsole: true,
+      ),
+      MemberTier.globalAdmin,
+    );
+  });
+
+  test('only check and old tiers are inactive', () {
+    expect(MemberTier.isActive(MemberTier.admin), isTrue);
+    expect(MemberTier.isActive(MemberTier.globalAdmin), isTrue);
+    expect(MemberTier.isActive(MemberTier.member), isTrue);
+    expect(MemberTier.isActive(MemberTier.outMember), isTrue);
+    expect(MemberTier.isActive(MemberTier.check), isFalse);
+    expect(MemberTier.isActive(MemberTier.old), isFalse);
+  });
+
   test('updateAdmin toggles the admin flag', () {
     addUser(7);
     expect(repo.findUser(7)!.isAdmin, false);
@@ -406,9 +561,11 @@ void main() {
     repo.setTier(3, 'check');
     addUser(4);
     repo.setTier(4, 'old');
+    addUser(5);
+    repo.setTier(5, 'out-member');
 
     final names = repo.activeUsers().map((u) => u.id).toSet();
-    expect(names, {1, 2});
+    expect(names, {1, 2, 5});
   });
 
   test('hold state persists across calls', () {
@@ -425,9 +582,11 @@ void main() {
     repo.setTier(2, 'check');
     addUser(3);
     repo.setTier(3, 'old');
+    addUser(4);
+    repo.setTier(4, 'out-member');
     final sat = DateTime(2026, 8, 15);
     final pending = repo.reminderTargets(sat);
-    expect(pending.map((u) => u.id), [1]);
+    expect(pending.map((u) => u.id), [1, 4]);
   });
 
   test('message log dedupes per user, kind and day', () {

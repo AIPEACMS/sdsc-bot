@@ -79,7 +79,8 @@ class Flows {
           head == 'done' ||
           head == 'no' ||
           head == 'cancel' ||
-          head == 'holidayout') {
+          head == 'holidayout' ||
+          head == 'notify') {
         await _onCallback(ctx);
         return;
       }
@@ -120,6 +121,7 @@ class Flows {
     );
     commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, state, 'resetgrid', _onResetGrid, label: 'reset-grid');
+    commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
   }
 
   // ------------------------------------------------------------- /start
@@ -128,54 +130,21 @@ class Flows {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
 
-    var user = repo.findUser(userId);
-    // The console is a separate control-plane identity. On first /start it is
-    // registered only as a regular user; the explicit v2 migration is the
-    // only automatic global-admin appointment.
-    if (user == null && config.isConsole(userId)) {
-      final name = ctx.from?.username != null
-          ? '@${ctx.from!.username}'
-          : 'Console';
-      repo.upsertUser(
-        User(id: userId, name: name, experience: Experience.newbie, group: ''),
-      );
-      user = repo.findUser(userId);
-    }
+    final user = repo.findUser(userId);
+    final isConsole = config.isConsole(userId);
     // A user that no admin has added yet gets silence: no backend traffic,
     // no hint that the bot exists.
-    if (user == null) return;
+    if (user == null && !isConsole) return;
 
-    final isConsole = config.isConsole(userId);
-    final tier = MemberTier.of(user, isConsole: isConsole);
-
-    // A former member: no buttons, no prompts — just a heads-up.
-    if (tier == MemberTier.old) {
-      await ctx.reply(
-        '👋 You are no longer an active member.\n\n'
-        'If this is a mistake, contact an admin.',
-        replyMarkup: RoleKeyboard.build('old'),
-      );
-      return;
-    }
-
-    // A checker: not a member, but reports on the current week's allocation.
-    if (tier == MemberTier.check) {
-      await ctx.reply(
-        '👋 <b>${user.name}</b>, you are a checker.\n\n'
-        '/check-status — the current week\'s allocation',
-        parseMode: ParseMode.html,
-        replyMarkup: RoleKeyboard.build('check'),
-      );
-      return;
-    }
-
-    // The console can step down as a member (tier 'old') while keeping the
-    // console role: no prompts, no allocation, but backend control stays.
-    final retired = user.memberTier == MemberTier.old;
-    final isAdmin = (user.isAdmin || user.isGlobalAdmin) && !retired;
+    final name = user?.name ??
+        (ctx.from?.username == null ? 'Console' : '@${ctx.from!.username}');
+    final isAdmin = user?.isAdmin == true || user?.isGlobalAdmin == true;
+    final retired = user?.memberTier == MemberTier.old;
+    final checker = user?.memberTier == MemberTier.check && !isAdmin;
+    final outMember = user?.memberTier == MemberTier.outMember && !isAdmin;
 
     final sb = StringBuffer()
-      ..writeln('👋 <b>${user.name}</b>, here is what you can do:');
+      ..writeln('👋 <b>$name</b>, here is what you can do:');
 
     if (isConsole) {
       sb
@@ -198,10 +167,17 @@ class Flows {
       );
     }
 
-    if (user.isGlobalAdmin) {
+    if (checker) {
+      sb
+        ..writeln('\n<b>Checker</b>')
+        ..writeln('/check-status — the current week\'s allocation');
+    }
+
+    if (user?.isGlobalAdmin == true) {
       sb
         ..writeln('\n<b>Global admin</b>')
         ..writeln('/addadmin @handle — promote a registered user')
+        ..writeln('/addoutuser @handle — add or convert an out-member')
         ..writeln('/addcheck @handle — add a checker')
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/sync-calendar — push the calendar YAML')
@@ -213,6 +189,7 @@ class Flows {
       sb
         ..writeln('\n<b>Admin</b>')
         ..writeln('add-user @handle — add a member (they can then use /start)')
+        ..writeln('add-out-user @handle — add an out-member')
         ..writeln('all-status — cycle state and responders')
         ..writeln('group-status — your group\'s cycle state and responders')
         ..writeln('all-users — registered members')
@@ -226,9 +203,9 @@ class Flows {
         ..writeln('/broadcast &lt;message&gt; — message all members');
     }
 
-    if (!retired) {
+    if (user != null && !retired && !checker) {
       sb
-        ..writeln('\n<b>Member</b>')
+        ..writeln('\n<b>${outMember ? 'Out-member' : 'Member'}</b>')
         ..writeln(
           're-pick — update your availability (you are re-allocated '
           'at the next sharp hour)',
@@ -236,7 +213,12 @@ class Flows {
         ..writeln(
           'set-info — update your preferred name',
         )
-        ..writeln('my-status — your picks, allocation and attendance')
+        ..writeln(
+          outMember
+              ? 'my-status — your picks and allocation'
+              : 'my-status — your picks, allocation and attendance',
+        )
+        ..writeln(outMember ? '/notify — choose prompt frequency' : '')
         ..writeln(
           '\nUse the buttons above the keyboard to jump to a command. '
           'Type /grid to switch which grid you see (console only).',
@@ -251,7 +233,7 @@ class Flows {
 
     // First-time profile: collect the preferred name. Only prompted until
     // complete; /setinfo re-opens it later.
-    if (!retired && user.preferredName.isEmpty) {
+    if (user != null && !retired && !checker && user.preferredName.isEmpty) {
       await _startProfileWizard(ctx, userId, user);
     }
   }
@@ -345,9 +327,18 @@ class Flows {
       isConsole: true,
       isGlobalAdmin: ownUser?.isGlobalAdmin ?? false,
       isAdmin: ownUser?.isAdmin ?? false,
-      tier: ownUser?.memberTier ?? MemberTier.member,
+      tier: ownUser?.memberTier,
     );
-    final order = [ownGrid, 'gadmin', 'admin', 'check', 'member'];
+    final order = [
+      ownGrid,
+      'gadmin',
+      'admin',
+      'check',
+      'member',
+      MemberTier.outMember,
+      'old',
+      'console-only',
+    ].toSet().toList();
     final current = state.gridPreview[userId] ?? ownGrid;
     final next = order[(order.indexOf(current) + 1) % order.length];
     state.gridPreview[userId] = next;
@@ -381,7 +372,7 @@ class Flows {
       isConsole: true,
       isGlobalAdmin: user?.isGlobalAdmin ?? false,
       isAdmin: user?.isAdmin ?? false,
-      tier: user?.memberTier ?? MemberTier.member,
+      tier: user?.memberTier,
     );
     await ctx.reply(
       'Back to your console grid.',
@@ -400,7 +391,7 @@ class Flows {
       isConsole: config.isConsole(userId),
       isGlobalAdmin: user?.isGlobalAdmin ?? false,
       isAdmin: user?.isAdmin ?? false,
-      tier: user?.memberTier ?? MemberTier.member,
+      tier: user?.memberTier,
     );
   }
 
@@ -515,18 +506,110 @@ class Flows {
       );
     }
 
-    final stats = repo.attendanceStats(userId);
-    final byLoc = stats.byLocation.entries
-        .where((e) => e.value > 0)
-        .map((e) => '${e.value} ${repo.locationName(e.key)}')
-        .join(' · ');
-    sb.writeln(
-      '\n<b>Attendance</b>: ${stats.total} sessions total'
-      '${byLoc.isEmpty ? '' : ' ($byLoc)'}.',
-    );
+    if (user.memberTier != MemberTier.outMember) {
+      final stats = repo.attendanceStats(userId);
+      final byLoc = stats.byLocation.entries
+          .where((e) => e.value > 0)
+          .map((e) => '${e.value} ${repo.locationName(e.key)}')
+          .join(' · ');
+      sb.writeln(
+        '\n<b>Attendance</b>: ${stats.total} sessions total'
+        '${byLoc.isEmpty ? '' : ' ($byLoc)'}.',
+      );
+    }
 
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
   }
+
+  // ------------------------------------------------------------- /notify
+
+  Future<void> _onNotify(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+    final user = repo.findUser(userId);
+    if (user == null || user.memberTier != MemberTier.outMember) {
+      await ctx.reply('Only out-members can change notification frequency.');
+      return;
+    }
+    final args = ctx.args;
+    if (args.isNotEmpty) {
+      final preference = _parseNotificationPreference(args.first);
+      if (preference == null) {
+        await ctx.reply(_notifyUsage());
+        return;
+      }
+      await _saveNotificationPreference(ctx, userId, preference);
+      return;
+    }
+
+    var keyboard = InlineKeyboard();
+    keyboard = keyboard
+        .text('Every week', 'notify|weekly')
+        .row()
+        .text('Every other week', 'notify|every-other')
+        .row()
+        .text('Never', 'notify|never');
+    await ctx.reply(
+      'How often should I send the weekly availability prompt?',
+      replyMarkup: keyboard,
+    );
+  }
+
+  Future<void> _onNotifyCallback(Context ctx) async {
+    final userId = ctx.from!.id;
+    final parts = (ctx.callbackQuery?.data ?? '').split('|');
+    final preference = parts.length > 1
+        ? _parseNotificationPreference(parts[1])
+        : null;
+    await ctx.answerCallbackQuery();
+    if (preference == null) {
+      await ctx.editMessageText(_notifyUsage());
+      return;
+    }
+    final user = repo.findUser(userId);
+    if (user == null || user.memberTier != MemberTier.outMember) {
+      await ctx.editMessageText(
+        'Only out-members can change notification frequency.',
+      );
+      return;
+    }
+    await _saveNotificationPreference(ctx, userId, preference, edit: true);
+  }
+
+  Future<void> _saveNotificationPreference(
+    Context ctx,
+    int userId,
+    NotificationPreference preference, {
+    bool edit = false,
+  }) async {
+    repo.setNotificationPreference(userId, preference);
+    final text = '✅ Notification preference: ${_notificationLabel(preference)}.';
+    if (edit) {
+      await ctx.editMessageText(text);
+    } else {
+      await ctx.reply(text);
+    }
+  }
+
+  static NotificationPreference? _parseNotificationPreference(String raw) {
+    return switch (raw.toLowerCase()) {
+      'weekly' || 'week' => NotificationPreference.weekly,
+      'every-other' || 'every_other' || 'everyother' =>
+        NotificationPreference.everyOther,
+      'never' => NotificationPreference.never,
+      _ => null,
+    };
+  }
+
+  static String _notificationLabel(NotificationPreference preference) =>
+      switch (preference) {
+        NotificationPreference.weekly => 'every week',
+        NotificationPreference.everyOther => 'every other week',
+        NotificationPreference.never => 'never',
+      };
+
+  static String _notifyUsage() =>
+      'Usage: /notify weekly|every-other|never';
 
   static String _slotLabel(Slot slot, RollingWindow w, Repo repo) {
     final date = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
@@ -581,9 +664,11 @@ class Flows {
     final userId = ctx.from!.id;
     _recordSeen(ctx, userId);
     final user = repo.findUser(userId);
-    if (user == null) return;
     final isConsoleUser = config.isConsole(userId);
-    final tier = MemberTier.of(user, isConsole: isConsoleUser);
+    if (user == null && !isConsoleUser) return;
+    final tier = user == null
+        ? null
+        : MemberTier.of(user, isConsole: isConsoleUser);
     if (tier != MemberTier.check && !isConsoleUser) {
       await ctx.reply('Only checkers can view the weekly allocation.');
       return;
@@ -676,6 +761,8 @@ class Flows {
         await _cancelAvailability(ctx, userId, parts);
       case 'holidayout':
         await _optOutHoliday(ctx, userId, parts);
+      case 'notify':
+        await _onNotifyCallback(ctx);
     }
   }
 
@@ -924,6 +1011,7 @@ class Flows {
       repo.removeAllocationForUser(userId, sat);
       saved++;
     }
+    if (saved > 0) repo.setLastPromptState(userId, LastPromptState.responded);
     state.forgetAvailability(userId);
     state.availabilityMessages.remove(userId);
 
@@ -1005,8 +1093,11 @@ class Flows {
   /// /addadmin) before the user ever messaged the bot, register them now.
   void _autoRegisterPending(Context ctx, int userId, String username) {
     if (!repo.isPendingUser(username)) return;
-    final isAdmin = repo.pendingIsAdmin(username);
-    final tier = repo.pendingTier(username);
+    final pendingRole = repo.pendingRole(username);
+    final isAdmin = pendingRole?.isAdmin ?? false;
+    final tier = pendingRole?.tier ?? MemberTier.member;
+    final notificationPreference =
+        pendingRole?.notificationPreference ?? NotificationPreference.weekly;
     repo.removePendingUser(username);
 
     final existing = repo.findUser(userId);
@@ -1018,11 +1109,15 @@ class Flows {
           experience: Experience.newbie,
           group: '',
           memberTier: tier,
+          notificationPreference: notificationPreference,
         ),
       );
-      if (isAdmin) repo.updateAdmin(userId, true); // gets their own group
-    } else if (isAdmin) {
-      repo.updateAdmin(userId, true);
+      if (isAdmin) repo.setTier(userId, MemberTier.admin);
+    } else if (!existing.isGlobalAdmin) {
+      repo.setTier(
+        userId,
+        isAdmin ? MemberTier.admin : tier,
+      );
     }
     // /start provides the role-aware welcome and grid itself. Other first
     // contacts still receive them here after being auto-registered.
@@ -1030,11 +1125,14 @@ class Flows {
     if (messageText?.trim().startsWith('/start') ?? false) return;
     // Let the user know they're in — they can now use /start.
     final isCheck = tier == MemberTier.check && !isAdmin;
+    final isOutMember = tier == MemberTier.outMember && !isAdmin;
     ctx.reply(
       isAdmin
           ? 'Welcome! You have been added as an <b>admin</b>. Send /start to see your commands.'
           : isCheck
           ? 'Welcome! You have been added as a <b>checker</b>. Send /start to see your commands.'
+          : isOutMember
+          ? 'Welcome! You have been added as an <b>out-member</b>. Send /start to see your commands.'
           : 'Welcome! You have been added. Send /start to see your commands.',
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(
@@ -1042,6 +1140,8 @@ class Flows {
             ? 'admin'
             : isCheck
             ? 'check'
+            : isOutMember
+            ? MemberTier.outMember
             : 'member',
       ),
     );

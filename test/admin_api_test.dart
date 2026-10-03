@@ -325,6 +325,38 @@ void main() {
     expect(repo.findUser(7)!.isAdmin, false);
   });
 
+  test('API converts out-members and persists notification preference', () async {
+    repo.upsertUser(
+      User(id: 17, name: '@out', experience: Experience.newbie, group: '1'),
+    );
+    final (tierStatus, tierBody) = await call(
+      'POST',
+      '/api/users/17/tier',
+      body: {
+        'tier': 'out-member',
+        'notificationPreference': 'every-other',
+      },
+    );
+    expect(tierStatus, 200);
+    expect((tierBody as Map<String, dynamic>)['tier'], 'out-member');
+    expect(repo.findUser(17)!.notificationPreference,
+        NotificationPreference.everyOther);
+    expect(repo.findUser(17)!.group, isEmpty);
+
+    final (notifyStatus, notifyBody) = await call(
+      'POST',
+      '/api/users/17/notification',
+      body: {'preference': 'never'},
+    );
+    expect(notifyStatus, 200);
+    expect(
+      (notifyBody as Map<String, dynamic>)['notificationPreference'],
+      'never',
+    );
+    expect(repo.findUser(17)!.notificationPreference,
+        NotificationPreference.never);
+  });
+
   test('POST /api/hold flips the gate and persists it', () async {
     await call('POST', '/api/hold', body: {'held': true});
     expect(repo.isHeld(), true);

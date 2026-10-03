@@ -195,6 +195,7 @@ class Console {
     final userId = repo.userIdByUsername(handle);
     final existing = userId == null ? null : repo.findUser(userId);
     if (existing != null) {
+      repo.removePendingUser(handle);
       if (existing.memberTier == MemberTier.check && !existing.isAdmin) {
         await ctx.reply('✅ @$handle is already a checker.');
         return;
@@ -224,10 +225,18 @@ class Console {
       return;
     }
 
-    repo.addPendingUser(handle, isAdmin: false, tier: MemberTier.check);
+    final previous = repo.replacePendingUser(
+      handle,
+      isAdmin: false,
+      tier: MemberTier.check,
+    );
     await ctx.reply(
-      '✅ @$handle queued as a checker. The moment they message this bot, '
-      'they are registered automatically.',
+      previous == null
+          ? '✅ @$handle queued as a checker. The moment they message this bot, '
+            'they are registered automatically.'
+          : '⚠️ @$handle is not registered. The pending role '
+            '(${previous.effectiveTier}) was replaced with checker; they will '
+            'be registered when they message the bot.',
     );
   }
 
@@ -241,11 +250,24 @@ class Console {
     final userId = repo.userIdByUsername(handle);
     final existing = userId == null ? null : repo.findUser(userId);
     if (existing == null) {
+      final previous = repo.replacePendingUser(
+        handle,
+        isAdmin: true,
+        tier: MemberTier.member,
+      );
       await ctx.reply(
-        'That handle is not a registered user. Use /adduser first.',
+        previous == null
+            ? '⚠️ That handle is not a registered user. It was queued as an '
+              'admin and will be promoted when they message the bot.'
+            : '⚠️ That handle is not a registered user. The pending role '
+              '(${previous.effectiveTier}) was replaced with admin; they will '
+              'be promoted when they message the bot.',
       );
       return;
     }
+    // A registered account wins over a stale pending row. Console identity
+    // does not make the account immutable; only global-admin does.
+    repo.removePendingUser(handle);
     if (existing.isGlobalAdmin) {
       await ctx.reply('That user is already the global admin.');
       return;
@@ -254,10 +276,7 @@ class Console {
       await ctx.reply('✅ @$handle is already an admin.');
       return;
     }
-    if (existing.memberTier != MemberTier.member) {
-      repo.setTier(existing.id, MemberTier.member);
-    }
-    if (!repo.updateAdmin(existing.id, true)) {
+    if (!repo.setTier(existing.id, MemberTier.admin)) {
       await ctx.reply('That user cannot be promoted to normal admin.');
       return;
     }

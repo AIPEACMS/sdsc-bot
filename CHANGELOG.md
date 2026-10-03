@@ -5,6 +5,22 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.0.0] - 2026-10-03
+
+### Added
+
+- **Out-members.** Added the out-member role, notification preferences, and
+  the `notify` control alongside the normal availability grid.
+- **Role conversions.** Added `/addoutuser` and latest-request-wins handling
+  for pending member, out-member, checker, and admin roles.
+- **Independent console identity.** The console can operate alone or alongside
+  any normal account role without being auto-created as a member.
+
+### Changed
+
+- Out-members remain eligible for availability and allocation but are excluded
+  from attendance, experience, group, ask, broadcast, and absent-member flows.
+
 ## [3.2.5] - 2026-10-03
 
 ### Fixed

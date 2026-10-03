@@ -302,10 +302,10 @@ void main() {
   });
 
   test(
-    '/grid cycles console+gadmin → gadmin → admin → check → member',
+    '/grid cycles the stored role through the available previews',
     () async {
       await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: gadmin grid'));
+      expect(sent.last['text'], contains('Preview: admin grid'));
       expect(
         keyboardTexts(sent.last),
         containsAll([
@@ -321,10 +321,6 @@ void main() {
       expect(keyboardTexts(sent.last), isNot(contains('allocate')));
 
       await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: admin grid'));
-      expect(keyboardTexts(sent.last), contains('all-status'));
-
-      await sendText(1, '/grid');
       expect(sent.last['text'], contains('Preview: check grid'));
       expect(keyboardTexts(sent.last), contains('check-status'));
 
@@ -333,9 +329,8 @@ void main() {
       expect(keyboardTexts(sent.last), contains('re-pick'));
 
       await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: console-gadmin grid'));
-      expect(keyboardTexts(sent.last), contains('hold'));
-      expect(keyboardTexts(sent.last), isNot(contains('full-info')));
+      expect(sent.last['text'], contains('Preview: out-member grid'));
+      expect(keyboardTexts(sent.last), contains('notify'));
     },
   );
 

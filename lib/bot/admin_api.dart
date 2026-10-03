@@ -34,7 +34,8 @@ import 'service.dart';
 ///   GET   /api/state                    -> held flag, debug clock, cycle
 ///   GET   /api/users                    -> every user with tier + groups + attendance
 ///   POST  /api/users                    -> { "handle": "@name" } (register-or-queue)
-///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|old" }
+///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|out-member|old" }
+///   POST  /api/users/{id}/notification  -> { "preference": "weekly|every-other|never" }
 ///   POST  /api/users/{id}/admin         -> { "admin": true|false } (keeps member tier)
 ///   POST  /api/users/{id}/gadmin        -> { "gadmin": true|false } (singleton handoff)
 ///   POST  /api/users/{id}/exp           -> { "exp": "experienced|newbie" }
@@ -228,6 +229,9 @@ class AdminApi {
               return _setUserExp(id, bodyText);
             case 'group':
               return _setUserGroup(id, bodyText);
+            case 'notification':
+            case 'notify':
+              return _setUserNotification(id, bodyText);
           }
         }
       case 'assign-groups':
@@ -336,7 +340,9 @@ class AdminApi {
     if (isConsole) groups.add(MemberTier.console);
     if (u.isGlobalAdmin) groups.add(MemberTier.globalAdmin);
     if (u.isAdmin) groups.add(MemberTier.admin);
-    if (u.memberTier == MemberTier.check || u.memberTier == MemberTier.old) {
+    if (u.memberTier == MemberTier.check ||
+        u.memberTier == MemberTier.outMember ||
+        u.memberTier == MemberTier.old) {
       groups.add(u.memberTier);
     } else if (u.memberTier == MemberTier.member &&
         !u.isAdmin &&
@@ -348,24 +354,38 @@ class AdminApi {
   }
 
   List<Map<String, Object?>> _usersJson() {
-    return [
-      for (final u in repo.allUsers())
-        {
-          'id': u.id,
-          'name': u.name,
-          'tier': MemberTier.of(u, isConsole: config.isConsole(u.id)),
-          'groups': _groupsOf(u, isConsole: config.isConsole(u.id)),
-          'group': u.group,
-          'experience': u.experience.name,
-          'ocbcStreak': u.ocbcStreak,
-          'attendance': {
-            'total': repo.attendanceStats(u.id).total,
-            'ocbc': repo.attendanceStats(u.id).byLocation['ocbc'] ?? 0,
-            'pasirRis': repo.attendanceStats(u.id).byLocation['pasirRis'] ?? 0,
-            'byLocation': repo.attendanceStats(u.id).byLocation,
-          },
-        },
-    ];
+    return repo.allUsers().map(_userJson).toList();
+  }
+
+  Map<String, Object?> _userJson(User u) {
+    final attendance = u.memberTier == MemberTier.outMember
+        ? <String, Object?>{
+            'total': 0,
+            'ocbc': 0,
+            'pasirRis': 0,
+            'byLocation': <String, int>{},
+          }
+        : () {
+            final stats = repo.attendanceStats(u.id);
+            return <String, Object?>{
+              'total': stats.total,
+              'ocbc': stats.byLocation['ocbc'] ?? 0,
+              'pasirRis': stats.byLocation['pasirRis'] ?? 0,
+              'byLocation': stats.byLocation,
+            };
+          }();
+    return {
+      'id': u.id,
+      'name': u.name,
+      'tier': MemberTier.of(u, isConsole: config.isConsole(u.id)),
+      'groups': _groupsOf(u, isConsole: config.isConsole(u.id)),
+      'group': u.group,
+      'experience': u.experience.name,
+      'notificationPreference': _notificationValue(u.notificationPreference),
+      'lastPromptState': u.lastPromptState.name,
+      'ocbcStreak': u.ocbcStreak,
+      'attendance': attendance,
+    };
   }
 
   Future<(int, Object)> _setTier(int id, String bodyText) async {
@@ -377,9 +397,17 @@ class AdminApi {
       MemberTier.admin,
       MemberTier.check,
       MemberTier.member,
+      MemberTier.outMember,
       MemberTier.old,
     ].contains(tier)) {
       return (400, {'ok': false, 'error': 'bad tier'});
+    }
+    final preference = _notificationFromBody(body);
+    if ((body.containsKey('notificationPreference') ||
+            body.containsKey('preference') ||
+            body.containsKey('notify')) &&
+        preference == null) {
+      return (400, {'ok': false, 'error': 'bad notification preference'});
     }
     if (!repo.setTier(id, tier)) {
       return (
@@ -387,6 +415,7 @@ class AdminApi {
         {'ok': false, 'error': 'global admin role requires Telegram handoff'},
       );
     }
+    if (preference != null) repo.setNotificationPreference(id, preference);
     final updated = repo.findUser(id)!;
     LogRing.log(
       'admin API: ${user.name} ${user.isAdmin ? 'admin' : ''} → tier $tier',
@@ -397,6 +426,40 @@ class AdminApi {
         'ok': true,
         'user': updated.name,
         'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
+        'notificationPreference': _notificationValue(
+          updated.notificationPreference,
+        ),
+      },
+    );
+  }
+
+  Future<(int, Object)> _setUserNotification(
+    int id,
+    String bodyText,
+  ) async {
+    final user = repo.findUser(id);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    final body = _jsonBody(bodyText);
+    final preference = _notificationFromBody(body);
+    if (preference == null) {
+      return (
+        400,
+        {
+          'ok': false,
+          'error':
+              'expected {"preference": "weekly"|"every-other"|"never"}',
+        },
+      );
+    }
+    repo.setNotificationPreference(id, preference);
+    final updated = repo.findUser(id)!;
+    return (
+      200,
+      {
+        'ok': true,
+        'notificationPreference': _notificationValue(
+          updated.notificationPreference,
+        ),
       },
     );
   }
@@ -542,6 +605,9 @@ class AdminApi {
   Future<(int, Object)> _setUserExp(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    if (user.memberTier == MemberTier.outMember) {
+      return (400, {'ok': false, 'error': 'out-members have no experience control'});
+    }
     final body = _jsonBody(bodyText);
     final exp = (body['exp'] as String?) ?? '';
     if (exp != 'experienced' && exp != 'newbie') {
@@ -564,6 +630,9 @@ class AdminApi {
   Future<(int, Object)> _setUserGroup(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    if (user.memberTier == MemberTier.outMember) {
+      return (400, {'ok': false, 'error': 'out-members are not assigned to groups'});
+    }
     if (user.isAdmin || user.isGlobalAdmin) {
       return (
         400,
@@ -616,22 +685,74 @@ class AdminApi {
     if (handle.isEmpty || handle.contains(' ')) {
       return (400, {'ok': false, 'error': 'expected {"handle": "@username"}'});
     }
-    if (tier != MemberTier.member && tier != MemberTier.check) {
-      return (400, {'ok': false, 'error': 'tier must be "member" or "check"'});
+    if (tier != MemberTier.member &&
+        tier != MemberTier.outMember &&
+        tier != MemberTier.check) {
+      return (
+        400,
+        {'ok': false, 'error': 'tier must be "member", "out-member" or "check"'},
+      );
+    }
+    final preference = _notificationFromBody(body);
+    if ((body.containsKey('notificationPreference') ||
+            body.containsKey('preference') ||
+            body.containsKey('notify')) &&
+        preference == null) {
+      return (400, {'ok': false, 'error': 'bad notification preference'});
     }
     final isCheck = tier == MemberTier.check;
     final userId = repo.userIdByUsername(handle);
-    if (userId != null && repo.findUser(userId) != null) {
-      return (200, {'ok': true, 'message': '@$handle is already a member.'});
+    final existing = userId == null ? null : repo.findUser(userId);
+    final pending = repo.pendingRole(handle);
+    if (existing != null) {
+      repo.removePendingUser(handle);
+      if (existing.isGlobalAdmin) {
+        return (409, {'ok': false, 'error': 'global admin cannot be converted'});
+      }
+      if (existing.isAdmin) {
+        return (
+          409,
+          {
+            'ok': false,
+            'error': 'user is already an admin; demote them before conversion',
+          },
+        );
+      }
+      if (existing.memberTier == tier) {
+        if (preference != null) repo.setNotificationPreference(existing.id, preference);
+        return (
+          200,
+          {
+            'ok': true,
+            'message': '@$handle is already a ${_tierLabel(tier)}.',
+          },
+        );
+      }
+      if (!repo.setTier(existing.id, tier)) {
+        return (409, {'ok': false, 'error': 'user cannot be converted'});
+      }
+      if (preference != null) repo.setNotificationPreference(existing.id, preference);
+      return (
+        200,
+        {'ok': true, 'message': '@$handle converted to ${_tierLabel(tier)}.'},
+      );
     }
-    if (repo.isPendingUser(handle)) {
+    if (pending != null) {
+      repo.replacePendingUser(
+        handle,
+        isAdmin: false,
+        tier: tier,
+        notificationPreference:
+            preference ?? NotificationPreference.weekly,
+      );
       return (
         200,
         {
           'ok': true,
-          'message':
-              '@$handle is already queued — they will be registered the '
-              'first time they message the bot.',
+          'warning': true,
+          'message': '@$handle is not registered; pending role '
+              '${_tierLabel(pending.effectiveTier)} was replaced with '
+              '${_tierLabel(tier)}.',
         },
       );
     }
@@ -641,10 +762,11 @@ class AdminApi {
           id: userId,
           name: '@$handle',
           experience: Experience.newbie,
-          group: 'A',
+          group: '',
           memberTier: tier,
         ),
       );
+      if (preference != null) repo.setNotificationPreference(userId, preference);
       return (
         200,
         {
@@ -656,7 +778,12 @@ class AdminApi {
         },
       );
     }
-    repo.addPendingUser(handle, isAdmin: false, tier: tier);
+    repo.addPendingUser(
+      handle,
+      isAdmin: false,
+      tier: tier,
+      notificationPreference: preference ?? NotificationPreference.weekly,
+    );
     return (
       200,
       {
@@ -712,6 +839,9 @@ class AdminApi {
     }
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    if (user.memberTier == MemberTier.outMember) {
+      return (400, {'ok': false, 'error': 'out-members are excluded from /ask'});
+    }
     final now = config.toLocal(Config.nowUtc());
     final w = _window(now);
     final holiday = service.optedOutHolidayFor(user, w);
@@ -754,6 +884,7 @@ class AdminApi {
     }
     var sent = 0;
     for (final user in repo.activeUsers()) {
+      if (user.memberTier == MemberTier.outMember) continue;
       try {
         await service.bot.api.sendMessage(ChatID(user.id), text);
         sent++;
@@ -774,6 +905,7 @@ class AdminApi {
     final bySession = <int, List<User>>{};
     for (final sat in w.weekends) {
       for (final (u, s) in repo.allocationsForWeekend(sat)) {
+        if (u.memberTier == MemberTier.outMember) continue;
         bySession.putIfAbsent(s.id, () => []).add(u);
       }
     }
@@ -845,6 +977,12 @@ class AdminApi {
     final user = repo.findUser(userId);
     if (user == null) {
       return (404, {'ok': false, 'error': 'no such user'});
+    }
+    if (user.memberTier == MemberTier.outMember) {
+      return (
+        400,
+        {'ok': false, 'error': 'out-members are excluded from attendance'},
+      );
     }
     final state = (body['state'] as String?) ?? 'unmarked';
     switch (state) {
@@ -983,4 +1121,31 @@ class AdminApi {
     if (text.trim().isEmpty) return {};
     return jsonDecode(text) as Map<String, dynamic>;
   }
+
+  static NotificationPreference? _notificationFromBody(
+    Map<String, dynamic> body,
+  ) {
+    final raw =
+        body['notificationPreference'] ?? body['preference'] ?? body['notify'];
+    if (raw == null) return null;
+    if (raw is! String) return null;
+    return switch (raw.toLowerCase()) {
+      'weekly' || 'week' => NotificationPreference.weekly,
+      'every-other' || 'every_other' || 'everyother' =>
+        NotificationPreference.everyOther,
+      'never' => NotificationPreference.never,
+      _ => null,
+    };
+  }
+
+  static String _notificationValue(NotificationPreference preference) =>
+      preference == NotificationPreference.everyOther
+      ? 'every-other'
+      : preference.name;
+
+  static String _tierLabel(String tier) => tier == MemberTier.outMember
+      ? 'out-member'
+      : tier == MemberTier.member
+      ? 'member'
+      : tier;
 }

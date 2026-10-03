@@ -22,6 +22,38 @@ Config _config(String path) => Config(
 );
 
 void main() {
+  test('v4 user columns migrate idempotently and keep their defaults', () {
+    final tmp = Directory.systemTemp.createTempSync('sdsc_v4_mig_');
+    final path = '${tmp.path}/old.db';
+    final old = sqlite.sqlite3.open(path);
+    old.execute('''
+CREATE TABLE users (
+  id INTEGER PRIMARY KEY,
+  name TEXT NOT NULL,
+  experience TEXT NOT NULL DEFAULT 'newbie',
+  group_id TEXT NOT NULL DEFAULT '',
+  is_admin INTEGER NOT NULL DEFAULT 0,
+  ocbc_streak INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)
+''');
+    old.execute("INSERT INTO users (id, name) VALUES (7, 'old row')");
+    old.close();
+
+    final first = Database.open(_config(path));
+    final firstUser = Repo(first).findUser(7)!;
+    expect(firstUser.notificationPreference, NotificationPreference.weekly);
+    expect(firstUser.lastPromptState, LastPromptState.none);
+    first.close();
+
+    final second = Database.open(_config(path));
+    final secondUser = Repo(second).findUser(7)!;
+    expect(secondUser.notificationPreference, NotificationPreference.weekly);
+    expect(secondUser.lastPromptState, LastPromptState.none);
+    second.close();
+    tmp.deleteSync(recursive: true);
+  });
+
   test('a legacy cycle-keyed database migrates to the weekend-keyed model', () {
     final tmp = Directory.systemTemp.createTempSync('sdsc_mig_');
     final path = '${tmp.path}/old.db';
