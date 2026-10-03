@@ -149,12 +149,15 @@ class SetTime {
       temporary
           ? 'Send one line per session for one week. Use '
                 '<code>mon as 2026-09-21 9:00 13:00 PR 5</code> for an explicit date, '
-                'or <code>thu 9:00 13:00 PR 5</code> for the next Thursday.\n\n'
+                'or <code>thu 9:00 13:00 PR 5</code> for the next Thursday.\n'
+                'Example without a max: <code>sun 13 15 ocbc</code>.\n\n'
                 'The first line chooses the week; all later lines must be in that same week. '
                 'Send <b>done</b> when finished.'
           : 'Send one line per session:\n'
-                '<code>&lt;day&gt; &lt;startTime&gt; &lt;endTime&gt; &lt;location&gt; [&lt;max&gt;]</code>\n\n'
-                'For example: <code>sat 9:00 13:00 PR 5</code>\n\n'
+                '<code>&lt;day&gt; &lt;startTime&gt; &lt;endTime&gt; &lt;location&gt; '
+                '[&lt;max-num-ppl&gt;]</code>\n\n'
+                'Examples: <code>sat 9:00 13:00 PR 5</code> or '
+                '<code>sun 13 15 ocbc</code>.\n\n'
                 'Send <b>done</b> when finished.',
       parseMode: ParseMode.html,
       replyMarkup: InlineKeyboard().text('❌ Cancel', 'settime|no'),
@@ -510,7 +513,11 @@ class SetTime {
     await _showConfirmation(ctx, userId);
   }
 
-  Future<void> _showConfirmation(Context ctx, int userId) async {
+  Future<void> _showConfirmation(
+    Context ctx,
+    int userId, {
+    bool edit = false,
+  }) async {
     final draft = _drafts[userId]!;
     if (draft.scope == _SetTimeScope.temporary &&
         draft.targetSaturday == null) {
@@ -543,14 +550,27 @@ class SetTime {
       await _showConflictQuestion(ctx, userId);
       return;
     }
-    await ctx.reply(
-      _confirmationText(draft),
-      parseMode: ParseMode.html,
-      replyMarkup: Pickers.confirm('settime'),
-    );
+    final text = _confirmationText(draft);
+    if (edit) {
+      await ctx.editMessageText(
+        text,
+        parseMode: ParseMode.html,
+        replyMarkup: Pickers.confirm('settime'),
+      );
+    } else {
+      await ctx.reply(
+        text,
+        parseMode: ParseMode.html,
+        replyMarkup: Pickers.confirm('settime'),
+      );
+    }
   }
 
-  Future<void> _showConflictQuestion(Context ctx, int userId) async {
+  Future<void> _showConflictQuestion(
+    Context ctx,
+    int userId, {
+    bool edit = false,
+  }) async {
     final draft = _drafts[userId]!;
     final conflict = draft.conflicts![draft.conflictIndex];
     final rows = draft.afterRows!
@@ -561,17 +581,19 @@ class SetTime {
             '${Slot.dayName(row.day)} ${prettyClock(row.start)}-'
             '${prettyClock(row.end)} ${repo.locationName(row.location)}')
         .join('\n');
-    await ctx.reply(
-      '<b>Overlapping sessions found</b>\n\n$description\n\n'
-      'Are these the same session with different durations, or two separate sessions?',
-      parseMode: ParseMode.html,
-      replyMarkup: InlineKeyboard()
-          .text('Same session', 'settime-conflict|same')
-          .row()
-          .text('Two sessions', 'settime-conflict|separate')
-          .row()
-          .text('❌ Cancel', 'settime|no'),
-    );
+    final text = '<b>Overlapping sessions found</b>\n\n$description\n\n'
+        'Are these the same session with different durations, or two separate sessions?';
+    final keyboard = InlineKeyboard()
+        .text('Same session', 'settime-conflict|same')
+        .row()
+        .text('Two sessions', 'settime-conflict|separate')
+        .row()
+        .text('❌ Cancel', 'settime|no');
+    if (edit) {
+      await ctx.editMessageText(text, parseMode: ParseMode.html, replyMarkup: keyboard);
+    } else {
+      await ctx.reply(text, parseMode: ParseMode.html, replyMarkup: keyboard);
+    }
   }
 
   Future<void> _resolveConflict(Context ctx, int userId, String choice) async {
@@ -586,13 +608,9 @@ class SetTime {
     ];
     draft.conflictIndex++;
     if (draft.conflictIndex < draft.conflicts!.length) {
-      await _showConflictQuestion(ctx, userId);
+      await _showConflictQuestion(ctx, userId, edit: true);
     } else {
-      await ctx.reply(
-        _confirmationText(draft),
-        parseMode: ParseMode.html,
-        replyMarkup: Pickers.confirm('settime'),
-      );
+      await _showConfirmation(ctx, userId, edit: true);
     }
   }
 
