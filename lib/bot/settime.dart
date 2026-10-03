@@ -165,8 +165,15 @@ class SetTime {
       final line = raw.trim();
       if (line.isEmpty) continue;
       final parsed = draft.scope == _SetTimeScope.temporary
-          ? parseTargetSessionLine(line, config.toLocal(Config.nowUtc()))
-          : parseSessionLine(line);
+          ? parseTargetSessionLine(
+              line,
+              config.toLocal(Config.nowUtc()),
+              resolveLocation: (token) => repo.resolveLocation(token)?.key,
+            )
+          : parseSessionLine(
+              line,
+              resolveLocation: (token) => repo.resolveLocation(token)?.key,
+            );
       if (parsed is String) {
         errors.add('❌ $line — $parsed');
         continue;
@@ -422,9 +429,10 @@ class SetTime {
         ? repo.locationName(key)
         : (draft.requestedNames[line.locationToken] ?? line.locationToken);
     final date = line.targetDate == null ? '' : ' ${_date(line.targetDate!)}';
+    final max = line.maxPeople == null ? '' : ' ${line.maxPeople}';
     return 'Session $n: ${Slot.dayName(line.day)}$date '
         '${prettyClock(line.start)} to ${prettyClock(line.end)} '
-        'at location: $loc';
+        'at location: $loc$max';
   }
 
   String _confirmationText(_Draft draft) {
@@ -462,7 +470,8 @@ class SetTime {
       sb.writeln(
         '${i + 1}. ${Slot.dayName(row.day)} '
         '${prettyClock(row.start)} to ${prettyClock(row.end)} '
-        'at location: ${_html(repo.locationName(row.location))}',
+        'at location: ${_html(repo.locationName(row.location))}'
+        '${row.maxPeople == null ? '' : ' ${row.maxPeople}'}',
       );
     }
   }
@@ -476,7 +485,12 @@ class SetTime {
       case _SetTimeAction.add:
         rows = [...before];
         for (final row in additions) {
-          if (!rows.any((old) => _sameRow(old, row))) rows.add(row);
+          final index = rows.indexWhere((old) => _sameRow(old, row));
+          if (index < 0) {
+            rows.add(row);
+          } else if (row.maxPeople != null) {
+            rows[index] = row;
+          }
         }
       case _SetTimeAction.remove:
         rows = before
@@ -496,6 +510,7 @@ class SetTime {
           start: row.start,
           end: row.end,
           location: row.location,
+          maxPeople: row.maxPeople,
         ),
       );
     }

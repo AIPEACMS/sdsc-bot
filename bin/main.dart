@@ -147,7 +147,7 @@ Future<void> main() async {
   flows.onSetTimeText = setTime.onText;
   flows.onSetTimeNewNameText = setTime.onNewNameText;
   flows.onAddAliasText = console.onAddAliasText;
-  flows.onAvailabilitySaved = scheduler.scheduleDynamicAllocation;
+  flows.onAvailabilitySaved = scheduler.allocateImmediately;
 
   // Long polling hits the odd transient network hiccup; the bot retries by
   // itself and keeps running. Log those once per window instead of dumping the

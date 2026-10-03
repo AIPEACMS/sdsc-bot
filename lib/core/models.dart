@@ -22,6 +22,7 @@ class ScheduleSlot {
   final String start; // 'HH:MM'
   final String end; // 'HH:MM'
   final String location; // location key
+  final int? maxPeople;
 
   const ScheduleSlot({
     required this.day,
@@ -29,6 +30,7 @@ class ScheduleSlot {
     required this.start,
     required this.end,
     required this.location,
+    this.maxPeople,
   });
 }
 
@@ -383,6 +385,7 @@ class Session {
   final String location; // location key
   final DateTime start; // actual date+time
   final DateTime end;
+  final int? maxPeople;
 
   const Session({
     required this.id,
@@ -392,6 +395,7 @@ class Session {
     required this.location,
     required this.start,
     required this.end,
+    this.maxPeople,
   });
 
   String slotKey() => '$day:$slot';
@@ -412,6 +416,7 @@ class Session {
     location: row['location'] as String,
     start: DateTime.parse(row['start_at'] as String),
     end: DateTime.parse(row['end_at'] as String),
+    maxPeople: row['max_people'] as int?,
   );
 }
 

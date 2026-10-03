@@ -3,7 +3,7 @@ import 'models.dart';
 /// Result of running the allocator: one entry per (user, session).
 typedef AllocationResult = List<(int userId, int sessionId)>;
 
-/// Volunteer allocator with no capacity limits.
+/// Volunteer allocator with optional per-session capacity limits.
 ///
 /// Rules:
 ///  - **Want picks** (the member's commitment) are allocated first — every
@@ -30,6 +30,7 @@ class Allocator {
       for (final (uid, sid) in locked) (uid, sid),
     ];
     final sessionById = {for (final s in sessions) s.id: s};
+    final allocatedBySession = <int, int>{};
 
     Session? sessionFor(Availability availability, Slot slot) {
       for (final s in sessions) {
@@ -55,12 +56,25 @@ class Allocator {
       if (s != null) heldByUser.putIfAbsent(uid, () => []).add(s);
     }
 
+    bool hasCapacity(Session s) =>
+        s.maxPeople == null ||
+        (allocatedBySession[s.id] ?? 0) < s.maxPeople!;
+
     void assign(int userId, Session s) {
       result.add((userId, s.id));
       heldByUser.putIfAbsent(userId, () => []).add(s);
+      allocatedBySession[s.id] = (allocatedBySession[s.id] ?? 0) + 1;
     }
 
-    final open = availability.where((a) => a.available).toList();
+    for (final (_, sid) in locked) {
+      allocatedBySession[sid] = (allocatedBySession[sid] ?? 0) + 1;
+    }
+
+    final open = availability.where((a) => a.available).toList()
+      ..sort((a, b) {
+        final byTime = a.updatedAt.compareTo(b.updatedAt);
+        return byTime != 0 ? byTime : a.userId.compareTo(b.userId);
+      });
 
     // Pass 1: every want pick, as long as its time does not overlap one held.
     for (final av in open) {
@@ -68,6 +82,7 @@ class Allocator {
         final session = sessionFor(av, slot);
         if (session == null) continue;
         if (conflicts(av.userId, session)) continue;
+        if (!hasCapacity(session)) continue;
         assign(av.userId, session);
       }
     }
@@ -106,7 +121,9 @@ class Allocator {
           return a.id.compareTo(b.id);
         });
       }
-      assign(entry.key, entry.value.first);
+      final candidate = entry.value.where(hasCapacity).firstOrNull;
+      if (candidate == null) continue;
+      assign(entry.key, candidate);
       backupAssigned.add(entry.key);
     }
 

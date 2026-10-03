@@ -117,7 +117,9 @@ void main() {
       state: state,
       service: service,
     );
-    flows.onAvailabilitySaved = () => dynamicRuns++;
+    flows.onAvailabilitySaved = () async {
+      dynamicRuns++;
+    };
     flows.register();
 
     final startFuture = bot.start();
@@ -290,6 +292,32 @@ void main() {
         .toList();
     expect(labels, contains('Sat 15 Aug (locked)'));
     expect(labels, contains('🔕 Skip me for the whole winter holiday'));
+  });
+
+  test('full limited sessions show allocated capacity and are not selectable', () {
+    final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
+    final limited = Session(
+      id: 99,
+      weekendStart: w.sat0,
+      day: 'sat',
+      slot: 'limited',
+      location: 'ocbc',
+      start: DateTime(2026, 8, 15, 9),
+      end: DateTime(2026, 8, 15, 15),
+      maxPeople: 3,
+    );
+    final keyboard = CycleService.buildKeyboard(
+      w,
+      (const {}, const {}),
+      now: DateTime(2026, 8, 12),
+      sessions: [limited],
+      allocatedCounts: {99: 3},
+      locationName: (k) => k,
+    );
+    final buttons = keyboard.inlineKeyboard.expand((row) => row).toList();
+    final full = buttons.firstWhere((button) => button.text.contains('[3/3]'));
+    expect(full.text, contains('⛔'));
+    expect(full.callbackData, startsWith('full|'));
   });
 
   test(
