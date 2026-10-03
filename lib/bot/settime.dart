@@ -46,6 +46,10 @@ class SetTime {
         if (_isGadmin(ctx)) await _onChoice(ctx, head);
         return;
       }
+      if (head == 'settime-week' || head == 'settime-remove') {
+        if (_isGadmin(ctx)) await _onRemoveChoice(ctx, head);
+        return;
+      }
       if (head == 'stloc') {
         if (_isGadmin(ctx)) await _onLocationChoice(ctx);
         return;
@@ -125,6 +129,15 @@ class SetTime {
       'remove' => _SetTimeAction.remove,
       _ => _SetTimeAction.rewrite,
     };
+    if (draft.action == _SetTimeAction.remove) {
+      state.pendingArg.remove(userId);
+      if (draft.scope == _SetTimeScope.temporary) {
+        await _showTemporaryWeekPicker(ctx, userId);
+      } else {
+        await _showRemovePicker(ctx, userId);
+      }
+      return;
+    }
     state.pendingArg[userId] = PendingArg('settime');
     final temporary = draft.scope == _SetTimeScope.temporary;
     await ctx.editMessageText(
@@ -141,6 +154,110 @@ class SetTime {
       parseMode: ParseMode.html,
       replyMarkup: InlineKeyboard().text('❌ Cancel', 'settime|no'),
     );
+  }
+
+  Future<void> _onRemoveChoice(Context ctx, String head) async {
+    await ctx.answerCallbackQuery();
+    final userId = ctx.from!.id;
+    final draft = _drafts[userId];
+    if (draft == null) {
+      await ctx.editMessageText('This draft has expired. Start again with /settime.');
+      return;
+    }
+    final parts = (ctx.callbackQuery?.data ?? '').split('|');
+    final value = parts.length > 1 ? parts[1] : '';
+    if (head == 'settime-week') {
+      final sat = DateTime.tryParse(value);
+      if (sat == null) return;
+      draft.targetSaturday = sat;
+      await _showRemovePicker(ctx, userId);
+      return;
+    }
+    if (value == 'done') {
+      if (draft.removeRows.isEmpty) {
+        await ctx.editMessageText('Select at least one session to remove.');
+        return;
+      }
+      await _showConfirmation(ctx, userId);
+      return;
+    }
+    final index = int.tryParse(value);
+    if (index == null || index < 0 || index >= draft.beforeRows!.length) return;
+    final row = draft.beforeRows![index];
+    final key = _rowKey(row);
+    if (draft.removeKeys.contains(key)) {
+      draft.removeKeys.remove(key);
+    } else {
+      draft.removeKeys.add(key);
+    }
+    draft.removeRows
+      ..clear()
+      ..addAll(
+        draft.beforeRows!.where((candidate) => draft.removeKeys.contains(_rowKey(candidate))),
+      );
+    await _showRemovePicker(ctx, userId, edit: true);
+  }
+
+  Future<void> _showTemporaryWeekPicker(Context ctx, int userId) async {
+    final draft = _drafts[userId]!;
+    final now = config.toLocal(Config.nowUtc());
+    final window = RollingWindow.forDate(
+      now,
+      promptHour: config.promptHour,
+      reminderHour: config.reminderHour,
+    );
+    var kb = InlineKeyboard();
+    for (final sat in [window.sat0, window.sat1]) {
+      if (window.locked(sat, now)) continue;
+      kb = kb.text(
+        'Week ${_date(sat)} - ${_date(sat.add(const Duration(days: 6)))}',
+        'settime-week|${_date(sat)}',
+      ).row();
+    }
+    kb = kb.text('❌ Cancel', 'settime|no');
+    await ctx.editMessageText(
+      'Choose the week whose sessions you want to remove:',
+      replyMarkup: kb,
+    );
+  }
+
+  Future<void> _showRemovePicker(
+    Context ctx,
+    int userId, {
+    bool edit = false,
+  }) async {
+    final draft = _drafts[userId]!;
+    final before = draft.scope == _SetTimeScope.temporary
+        ? repo.scheduleForWeekend(draft.targetSaturday!)
+        : repo.scheduleTemplate();
+    draft.beforeRows = before;
+    var kb = InlineKeyboard();
+    for (var i = 0; i < before.length; i++) {
+      final row = before[i];
+      final selected = draft.removeKeys.contains(_rowKey(row));
+      final max = row.maxPeople == null ? '' : ' ${row.maxPeople}';
+      kb = kb
+          .text(
+            '${selected ? '☑' : '☐'} ${Slot.dayName(row.day)} '
+            '${prettyClock(row.start)}-${prettyClock(row.end)} '
+            '${repo.locationName(row.location)}$max',
+            'settime-remove|$i',
+          )
+          .row();
+    }
+    kb = kb
+        .text('✅ Confirm selection', 'settime-remove|done')
+        .row()
+        .text('❌ Cancel', 'settime|no');
+    final text = draft.scope == _SetTimeScope.temporary
+        ? 'Select sessions to remove from week ${_date(draft.targetSaturday!)} '
+            '- ${_date(draft.targetSaturday!.add(const Duration(days: 6)))}:'
+        : 'Select recurring sessions to remove:';
+    if (edit) {
+      await ctx.editMessageText(text, replyMarkup: kb);
+    } else {
+      await ctx.editMessageText(text, replyMarkup: kb);
+    }
   }
 
   /// Entry point for the wizard: the gadmin typed one or more lines.
@@ -226,7 +343,9 @@ class SetTime {
   Future<void> _finish(Context ctx, int userId) async {
     final draft = _drafts[userId];
     if (draft == null) return;
-    if (draft.lines.isEmpty) {
+    if (draft.action == _SetTimeAction.remove
+        ? draft.removeRows.isEmpty
+        : draft.lines.isEmpty) {
       await ctx.reply(
         'Nothing to set. Send a session line first, or /settime.',
       );
@@ -394,9 +513,10 @@ class SetTime {
       await ctx.reply('Send at least one dated session before finishing.');
       return;
     }
-    final before = draft.scope == _SetTimeScope.temporary
-        ? repo.scheduleForWeekend(draft.targetSaturday!)
-        : repo.scheduleTemplate();
+    final before = draft.beforeRows ??=
+        draft.scope == _SetTimeScope.temporary
+            ? repo.scheduleForWeekend(draft.targetSaturday!)
+            : repo.scheduleTemplate();
     final after = _applyDraft(before, draft);
     if (after.isEmpty) {
       await ctx.reply(
@@ -477,7 +597,9 @@ class SetTime {
   }
 
   List<ScheduleSlot> _applyDraft(List<ScheduleSlot> before, _Draft draft) {
-    final additions = draft.parseRows(repo);
+    final additions = draft.action == _SetTimeAction.remove
+        ? draft.removeRows
+        : draft.parseRows(repo);
     List<ScheduleSlot> rows;
     switch (draft.action) {
       case _SetTimeAction.rewrite:
@@ -522,6 +644,9 @@ class SetTime {
       a.start == b.start &&
       a.end == b.end &&
       a.location == b.location;
+
+  static String _rowKey(ScheduleSlot row) =>
+      '${row.day}|${row.start}|${row.end}|${row.location}';
 
   Future<void> _onConfirmOrCancel(Context ctx) async {
     await ctx.answerCallbackQuery();
@@ -666,6 +791,8 @@ class _Draft {
   DateTime? targetSaturday;
   List<ScheduleSlot>? beforeRows;
   List<ScheduleSlot>? afterRows;
+  final Set<String> removeKeys = {};
+  final List<ScheduleSlot> removeRows = [];
 
   /// Raw token → resolved location key (approved locations only).
   final Map<String, String> resolved = {};

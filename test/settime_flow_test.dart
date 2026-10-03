@@ -29,6 +29,7 @@ void main() {
   late Flows flows;
   late SetTime setTime;
   late List<Map<String, dynamic>> sent;
+  late List<Map<String, dynamic>> edited;
   late HttpServer server;
   late Bot bot;
 
@@ -57,6 +58,7 @@ void main() {
     state = BotState();
 
     sent = <Map<String, dynamic>>[];
+    edited = <Map<String, dynamic>>[];
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
       final path = req.uri.path;
@@ -87,6 +89,7 @@ void main() {
       } else if (path.endsWith('/editMessageText') ||
           path.endsWith('/editMessageReplyMarkup')) {
         final body = jsonDecode(await utf8.decoder.bind(req).join());
+        edited.add(body as Map<String, dynamic>);
         await _json(req, {
           'ok': true,
           'result': {
@@ -318,6 +321,22 @@ void main() {
     expect(pickers(3), isEmpty);
     // ...and neither does the member who never responded.
     expect(pickers(4), isEmpty);
+  });
+
+  test('remove sessions uses tick buttons and confirmation', () async {
+    await sendText(1, '/settime');
+    await sendCallback(1, 'settime-scope|persistent');
+    await sendCallback(1, 'settime-action|remove');
+    expect(edited.last['text'], contains('Select recurring sessions to remove'));
+
+    await sendCallback(1, 'settime-remove|0');
+    await sendCallback(1, 'settime-remove|done');
+    final confirmation = sent.last['text'] as String;
+    expect(confirmation, contains('Before change:'));
+    expect(confirmation, contains('After change:'));
+
+    await sendCallback(1, 'settime|yes');
+    expect(repo.scheduleTemplate(), hasLength(3));
   });
 }
 
