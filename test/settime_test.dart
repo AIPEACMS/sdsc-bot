@@ -53,6 +53,32 @@ void main() {
       expect(prettyClock('09:00'), '9:00');
       expect(prettyClock('13:30'), '13:30');
     });
+
+    test('temporary lines resolve explicit dates and next weekdays', () {
+      final now = DateTime(2026, 9, 16); // Wednesday
+      final explicit = parseTargetSessionLine(
+        'mon as 2026-09-21 9:00 13:00 PR',
+        now,
+      ) as ParsedSession;
+      expect(explicit.targetDate, DateTime(2026, 9, 21));
+      expect(explicit.day, 'mon');
+      final nextThursday =
+          parseTargetSessionLine('thu 9:00 13:00 PR', now) as ParsedSession;
+      expect(nextThursday.targetDate, DateTime(2026, 9, 17));
+      final nextMonday =
+          parseTargetSessionLine('mon 9:00 13:00 PR', now) as ParsedSession;
+      expect(nextMonday.targetDate, DateTime(2026, 9, 21));
+    });
+
+    test('temporary explicit date must match its weekday', () {
+      expect(
+        parseTargetSessionLine(
+          'mon as 2026-09-20 9:00 13:00 PR',
+          DateTime(2026, 9, 16),
+        ),
+        isA<String>(),
+      );
+    });
   });
 
   group('locations', () {
@@ -260,7 +286,11 @@ void main() {
       ]) {
         final commands =
             RoleKeyboard.gridButtons(role).map((b) => b.command).toSet();
-        expect(commands.contains('/settime'), isFalse, reason: role);
+        expect(
+          commands.contains('/settime'),
+          role == 'gadmin' || role == 'console-gadmin',
+          reason: role,
+        );
         expect(commands.contains('/addalias'), isFalse, reason: role);
       }
     });

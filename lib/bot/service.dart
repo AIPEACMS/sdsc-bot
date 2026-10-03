@@ -127,11 +127,10 @@ class CycleService {
   /// per-weekend run is reconciled down to one backup without moving it.
   Future<void> allocateBundle(RollingWindow window) async {
     final weekends = [window.sat0, window.sat1];
-    final template = repo.scheduleTemplate();
     for (final sat in weekends) {
       repo.ensureSessionsForWeekend(
         sat,
-        template,
+        repo.scheduleForWeekend(sat),
         tzOffsetHours: config.timezoneOffsetHours,
       );
     }
@@ -398,11 +397,10 @@ class CycleService {
   /// Sends (or edits an existing) availability keyboard message to [user].
   Future<void> showAvailability(User user, RollingWindow w, String text) async {
     // The window's sessions must exist before we can render them.
-    final template = repo.scheduleTemplate();
     for (final sat in [w.sat0, w.sat1]) {
       repo.ensureSessionsForWeekend(
         sat,
-        template,
+        repo.scheduleForWeekend(sat),
         tzOffsetHours: config.timezoneOffsetHours,
       );
     }

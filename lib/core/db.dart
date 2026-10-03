@@ -162,6 +162,16 @@ CREATE TABLE IF NOT EXISTS schedule_template (
   end_at TEXT NOT NULL,
   location_key TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS schedule_overrides (
+  weekend_start TEXT NOT NULL,
+  day TEXT NOT NULL,
+  slot TEXT NOT NULL,
+  start_at TEXT NOT NULL,
+  end_at TEXT NOT NULL,
+  location_key TEXT NOT NULL,
+  PRIMARY KEY (weekend_start, day, slot, location_key)
+);
 ''');
 
     // Column migration for databases created before member_tier existed.
@@ -324,7 +334,12 @@ NOT EXISTS (
   SELECT 1 FROM schedule_template t
   WHERE t.day = sessions.day AND t.slot = sessions.slot
     AND t.location_key = sessions.location
-)''';
+ ) AND NOT EXISTS (
+   SELECT 1 FROM schedule_overrides o
+   WHERE o.weekend_start = sessions.weekend_start
+     AND o.day = sessions.day AND o.slot = sessions.slot
+     AND o.location_key = sessions.location
+ )''';
     db.execute(
       'DELETE FROM allocations WHERE session_id IN '
       '(SELECT id FROM sessions WHERE $staleSessions)',

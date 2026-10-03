@@ -784,6 +784,26 @@ ON CONFLICT(username) DO UPDATE SET
       )
       .toList();
 
+  List<ScheduleSlot> scheduleForWeekend(DateTime sat) {
+    final rows = raw.select(
+      'SELECT day, slot, start_at, end_at, location_key '
+      'FROM schedule_overrides WHERE weekend_start = ? ORDER BY rowid',
+      [_dayKey(sat)],
+    );
+    if (rows.isEmpty) return scheduleTemplate();
+    return rows
+        .map(
+          (r) => ScheduleSlot(
+            day: r['day'] as String,
+            slot: r['slot'] as String,
+            start: r['start_at'] as String,
+            end: r['end_at'] as String,
+            location: r['location_key'] as String,
+          ),
+        )
+        .toList();
+  }
+
   /// Replaces the whole template (transactional). [rows] must be non-empty.
   void replaceScheduleTemplate(List<ScheduleSlot> rows) {
     final tx = raw;
@@ -802,6 +822,39 @@ ON CONFLICT(username) DO UPDATE SET
       tx.execute('ROLLBACK');
       rethrow;
     }
+  }
+
+  void replaceScheduleOverride(
+    DateTime sat,
+    List<ScheduleSlot> rows, {
+    required int tzOffsetHours,
+  }) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      tx.execute('DELETE FROM schedule_overrides WHERE weekend_start = ?', [
+        _dayKey(sat),
+      ]);
+      for (final r in rows) {
+        tx.execute(
+          'INSERT INTO schedule_overrides '
+          '(weekend_start, day, slot, start_at, end_at, location_key) '
+          'VALUES (?, ?, ?, ?, ?, ?)',
+          [_dayKey(sat), r.day, r.slot, r.start, r.end, r.location],
+        );
+      }
+      tx.execute('COMMIT');
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+    replaceSessionsForWeekend(sat, rows, tzOffsetHours: tzOffsetHours);
+  }
+
+  void clearScheduleOverride(DateTime sat) {
+    raw.execute('DELETE FROM schedule_overrides WHERE weekend_start = ?', [
+      _dayKey(sat),
+    ]);
   }
 
   /// Creates (idempotently) the sessions for [sat]'s weekend from [template].
@@ -887,10 +940,17 @@ VALUES (?, ?, ?, ?, ?, ?)
         '''
 SELECT s.* FROM sessions s
 WHERE s.weekend_start = ?
-  AND EXISTS (
-    SELECT 1 FROM schedule_template t
-    WHERE t.day = s.day AND t.slot = s.slot
-      AND t.location_key = s.location
+  AND (
+    EXISTS (
+      SELECT 1 FROM schedule_template t
+      WHERE t.day = s.day AND t.slot = s.slot
+        AND t.location_key = s.location
+    ) OR EXISTS (
+      SELECT 1 FROM schedule_overrides o
+      WHERE o.weekend_start = s.weekend_start
+        AND o.day = s.day AND o.slot = s.slot
+        AND o.location_key = s.location
+    )
   )
 ORDER BY s.start_at
 ''',

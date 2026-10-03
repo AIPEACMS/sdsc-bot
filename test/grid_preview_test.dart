@@ -516,6 +516,8 @@ void main() {
   );
 
   test('availability picker slot edits use HTML parsing', () async {
+    Config.setDebugNow(DateTime.utc(2026, 9, 16, 4));
+    addTearDown(() => Config.setDebugNow(null));
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
     final bundleStart = w.sat0.toIso8601String().split('T').first;
     await sendText(2, '/repick');

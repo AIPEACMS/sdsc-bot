@@ -5,6 +5,19 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.1.0] - 2026-10-03
+
+### Added
+
+- **Guided schedule changes.** `/settime` now offers temporary or persistent
+  changes, then add, remove, or rewrite actions. Temporary changes target one
+  week and can resolve a weekday explicitly with `day as YYYY-MM-DD`.
+- **Automatic overlapping-pick cleanup.** Selecting a new booked or backup
+  session automatically unticks conflicting booked/backup choices in the same
+  week, while overlapping backup choices remain allowed.
+- **Set-time grid button.** Global-admin grids now include `set-time` as the
+  button form of `/settime`.
+
 ## [3.0.6] - 2026-09-17
 
 ### Changed

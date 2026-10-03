@@ -11,14 +11,9 @@ import 'pickers.dart';
 import 'service.dart';
 import 'state.dart';
 
-/// `/settime` — the global admin replaces the activity-schedule template.
-///
-/// Deliberately a typed command only: it is NOT part of any role grid. The
-/// gadmin sends one line per session -- day, start time, end time, location
-/// (for example `sat 9:00 13:00 PR`) -- then `done`; the bot parses them,
-/// resolves locations (aliases included), asks about unknown ones, and shows a
-/// confirm button. Confirming swaps the template and rebuilds the open
-/// weekends.
+/// `/settime` — guided schedule changes for the global admin. The gadmin can
+/// add, remove, or rewrite recurring sessions, or apply one temporary change
+/// to one open week. The command is also exposed as the `set-time` grid button.
 class SetTime {
   final Bot bot;
   final Repo repo;
@@ -38,13 +33,17 @@ class SetTime {
   final Map<int, _Draft> _drafts = {};
 
   void register() {
-    commandBoth(bot, state, 'settime', _guard(_start), label: 'settime');
+    commandBoth(bot, state, 'settime', _guard(_start), label: 'set-time');
     bot.use((ctx, next) async {
       final data = ctx.callbackQuery?.data;
       if (data == null) return next();
       final head = data.split('|').first;
       if (head == 'settime') {
         if (_isGadmin(ctx)) await _onConfirmOrCancel(ctx);
+        return;
+      }
+      if (head == 'settime-scope' || head == 'settime-action') {
+        if (_isGadmin(ctx)) await _onChoice(ctx, head);
         return;
       }
       if (head == 'stloc') {
@@ -75,14 +74,70 @@ class SetTime {
   Future<void> _start(Context ctx) async {
     final userId = ctx.from!.id;
     _drafts[userId] = _Draft();
+    // Keep the old typed flow working if the user starts sending lines before
+    // choosing a button; the buttons are the normal path for new sessions.
     state.pendingArg[userId] = PendingArg('settime');
     await ctx.reply(
       '🗓 <b>Set the activity times</b>\n\n'
-      'Send one line per session:\n'
-      '<code>&lt;day&gt; &lt;startTime&gt; &lt;endTime&gt; &lt;location&gt;</code>\n\n'
-      'For example: <code>sat 9:00 13:00 PR</code>\n\n'
-      'You can send multiple lines (in one message or several), then wrap up '
-      'by sending <b>done</b>.',
+      'Do you want this change to be temporary for one week, or persistent '
+      'from now on?',
+      parseMode: ParseMode.html,
+      replyMarkup: InlineKeyboard()
+          .text('Temporary (one week)', 'settime-scope|temporary')
+          .row()
+          .text('Persistent (from now on)', 'settime-scope|persistent')
+          .row()
+          .text('❌ Cancel', 'settime|no'),
+    );
+  }
+
+  Future<void> _onChoice(Context ctx, String head) async {
+    await ctx.answerCallbackQuery();
+    final userId = ctx.from!.id;
+    final draft = _drafts[userId];
+    if (draft == null) {
+      await ctx.editMessageText(
+        'This draft has expired. Start again with /settime.',
+      );
+      return;
+    }
+    final parts = (ctx.callbackQuery?.data ?? '').split('|');
+    final value = parts.length > 1 ? parts[1] : '';
+    if (head == 'settime-scope') {
+      draft.scope = value == 'temporary'
+          ? _SetTimeScope.temporary
+          : _SetTimeScope.persistent;
+      await ctx.editMessageText(
+        'Choose how to change the ${draft.scope == _SetTimeScope.temporary ? 'week' : 'recurring schedule'}:',
+        replyMarkup: InlineKeyboard()
+            .text('Add some sessions', 'settime-action|add')
+            .row()
+            .text('Remove some sessions', 'settime-action|remove')
+            .row()
+            .text('Rewrite all sessions', 'settime-action|rewrite')
+            .row()
+            .text('❌ Cancel', 'settime|no'),
+      );
+      return;
+    }
+    draft.action = switch (value) {
+      'add' => _SetTimeAction.add,
+      'remove' => _SetTimeAction.remove,
+      _ => _SetTimeAction.rewrite,
+    };
+    state.pendingArg[userId] = PendingArg('settime');
+    final temporary = draft.scope == _SetTimeScope.temporary;
+    await ctx.editMessageText(
+      temporary
+          ? 'Send one line per session for one week. Use '
+                '<code>mon as 2026-09-21 9:00 13:00 PR</code> for an explicit date, '
+                'or <code>thu 9:00 13:00 PR</code> for the next Thursday.\n\n'
+                'The first line chooses the week; all later lines must be in that same week. '
+                'Send <b>done</b> when finished.'
+          : 'Send one line per session:\n'
+                '<code>&lt;day&gt; &lt;startTime&gt; &lt;endTime&gt; &lt;location&gt;</code>\n\n'
+                'For example: <code>sat 9:00 13:00 PR</code>\n\n'
+                'Send <b>done</b> when finished.',
       parseMode: ParseMode.html,
       replyMarkup: InlineKeyboard().text('❌ Cancel', 'settime|no'),
     );
@@ -99,6 +154,7 @@ class SetTime {
     }
     if (trimmed.toLowerCase() == 'cancel') {
       _drafts.remove(userId);
+      state.pendingArg.remove(userId);
       await ctx.reply('❌ Cancelled — the activity list is unchanged.');
       return;
     }
@@ -108,12 +164,28 @@ class SetTime {
     for (final raw in trimmed.split('\n')) {
       final line = raw.trim();
       if (line.isEmpty) continue;
-      final parsed = parseSessionLine(line);
+      final parsed = draft.scope == _SetTimeScope.temporary
+          ? parseTargetSessionLine(line, config.toLocal(Config.nowUtc()))
+          : parseSessionLine(line);
       if (parsed is String) {
         errors.add('❌ $line — $parsed');
         continue;
       }
-      draft.lines.add(parsed as ParsedSession);
+      final session = parsed as ParsedSession;
+      if (draft.scope == _SetTimeScope.temporary) {
+        final date = session.targetDate!;
+        final saturday = _saturdayOf(date);
+        if (draft.targetSaturday == null) {
+          draft.targetSaturday = saturday;
+        } else if (draft.targetSaturday != saturday) {
+          errors.add(
+            '❌ $line — this temporary change is for the week of '
+            '${_date(draft.targetSaturday!)}; start another change for a different week',
+          );
+          continue;
+        }
+      }
+      draft.lines.add(session);
     }
     final total = draft.lines.length;
     final added = total - firstIndex + 1;
@@ -148,7 +220,9 @@ class SetTime {
     final draft = _drafts[userId];
     if (draft == null) return;
     if (draft.lines.isEmpty) {
-      await ctx.reply('Nothing to set. Send a session line first, or /settime.');
+      await ctx.reply(
+        'Nothing to set. Send a session line first, or /settime.',
+      );
       return;
     }
     state.pendingArg.remove(userId);
@@ -162,11 +236,7 @@ class SetTime {
 
   /// "Is `<token>` a new location?" with the approved locations as buttons and
   /// a prominent "new location" button on top.
-  Future<void> _askLocation(
-    Context ctx,
-    int userId,
-    String token,
-  ) async {
+  Future<void> _askLocation(Context ctx, int userId, String token) async {
     final approved = repo.approvedLocations()
       ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     var kb = InlineKeyboard()
@@ -189,7 +259,9 @@ class SetTime {
     final userId = ctx.from!.id;
     final draft = _drafts[userId];
     if (draft == null) {
-      await ctx.editMessageText('This draft has expired. Start again with /settime.');
+      await ctx.editMessageText(
+        'This draft has expired. Start again with /settime.',
+      );
       return;
     }
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
@@ -310,6 +382,28 @@ class SetTime {
 
   Future<void> _showConfirmation(Context ctx, int userId) async {
     final draft = _drafts[userId]!;
+    if (draft.scope == _SetTimeScope.temporary &&
+        draft.targetSaturday == null) {
+      await ctx.reply('Send at least one dated session before finishing.');
+      return;
+    }
+    final before = draft.scope == _SetTimeScope.temporary
+        ? repo.scheduleForWeekend(draft.targetSaturday!)
+        : repo.scheduleTemplate();
+    final after = _applyDraft(before, draft);
+    if (after.isEmpty) {
+      await ctx.reply(
+        'That change would leave the schedule empty. The activity list is unchanged.',
+      );
+      return;
+    }
+    if (draft.action == _SetTimeAction.remove &&
+        after.length == before.length) {
+      await ctx.reply('None of those sessions exists in the current schedule.');
+      return;
+    }
+    draft.beforeRows = before;
+    draft.afterRows = after;
     await ctx.reply(
       _confirmationText(draft),
       parseMode: ParseMode.html,
@@ -321,25 +415,98 @@ class SetTime {
   /// final confirmation, e.g.
   /// "Session 2: Saturday 9:00 to 13:00 at location: OCBC".
   String _sessionLine(_Draft draft, ParsedSession line, int n) {
-    final key = draft.resolved[line.locationToken] ??
+    final key =
+        draft.resolved[line.locationToken] ??
         repo.resolveLocation(line.locationToken)?.key;
     final loc = key != null
         ? repo.locationName(key)
         : (draft.requestedNames[line.locationToken] ?? line.locationToken);
-    return 'Session $n: ${Slot.dayName(line.day)} '
+    final date = line.targetDate == null ? '' : ' ${_date(line.targetDate!)}';
+    return 'Session $n: ${Slot.dayName(line.day)}$date '
         '${prettyClock(line.start)} to ${prettyClock(line.end)} '
         'at location: $loc';
   }
 
   String _confirmationText(_Draft draft) {
-    final sb = StringBuffer(
-      'Thank you, the new activity list from now on will be:\n',
-    );
-    for (var i = 0; i < draft.lines.length; i++) {
-      sb.writeln(_sessionLine(draft, draft.lines[i], i + 1));
+    final before = draft.beforeRows ??= draft.scope == _SetTimeScope.temporary
+        ? repo.scheduleForWeekend(draft.targetSaturday!)
+        : repo.scheduleTemplate();
+    final after = draft.afterRows ??= _applyDraft(before, draft);
+    final sb = StringBuffer();
+    if (draft.scope == _SetTimeScope.temporary) {
+      final sat = draft.targetSaturday!;
+      sb.writeln('Before change:');
+      _writeRows(sb, before);
+      sb.writeln('\nAfter change:');
+      sb.writeln(
+        'Week ${_date(sat)} - ${_date(sat.add(const Duration(days: 6)))} '
+        'will be updated to:',
+      );
+      _writeRows(sb, after);
+    } else {
+      sb.writeln('Before change:');
+      _writeRows(sb, before);
+      sb.writeln('\nAfter change: the recurring schedule from now on will be:');
+      _writeRows(sb, after);
     }
     return sb.toString().trimRight();
   }
+
+  void _writeRows(StringBuffer sb, List<ScheduleSlot> rows) {
+    if (rows.isEmpty) {
+      sb.writeln('— none —');
+      return;
+    }
+    for (var i = 0; i < rows.length; i++) {
+      final row = rows[i];
+      sb.writeln(
+        '${i + 1}. ${Slot.dayName(row.day)} '
+        '${prettyClock(row.start)} to ${prettyClock(row.end)} '
+        'at location: ${_html(repo.locationName(row.location))}',
+      );
+    }
+  }
+
+  List<ScheduleSlot> _applyDraft(List<ScheduleSlot> before, _Draft draft) {
+    final additions = draft.parseRows(repo);
+    List<ScheduleSlot> rows;
+    switch (draft.action) {
+      case _SetTimeAction.rewrite:
+        rows = additions;
+      case _SetTimeAction.add:
+        rows = [...before];
+        for (final row in additions) {
+          if (!rows.any((old) => _sameRow(old, row))) rows.add(row);
+        }
+      case _SetTimeAction.remove:
+        rows = before
+            .where((old) => !additions.any((remove) => _sameRow(old, remove)))
+            .toList();
+    }
+    final slots = <String, String>{};
+    var next = 1;
+    final out = <ScheduleSlot>[];
+    for (final row in rows) {
+      final key = '${row.day}|${row.start}|${row.end}';
+      final slot = slots.putIfAbsent(key, () => 's${next++}');
+      out.add(
+        ScheduleSlot(
+          day: row.day,
+          slot: slot,
+          start: row.start,
+          end: row.end,
+          location: row.location,
+        ),
+      );
+    }
+    return out;
+  }
+
+  static bool _sameRow(ScheduleSlot a, ScheduleSlot b) =>
+      a.day == b.day &&
+      a.start == b.start &&
+      a.end == b.end &&
+      a.location == b.location;
 
   Future<void> _onConfirmOrCancel(Context ctx) async {
     await ctx.answerCallbackQuery();
@@ -348,13 +515,17 @@ class SetTime {
     final yes = parts.length > 1 && parts[1] == 'yes';
     final draft = _drafts[userId];
     if (draft == null) {
-      await ctx.editMessageText('This draft has expired. Start again with /settime.');
+      await ctx.editMessageText(
+        'This draft has expired. Start again with /settime.',
+      );
       return;
     }
     if (!yes) {
       _drafts.remove(userId);
       state.pendingArg.remove(userId);
-      await ctx.editMessageText('❌ Cancelled — the activity list is unchanged.');
+      await ctx.editMessageText(
+        '❌ Cancelled — the activity list is unchanged.',
+      );
       return;
     }
     await _apply(ctx, userId, draft);
@@ -364,38 +535,62 @@ class SetTime {
   /// Stores the template and rebuilds every open weekend, then re-prompts the
   /// members whose availability it cleared.
   Future<void> _apply(Context ctx, int userId, _Draft draft) async {
-    final rows = draft.parseRows(repo);
-    if (rows.isEmpty) {
-      // Never wipe the schedule because a location could not be resolved.
-      await ctx.editMessageText(
-        '⚠️ Nothing was saved — I could not resolve any of the locations. '
-        'The activity list is unchanged.',
-      );
-      return;
-    }
-    repo.replaceScheduleTemplate(rows);
-
     final now = config.toLocal(Config.nowUtc());
     final w = RollingWindow.forDate(
       now,
       promptHour: config.promptHour,
       reminderHour: config.reminderHour,
     );
-    // Only members who actually indicated availability need to pick again:
-    // anyone who did not respond, or answered "not available", is left alone.
+    final rows = draft.afterRows;
+    if (rows == null || rows.isEmpty) {
+      await ctx.editMessageText(
+        '⚠️ Nothing was saved — the activity list is unchanged.',
+      );
+      return;
+    }
+
     final affected = <int>{};
-    for (final sat in [w.sat0, w.sat1]) {
-      if (w.locked(sat, now)) continue; // open weekends only
+    if (draft.scope == _SetTimeScope.temporary) {
+      final sat = draft.targetSaturday!;
+      if (sat != w.sat0 && sat != w.sat1) {
+        await ctx.editMessageText(
+          '⚠️ That date is outside the current two-week window. '
+          'The activity list is unchanged.',
+        );
+        return;
+      }
+      if (w.locked(sat, now)) {
+        await ctx.editMessageText(
+          '⚠️ That week is already locked. The activity list is unchanged.',
+        );
+        return;
+      }
       for (final a in repo.availabilityForWeekend(sat)) {
         if (a.available) affected.add(a.userId);
       }
       repo.clearWeekendAvailabilityAndAllocations(sat);
       repo.setWeekendAllocated(sat, false);
-      repo.replaceSessionsForWeekend(
+      repo.replaceScheduleOverride(
         sat,
         rows,
         tzOffsetHours: config.timezoneOffsetHours,
       );
+    } else {
+      repo.replaceScheduleTemplate(rows);
+      for (final sat in [w.sat0, w.sat1]) {
+        if (w.locked(sat, now)) continue;
+        for (final a in repo.availabilityForWeekend(sat)) {
+          if (a.available) affected.add(a.userId);
+        }
+        repo.clearScheduleOverride(sat);
+        repo.clearWeekendAvailabilityAndAllocations(sat);
+        repo.setWeekendAllocated(sat, false);
+        repo.replaceSessionsForWeekend(
+          sat,
+          rows,
+          tzOffsetHours: config.timezoneOffsetHours,
+        );
+      }
     }
 
     for (final uid in affected) {
@@ -416,7 +611,8 @@ class SetTime {
     }
 
     LogRing.log(
-      'settime: template replaced (${rows.length} rows); '
+      'settime: ${draft.scope.name} ${draft.action.name} '
+      '(${rows.length} rows); '
       '${affected.length} members re-prompted',
     );
     await ctx.editMessageText(
@@ -425,6 +621,17 @@ class SetTime {
       parseMode: ParseMode.html,
     );
   }
+
+  static DateTime _saturdayOf(DateTime date) => DateTime(
+    date.year,
+    date.month,
+    date.day,
+  ).subtract(Duration(days: (date.weekday + 1) % 7));
+
+  static String _date(DateTime date) =>
+      '${date.year.toString().padLeft(4, '0')}-'
+      '${date.month.toString().padLeft(2, '0')}-'
+      '${date.day.toString().padLeft(2, '0')}';
 
   static String _norm(String s) =>
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
@@ -438,6 +645,12 @@ class SetTime {
 /// In-progress /settime draft for one gadmin.
 class _Draft {
   final List<ParsedSession> lines = [];
+
+  _SetTimeScope scope = _SetTimeScope.persistent;
+  _SetTimeAction action = _SetTimeAction.rewrite;
+  DateTime? targetSaturday;
+  List<ScheduleSlot>? beforeRows;
+  List<ScheduleSlot>? afterRows;
 
   /// Raw token → resolved location key (approved locations only).
   final Map<String, String> resolved = {};
@@ -465,8 +678,12 @@ class _Draft {
   /// Builds the template rows, resolving every token (explicit choice first,
   /// then the approved locations and their aliases).
   List<ScheduleSlot> parseRows(Repo repo) => buildTemplate(
-        lines,
-        resolveToken: (token) =>
-            resolved[token] ?? repo.resolveLocation(token)?.key,
-      );
+    lines,
+    resolveToken: (token) =>
+        resolved[token] ?? repo.resolveLocation(token)?.key,
+  );
 }
+
+enum _SetTimeScope { temporary, persistent }
+
+enum _SetTimeAction { add, remove, rewrite }

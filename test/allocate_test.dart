@@ -79,6 +79,112 @@ void main() {
     expect(result.single.$2, 1); // am OCBC (first in iteration order)
   });
 
+  test('overlapping free-form want picks are mutually exclusive', () {
+    final sessions = [
+      Session(
+        id: 20,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'long',
+        location: Locations.ocbc,
+        start: DateTime(2026, 8, 8, 13),
+        end: DateTime(2026, 8, 8, 18),
+      ),
+      Session(
+        id: 21,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'early',
+        location: Locations.pasirRis,
+        start: DateTime(2026, 8, 8, 9),
+        end: DateTime(2026, 8, 8, 15),
+      ),
+    ];
+    final result = allocator.run(
+      sessions: sessions,
+      availability: [
+        _avail(
+          1,
+          want: {
+            const Slot(0, 'sat', 'long', Locations.ocbc),
+            const Slot(0, 'sat', 'early', Locations.pasirRis),
+          },
+        ),
+      ],
+    );
+    expect(result.where((entry) => entry.$1 == 1), hasLength(1));
+  });
+
+  test('overlapping backup and booked picks only keep the booked pick', () {
+    final sessions = [
+      Session(
+        id: 30,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'long',
+        location: Locations.ocbc,
+        start: DateTime(2026, 8, 8, 13),
+        end: DateTime(2026, 8, 8, 18),
+      ),
+      Session(
+        id: 31,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'early',
+        location: Locations.pasirRis,
+        start: DateTime(2026, 8, 8, 9),
+        end: DateTime(2026, 8, 8, 15),
+      ),
+    ];
+    final result = allocator.run(
+      sessions: sessions,
+      availability: [
+        _avail(
+          1,
+          want: {const Slot(0, 'sat', 'long', Locations.ocbc)},
+          slots: {const Slot(0, 'sat', 'early', Locations.pasirRis)},
+        ),
+      ],
+    );
+    expect(result, [(1, 30)]);
+  });
+
+  test('overlapping backups remain selectable but allocate only one', () {
+    final sessions = [
+      Session(
+        id: 40,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'long',
+        location: Locations.ocbc,
+        start: DateTime(2026, 8, 8, 13),
+        end: DateTime(2026, 8, 8, 18),
+      ),
+      Session(
+        id: 41,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'early',
+        location: Locations.pasirRis,
+        start: DateTime(2026, 8, 8, 9),
+        end: DateTime(2026, 8, 8, 15),
+      ),
+    ];
+    final result = allocator.run(
+      sessions: sessions,
+      availability: [
+        _avail(
+          1,
+          slots: {
+            const Slot(0, 'sat', 'long', Locations.ocbc),
+            const Slot(0, 'sat', 'early', Locations.pasirRis),
+          },
+        ),
+      ],
+    );
+    expect(result.where((entry) => entry.$1 == 1), hasLength(1));
+  });
+
   test('full-day: want in both AM and PM allocates both', () {
     final result = allocator.run(
       sessions: _sessions(),
