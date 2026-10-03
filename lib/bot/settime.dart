@@ -199,7 +199,6 @@ class SetTime {
   }
 
   Future<void> _showTemporaryWeekPicker(Context ctx, int userId) async {
-    final draft = _drafts[userId]!;
     final now = config.toLocal(Config.nowUtc());
     final window = RollingWindow.forDate(
       now,
