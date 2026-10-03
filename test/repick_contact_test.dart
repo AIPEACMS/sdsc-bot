@@ -268,6 +268,30 @@ void main() {
     expect(labelsYes.contains('❌ Cancel'), isTrue);
   });
 
+  test('repick names locked weekends and the holiday opt-out', () {
+    final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
+    final keyboard = CycleService.buildKeyboard(
+      w,
+      (const {}, const {}),
+      now: DateTime(2026, 8, 17),
+      holidays: [
+        Holiday(
+          id: 1,
+          weekStart: DateTime(2026, 8, 10),
+          kind: HolidayKind.winter,
+        ),
+      ],
+      sessions: defaultSessions(w.sat0),
+      locationName: (k) => k,
+    );
+    final labels = keyboard.inlineKeyboard
+        .expand((row) => row)
+        .map((button) => button.text)
+        .toList();
+    expect(labels, contains('Sat 15 Aug (locked)'));
+    expect(labels, contains('🔕 Skip me for the whole winter holiday'));
+  });
+
   test(
     'cancel aborts the in-progress repick, keeping the saved answer',
     () async {

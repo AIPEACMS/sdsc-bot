@@ -83,7 +83,7 @@ class Flows {
         await _onCallback(ctx);
         return;
       }
-      if (head == 'noop') {
+      if (head == 'noop' || head == 'locked') {
         // Non-interactive label rows (e.g. the picker's weekend headers):
         // dismiss the button press instantly so Telegram shows no spinner.
         await ctx.answerCallbackQuery();
@@ -688,19 +688,29 @@ class Flows {
     final sat0Raw = parts.length > 1 ? parts[1] : '';
     final sat0 = DateTime.tryParse(sat0Raw);
     if (sat0 == null) return;
-    var opted = false;
-    for (final week in [sat0, sat0.add(const Duration(days: 7))]) {
-      final holiday = repo.holidayOn(week);
-      if (holiday != null) {
-        repo.setHolidayOptout(userId, holiday.weekStart);
-        opted = true;
+    final kind = parts.length > 2
+        ? HolidayKind.values.where((value) => value.name == parts[2]).firstOrNull
+        : null;
+    final windowHolidays = [sat0, sat0.add(const Duration(days: 7))]
+        .map(repo.holidayOn)
+        .whereType<Holiday>()
+        .where((holiday) => kind == null || holiday.kind == kind)
+        .toList();
+    final weeks = <DateTime>{};
+    for (final holiday in windowHolidays) {
+      for (final periodWeek in repo.holidayPeriod(holiday)) {
+        weeks.add(periodWeek.weekStart);
       }
     }
-    if (!opted) return;
+    if (weeks.isEmpty) return;
+    for (final week in weeks) {
+      repo.setHolidayOptout(userId, week);
+    }
     // They are out for this holiday: no longer a candidate for allocation.
     state.forgetAvailability(userId);
     final now = config.toLocal(Config.nowUtc());
     for (final week in [sat0, sat0.add(const Duration(days: 7))]) {
+      if (!weeks.contains(repo.holidayOn(week)?.weekStart)) continue;
       repo.setAvailability(
         Availability(
           weekendStart: week,
@@ -762,7 +772,7 @@ class Flows {
           w,
           (want, available),
           now: now,
-          holiday: CycleService.isHolidayWindow(repo, w),
+           holidays: CycleService.holidaysForWindow(repo, w),
           hasIndicated: repo.hasBundleResponse(sat0, userId),
           sessions: [
             ...repo.sessionsForWeekend(w.sat0),
