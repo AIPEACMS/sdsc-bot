@@ -146,9 +146,11 @@ class Scheduler {
     _milestone = Timer(next.difference(now), () => _tick());
   }
 
-  /// Arms a one-shot dynamic-allocation run at the next sharp hour. Coalesces:
+  /// Legacy path: arms a one-shot dynamic-allocation run at the next sharp hour.
+  /// New availability saves use [allocateImmediately].
   /// if a run is already armed, does nothing — indications before the sharp
   /// hour share a single run. Called after every availability indication.
+  @Deprecated('Immediate allocation is the default in v3.2.0.')
   void scheduleDynamicAllocation() {
     if (_allocTimer != null) return;
     final now = config.toLocal(Config.nowUtc());
@@ -159,6 +161,10 @@ class Scheduler {
       unawaited(_runDynamicAllocation());
     });
   }
+
+  /// Allocates immediately after an availability indication. The old
+  /// sharp-hour timer remains available for compatibility and manual recovery.
+  Future<void> allocateImmediately() => _runDynamicAllocation();
 
   /// Re-optimizes both weekends of the current bundle over the current
   /// availability. Weekends that have already started are left alone.

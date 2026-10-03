@@ -5,6 +5,18 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.2.0] - 2026-10-03
+
+### Added
+
+- **Per-session capacity.** Schedule lines may now end with a positive maximum
+  such as `sat 09:00 15:00 Pasir Ris 5`; omitted maxima remain unlimited.
+- **Immediate allocation.** Availability is allocated immediately in indication
+  time order, while the previous sharp-hour path remains available as a
+  deprecated compatibility path.
+- **Capacity-aware pickers.** Limited sessions show `allocated/max` and become
+  unselectable when full.
+
 ## [3.1.1] - 2026-10-03
 
 ### Fixed

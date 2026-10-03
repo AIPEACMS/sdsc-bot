@@ -780,13 +780,14 @@ ON CONFLICT(username) DO UPDATE SET
           start: r['start_at'] as String,
           end: r['end_at'] as String,
           location: r['location_key'] as String,
+          maxPeople: r['max_people'] as int?,
         ),
       )
       .toList();
 
   List<ScheduleSlot> scheduleForWeekend(DateTime sat) {
     final rows = raw.select(
-      'SELECT day, slot, start_at, end_at, location_key '
+      'SELECT day, slot, start_at, end_at, location_key, max_people '
       'FROM schedule_overrides WHERE weekend_start = ? ORDER BY rowid',
       [_dayKey(sat)],
     );
@@ -799,6 +800,7 @@ ON CONFLICT(username) DO UPDATE SET
             start: r['start_at'] as String,
             end: r['end_at'] as String,
             location: r['location_key'] as String,
+            maxPeople: r['max_people'] as int?,
           ),
         )
         .toList();
@@ -813,8 +815,9 @@ ON CONFLICT(username) DO UPDATE SET
       for (final r in rows) {
         tx.execute(
           'INSERT INTO schedule_template '
-          '(day, slot, start_at, end_at, location_key) VALUES (?, ?, ?, ?, ?)',
-          [r.day, r.slot, r.start, r.end, r.location],
+          '(day, slot, start_at, end_at, location_key, max_people) '
+          'VALUES (?, ?, ?, ?, ?, ?)',
+          [r.day, r.slot, r.start, r.end, r.location, r.maxPeople],
         );
       }
       tx.execute('COMMIT');
@@ -838,9 +841,17 @@ ON CONFLICT(username) DO UPDATE SET
       for (final r in rows) {
         tx.execute(
           'INSERT INTO schedule_overrides '
-          '(weekend_start, day, slot, start_at, end_at, location_key) '
-          'VALUES (?, ?, ?, ?, ?, ?)',
-          [_dayKey(sat), r.day, r.slot, r.start, r.end, r.location],
+          '(weekend_start, day, slot, start_at, end_at, location_key, max_people) '
+          'VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [
+            _dayKey(sat),
+            r.day,
+            r.slot,
+            r.start,
+            r.end,
+            r.location,
+            r.maxPeople,
+          ],
         );
       }
       tx.execute('COMMIT');
@@ -871,8 +882,8 @@ ON CONFLICT(username) DO UPDATE SET
       raw.execute(
         '''
 INSERT OR IGNORE INTO sessions
-  (weekend_start, day, slot, location, start_at, end_at)
-VALUES (?, ?, ?, ?, ?, ?)
+  (weekend_start, day, slot, location, start_at, end_at, max_people)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 ''',
         [
           _dayKey(sat),
@@ -881,6 +892,7 @@ VALUES (?, ?, ?, ?, ?, ?)
           t.location,
           _fmt(_parseTime(date, t.start)),
           _fmt(_parseTime(date, t.end)),
+          t.maxPeople,
         ],
       );
     }

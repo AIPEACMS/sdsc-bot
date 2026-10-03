@@ -23,7 +23,7 @@ class Flows {
 
   /// Fired after a member's availability is saved (Done or Not available).
   /// Wired in main.dart to the scheduler's dynamic-allocation trigger.
-  void Function()? onAvailabilitySaved;
+  Future<void> Function()? onAvailabilitySaved;
 
   Flows({
     required this.bot,
@@ -83,7 +83,7 @@ class Flows {
         await _onCallback(ctx);
         return;
       }
-      if (head == 'noop' || head == 'locked') {
+      if (head == 'noop' || head == 'locked' || head == 'full') {
         // Non-interactive label rows (e.g. the picker's weekend headers):
         // dismiss the button press instantly so Telegram shows no spinner.
         await ctx.answerCallbackQuery();
@@ -765,6 +765,7 @@ class Flows {
         'You\'ll be allocated to <b>every</b> session you book 🔒 '
         '(one per time slot), plus <b>one</b> of your 🟢 backups.';
     try {
+      final allocationInfo = _allocationInfo(w, userId);
       await ctx.editMessageText(
         text,
         parseMode: ParseMode.html,
@@ -773,6 +774,8 @@ class Flows {
           (want, available),
           now: now,
            holidays: CycleService.holidaysForWindow(repo, w),
+           allocatedCounts: allocationInfo.$1,
+           ownAllocationIds: allocationInfo.$2,
           hasIndicated: repo.hasBundleResponse(sat0, userId),
           sessions: [
             ...repo.sessionsForWeekend(w.sat0),
@@ -784,6 +787,18 @@ class Flows {
     } catch (_) {
       // message may be gone; ignore
     }
+  }
+
+  (Map<int, int>, Set<int>) _allocationInfo(RollingWindow w, int userId) {
+    final counts = <int, int>{};
+    final own = <int>{};
+    for (final sat in [w.sat0, w.sat1]) {
+      for (final (allocatedUser, session) in repo.allocationsForWeekend(sat)) {
+        counts[session.id] = (counts[session.id] ?? 0) + 1;
+        if (allocatedUser.id == userId) own.add(session.id);
+      }
+    }
+    return (counts, own);
   }
 
   Session? _sessionForSlot(RollingWindow w, Slot slot) {
@@ -910,7 +925,7 @@ class Flows {
       return;
     }
     // Dynamic allocation: re-optimize at the next sharp hour.
-    onAvailabilitySaved?.call();
+    await onAvailabilitySaved?.call();
 
     try {
       await ctx.editMessageText(
@@ -928,7 +943,7 @@ class Flows {
           : messages.msg3(
               want,
               available,
-              allocateAt: nextSharpHourLabel(now),
+              immediate: true,
               label: (s) => _slotLabel(s, w, repo),
             ),
       parseMode: ParseMode.html,
@@ -937,6 +952,7 @@ class Flows {
 
   /// The sharp hour the allocation goes out: the next hour boundary after
   /// [now] (the moment the member indicated). "14:23" -> "3:00 PM".
+  @Deprecated('Immediate allocation is the default in v3.2.0.')
   static String nextSharpHourLabel(DateTime now) {
     final h = now.add(const Duration(hours: 1)).hour;
     final hour12 = h % 12 == 0 ? 12 : h % 12;

@@ -41,14 +41,21 @@ class Messages {
   /// Confirmation echoing the chosen availability: [want] slots are the 🔒
   /// bookings, [available] the 🟢 offers. [allocateAt] is the sharp hour the
   /// allocation message goes out (e.g. "6:00 PM").
-  String msg3(Iterable<Slot> want, Iterable<Slot> available,
-      {String? allocateAt, String Function(Slot)? label}) {
+  String msg3(
+    Iterable<Slot> want,
+    Iterable<Slot> available, {
+    String? allocateAt,
+    bool immediate = false,
+    String Function(Slot)? label,
+  }) {
     String show(Slot s) => label?.call(s) ?? s.toString();
     final wantList = want.map((s) => '🔒 ${show(s)}').toList();
     final availList = available.map((s) => '🟢 ${show(s)}').toList();
     final all = [...wantList, ...availList];
     final list = all.isEmpty ? '(none)' : all.join('\n');
-    final alloc = allocateAt == null
+    final alloc = immediate
+        ? '\n\n<b>Allocation is immediate</b> when space is available.'
+        : allocateAt == null
         ? ''
         : '\n\n<b>You will get allocated at $allocateAt</b> later';
     return 'Thank you! Here is what you told us '

@@ -79,6 +79,15 @@ void main() {
         isA<String>(),
       );
     });
+
+    test('trailing numeric max is separated from a multiword location', () {
+      final parsed = parseSessionLine(
+        'sat 09:00 15:00 Pasir Ris 5',
+        resolveLocation: (token) => token == 'Pasir Ris' ? 'pasirRis' : null,
+      ) as ParsedSession;
+      expect(parsed.locationToken, 'Pasir Ris');
+      expect(parsed.maxPeople, 5);
+    });
   });
 
   group('locations', () {

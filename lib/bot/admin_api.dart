@@ -794,6 +794,7 @@ class AdminApi {
             'slot': s.slot,
             'start': s.start.toIso8601String(),
             'end': s.end.toIso8601String(),
+            'maxPeople': s.maxPeople,
             // Whether the session has begun — attendance can only be marked
             // once it has, so the console hides future sessions from its
             // "unmarked" reminder.

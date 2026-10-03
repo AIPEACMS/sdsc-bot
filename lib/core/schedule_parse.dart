@@ -13,6 +13,7 @@ class ParsedSession {
   final String end; // 'HH:MM'
   final String locationToken;
   final DateTime? targetDate;
+  final int? maxPeople;
 
   const ParsedSession({
     required this.day,
@@ -20,6 +21,7 @@ class ParsedSession {
     required this.end,
     required this.locationToken,
     this.targetDate,
+    this.maxPeople,
   });
 }
 
@@ -47,7 +49,10 @@ const Map<String, String> dayAliases = {
 
 /// Parses one line. Returns a [ParsedSession] on success, or a human error
 /// message on failure.
-Object parseSessionLine(String line) {
+Object parseSessionLine(
+  String line, {
+  String? Function(String token)? resolveLocation,
+}) {
   final parts = line.trim().split(RegExp(r'\s+'));
   if (parts.length < 4) {
     return 'expected "day startTime endTime location"';
@@ -61,18 +66,29 @@ Object parseSessionLine(String line) {
   if (_minutes(start) >= _minutes(end)) {
     return 'the end time must be after the start time';
   }
+  final tail = parts.sublist(3).join(' ');
+  final last = int.tryParse(parts.last);
+  final hasMax = last != null && last > 0 && parts.length > 4 &&
+      (resolveLocation == null || resolveLocation(tail) == null);
   return ParsedSession(
     day: day,
     start: start,
     end: end,
-    locationToken: parts.sublist(3).join(' '),
+    locationToken: hasMax
+        ? parts.sublist(3, parts.length - 1).join(' ')
+        : tail,
+    maxPeople: hasMax ? last : null,
   );
 }
 
 /// Parses a temporary-change line. A plain weekday resolves to its next
 /// occurrence after [now]. An explicit line uses `day as YYYY-MM-DD` and the
 /// date must actually fall on that weekday.
-Object parseTargetSessionLine(String line, DateTime now) {
+Object parseTargetSessionLine(
+  String line,
+  DateTime now, {
+  String? Function(String token)? resolveLocation,
+}) {
   final parts = line.trim().split(RegExp(r'\s+'));
   if (parts.length >= 6 && parts[1].toLowerCase() == 'as') {
     final day = dayAliases[parts[0].toLowerCase()];
@@ -82,7 +98,10 @@ Object parseTargetSessionLine(String line, DateTime now) {
     if (_dayForDate(date) != day) {
       return '${parts[2]} is not a ${dayAliases.entries.firstWhere((e) => e.value == day).key}';
     }
-    final parsed = parseSessionLine('$day ${parts.sublist(3).join(' ')}');
+    final parsed = parseSessionLine(
+      '$day ${parts.sublist(3).join(' ')}',
+      resolveLocation: resolveLocation,
+    );
     if (parsed is String) return parsed;
     final session = parsed as ParsedSession;
     return ParsedSession(
@@ -91,10 +110,11 @@ Object parseTargetSessionLine(String line, DateTime now) {
       end: session.end,
       locationToken: session.locationToken,
       targetDate: DateTime(date.year, date.month, date.day),
+      maxPeople: session.maxPeople,
     );
   }
 
-  final parsed = parseSessionLine(line);
+  final parsed = parseSessionLine(line, resolveLocation: resolveLocation);
   if (parsed is String) return parsed;
   final session = parsed as ParsedSession;
   final weekday = _weekdayForDay(session.day);
@@ -107,6 +127,7 @@ Object parseTargetSessionLine(String line, DateTime now) {
     end: session.end,
     locationToken: session.locationToken,
     targetDate: date,
+    maxPeople: session.maxPeople,
   );
 }
 
@@ -154,6 +175,7 @@ List<ScheduleSlot> buildTemplate(
         start: line.start,
         end: line.end,
         location: key,
+        maxPeople: line.maxPeople,
       ),
     );
   }

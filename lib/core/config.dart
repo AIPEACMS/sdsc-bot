@@ -24,6 +24,7 @@ class Config {
   final int promptHour;
   final int reminderHour;
   final int deadlineHour;
+  @Deprecated('Immediate allocation is the default in v3.2.0.')
   final int allocationHour;
   final int bailHour;
 

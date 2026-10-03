@@ -9,7 +9,9 @@ const _am1 = Slot(1, 'sat', 'am', 'ocbc'); // weekend 1
 const _pm1Pr = Slot(1, 'sat', 'pm', 'pasirRis'); // weekend 1
 
 Availability _avail(int userId,
-        {Set<Slot> want = const {}, Set<Slot> slots = const {}}) =>
+        {Set<Slot> want = const {},
+        Set<Slot> slots = const {},
+        DateTime? updatedAt}) =>
     Availability(
       weekendStart: DateTime(2026, 8, 8),
       userId: userId,
@@ -17,7 +19,7 @@ Availability _avail(int userId,
       slots: slots,
       wantSlots: want,
       available: true,
-      updatedAt: DateTime(2026, 8, 1),
+      updatedAt: updatedAt ?? DateTime(2026, 8, 1),
     );
 
 List<Session> _sessions() {
@@ -183,6 +185,49 @@ void main() {
       ],
     );
     expect(result.where((entry) => entry.$1 == 1), hasLength(1));
+  });
+
+  test('limited sessions allocate by indication time', () {
+    final session = Session(
+      id: 50,
+      weekendStart: DateTime(2026, 8, 8),
+      day: 'sat',
+      slot: 'limited',
+      location: Locations.ocbc,
+      start: DateTime(2026, 8, 8, 9),
+      end: DateTime(2026, 8, 8, 15),
+      maxPeople: 1,
+    );
+    final slot = const Slot(0, 'sat', 'limited', Locations.ocbc);
+    final result = allocator.run(
+      sessions: [session],
+      availability: [
+        _avail(2, want: {slot}, updatedAt: DateTime(2026, 8, 1, 10)),
+        _avail(1, want: {slot}, updatedAt: DateTime(2026, 8, 1, 9)),
+      ],
+    );
+    expect(result, [(1, 50)]);
+  });
+
+  test('unlimited sessions keep accepting allocations', () {
+    final session = Session(
+      id: 51,
+      weekendStart: DateTime(2026, 8, 8),
+      day: 'sat',
+      slot: 'unlimited',
+      location: Locations.ocbc,
+      start: DateTime(2026, 8, 8, 9),
+      end: DateTime(2026, 8, 8, 15),
+    );
+    final slot = const Slot(0, 'sat', 'unlimited', Locations.ocbc);
+    final result = allocator.run(
+      sessions: [session],
+      availability: [
+        _avail(1, want: {slot}),
+        _avail(2, want: {slot}),
+      ],
+    );
+    expect(result, [(1, 51), (2, 51)]);
   });
 
   test('full-day: want in both AM and PM allocates both', () {

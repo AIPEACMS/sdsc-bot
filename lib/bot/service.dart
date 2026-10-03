@@ -423,11 +423,21 @@ class CycleService {
       );
     }
     final picked = state.picksFor(user.id);
+    final allocatedCounts = <int, int>{};
+    final ownAllocationIds = <int>{};
+    for (final sat in [w.sat0, w.sat1]) {
+      for (final (allocatedUser, session) in repo.allocationsForWeekend(sat)) {
+        allocatedCounts[session.id] = (allocatedCounts[session.id] ?? 0) + 1;
+        if (allocatedUser.id == user.id) ownAllocationIds.add(session.id);
+      }
+    }
     final keyboard = buildKeyboard(
       w,
       picked,
       now: config.toLocal(Config.nowUtc()),
       holidays: holidaysForWindow(repo, w),
+      allocatedCounts: allocatedCounts,
+      ownAllocationIds: ownAllocationIds,
       hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
       sessions: [
         ...repo.sessionsForWeekend(w.sat0),
@@ -545,6 +555,8 @@ class CycleService {
     (Set<Slot>, Set<Slot>) picked, {
     bool holiday = false,
     List<Holiday> holidays = const [],
+    Map<int, int> allocatedCounts = const {},
+    Set<int> ownAllocationIds = const {},
     bool hasIndicated = false,
     required DateTime now,
     required List<Session> sessions,
@@ -577,11 +589,18 @@ class CycleService {
         // The callback carries the BUNDLE's first Saturday (not the clicked
         // weekend) so a toggle re-renders the same anchored window — the
         // header dates and weekend indexes never shift.
+        final count = allocatedCounts[s.id] ?? 0;
+        final capacity = s.maxPeople;
+        final full = capacity != null &&
+            count >= capacity &&
+            !ownAllocationIds.contains(s.id);
+        final countLabel = capacity == null ? '' : ' [$count/$capacity]';
+        final label = '$mark ${locationName(s.location)} ${Slot.dayLabel(s.day)} '
+            '${_fmt(s.start)}-${_fmt(s.end)}$countLabel';
         kb = kb
             .text(
-              '$mark ${locationName(s.location)} ${Slot.dayLabel(s.day)} '
-              '${_fmt(s.start)}-${_fmt(s.end)}',
-              'slot|${_satKey(w.sat0)}|$key',
+              full ? '⛔ $label' : label,
+              full ? 'full|$key' : 'slot|${_satKey(w.sat0)}|$key',
             )
             .row();
       }
