@@ -775,7 +775,7 @@ class Flows {
           now: now,
            holidays: CycleService.holidaysForWindow(repo, w),
            allocatedCounts: allocationInfo.$1,
-           ownAllocationIds: allocationInfo.$2,
+           ownCapacityGroups: allocationInfo.$2,
           hasIndicated: repo.hasBundleResponse(sat0, userId),
           sessions: [
             ...repo.sessionsForWeekend(w.sat0),
@@ -789,17 +789,24 @@ class Flows {
     }
   }
 
-  (Map<int, int>, Set<int>) _allocationInfo(RollingWindow w, int userId) {
-    final counts = <int, int>{};
-    final own = <int>{};
+  (Map<String, int>, Set<String>) _allocationInfo(
+    RollingWindow w,
+    int userId,
+  ) {
+    final counts = <String, int>{};
+    final own = <String>{};
     for (final sat in [w.sat0, w.sat1]) {
       for (final (allocatedUser, session) in repo.allocationsForWeekend(sat)) {
-        counts[session.id] = (counts[session.id] ?? 0) + 1;
-        if (allocatedUser.id == userId) own.add(session.id);
+        final key = _capacityKey(session);
+        counts[key] = (counts[key] ?? 0) + 1;
+        if (allocatedUser.id == userId) own.add(key);
       }
     }
     return (counts, own);
   }
+
+  static String _capacityKey(Session session) =>
+      session.capacityGroup ?? 'session:${session.id}';
 
   Session? _sessionForSlot(RollingWindow w, Slot slot) {
     final weekend = slot.weekendIndex == 0 ? w.sat0 : w.sat1;

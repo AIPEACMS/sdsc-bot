@@ -423,12 +423,13 @@ class CycleService {
       );
     }
     final picked = state.picksFor(user.id);
-    final allocatedCounts = <int, int>{};
-    final ownAllocationIds = <int>{};
+    final allocatedCounts = <String, int>{};
+    final ownCapacityGroups = <String>{};
     for (final sat in [w.sat0, w.sat1]) {
       for (final (allocatedUser, session) in repo.allocationsForWeekend(sat)) {
-        allocatedCounts[session.id] = (allocatedCounts[session.id] ?? 0) + 1;
-        if (allocatedUser.id == user.id) ownAllocationIds.add(session.id);
+        final key = _capacityKey(session);
+        allocatedCounts[key] = (allocatedCounts[key] ?? 0) + 1;
+        if (allocatedUser.id == user.id) ownCapacityGroups.add(key);
       }
     }
     final keyboard = buildKeyboard(
@@ -437,7 +438,7 @@ class CycleService {
       now: config.toLocal(Config.nowUtc()),
       holidays: holidaysForWindow(repo, w),
       allocatedCounts: allocatedCounts,
-      ownAllocationIds: ownAllocationIds,
+      ownCapacityGroups: ownCapacityGroups,
       hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
       sessions: [
         ...repo.sessionsForWeekend(w.sat0),
@@ -555,8 +556,8 @@ class CycleService {
     (Set<Slot>, Set<Slot>) picked, {
     bool holiday = false,
     List<Holiday> holidays = const [],
-    Map<int, int> allocatedCounts = const {},
-    Set<int> ownAllocationIds = const {},
+    Map<String, int> allocatedCounts = const {},
+    Set<String> ownCapacityGroups = const {},
     bool hasIndicated = false,
     required DateTime now,
     required List<Session> sessions,
@@ -589,11 +590,12 @@ class CycleService {
         // The callback carries the BUNDLE's first Saturday (not the clicked
         // weekend) so a toggle re-renders the same anchored window — the
         // header dates and weekend indexes never shift.
-        final count = allocatedCounts[s.id] ?? 0;
-        final capacity = s.maxPeople;
+        final capacityKey = _capacityKey(s);
+        final count = allocatedCounts[capacityKey] ?? 0;
+        final capacity = _capacityFor(s, weekendSessions);
         final full = capacity != null &&
             count >= capacity &&
-            !ownAllocationIds.contains(s.id);
+            !ownCapacityGroups.contains(capacityKey);
         final countLabel = capacity == null ? '' : ' [$count/$capacity]';
         final label = '$mark ${locationName(s.location)} ${Slot.dayLabel(s.day)} '
             '${_fmt(s.start)}-${_fmt(s.end)}$countLabel';
@@ -628,6 +630,18 @@ class CycleService {
   static String _satKey(DateTime sat) =>
       '${sat.year}-${sat.month.toString().padLeft(2, '0')}-'
       '${sat.day.toString().padLeft(2, '0')}';
+
+  static String _capacityKey(Session session) =>
+      session.capacityGroup ?? 'session:${session.id}';
+
+  static int? _capacityFor(Session session, List<Session> sessions) {
+    final same = sessions.where(
+      (other) => _capacityKey(other) == _capacityKey(session),
+    );
+    final limited = same.map((item) => item.maxPeople).whereType<int>().toList();
+    if (limited.isEmpty) return null;
+    return limited.reduce((a, b) => a < b ? a : b);
+  }
 
   static String _displayName(User user) {
     final human = user.preferredName;

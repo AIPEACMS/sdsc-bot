@@ -42,7 +42,8 @@ class SetTime {
         if (_isGadmin(ctx)) await _onConfirmOrCancel(ctx);
         return;
       }
-      if (head == 'settime-scope' || head == 'settime-action') {
+      if (head == 'settime-scope' || head == 'settime-action' ||
+          head == 'settime-conflict') {
         if (_isGadmin(ctx)) await _onChoice(ctx, head);
         return;
       }
@@ -107,6 +108,10 @@ class SetTime {
     }
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
     final value = parts.length > 1 ? parts[1] : '';
+    if (head == 'settime-conflict') {
+      await _resolveConflict(ctx, userId, value);
+      return;
+    }
     if (head == 'settime-scope') {
       draft.scope = value == 'temporary'
           ? _SetTimeScope.temporary
@@ -530,12 +535,116 @@ class SetTime {
     }
     draft.beforeRows = before;
     draft.afterRows = after;
+    if (draft.conflicts == null) {
+      draft.conflicts = _findConflicts(after);
+      draft.conflictIndex = 0;
+    }
+    if (draft.conflictIndex < draft.conflicts!.length) {
+      await _showConflictQuestion(ctx, userId);
+      return;
+    }
     await ctx.reply(
       _confirmationText(draft),
       parseMode: ParseMode.html,
       replyMarkup: Pickers.confirm('settime'),
     );
   }
+
+  Future<void> _showConflictQuestion(Context ctx, int userId) async {
+    final draft = _drafts[userId]!;
+    final conflict = draft.conflicts![draft.conflictIndex];
+    final rows = draft.afterRows!
+        .where((row) => conflict.keys.contains(_rowKey(row)))
+        .toList();
+    final description = rows
+        .map((row) =>
+            '${Slot.dayName(row.day)} ${prettyClock(row.start)}-'
+            '${prettyClock(row.end)} ${repo.locationName(row.location)}')
+        .join('\n');
+    await ctx.reply(
+      '<b>Overlapping sessions found</b>\n\n$description\n\n'
+      'Are these the same session with different durations, or two separate sessions?',
+      parseMode: ParseMode.html,
+      replyMarkup: InlineKeyboard()
+          .text('Same session', 'settime-conflict|same')
+          .row()
+          .text('Two sessions', 'settime-conflict|separate')
+          .row()
+          .text('❌ Cancel', 'settime|no'),
+    );
+  }
+
+  Future<void> _resolveConflict(Context ctx, int userId, String choice) async {
+    final draft = _drafts[userId]!;
+    final conflict = draft.conflicts![draft.conflictIndex];
+    final group = choice == 'same' ? 'capacity-${draft.conflictIndex + 1}' : null;
+    draft.afterRows = [
+      for (final row in draft.afterRows!)
+        conflict.keys.contains(_rowKey(row))
+            ? _copyRow(row, capacityGroup: group)
+            : row,
+    ];
+    draft.conflictIndex++;
+    if (draft.conflictIndex < draft.conflicts!.length) {
+      await _showConflictQuestion(ctx, userId);
+    } else {
+      await ctx.reply(
+        _confirmationText(draft),
+        parseMode: ParseMode.html,
+        replyMarkup: Pickers.confirm('settime'),
+      );
+    }
+  }
+
+  List<_ConflictGroup> _findConflicts(List<ScheduleSlot> rows) {
+    final result = <_ConflictGroup>[];
+    final visited = <int>{};
+    for (var i = 0; i < rows.length; i++) {
+      if (visited.contains(i)) continue;
+      final component = <int>{i};
+      var changed = true;
+      while (changed) {
+        changed = false;
+        for (var j = 0; j < rows.length; j++) {
+          if (component.contains(j)) continue;
+          final overlaps = component.any((index) =>
+              _samePlaceAndDay(rows[index], rows[j]) &&
+              _timesOverlap(rows[index], rows[j]));
+          if (overlaps) {
+            component.add(j);
+            changed = true;
+          }
+        }
+      }
+      visited.addAll(component);
+      if (component.length > 1) {
+        final group = component.map((index) => rows[index].capacityGroup).toSet();
+        if (group.length != 1 || group.first == null) {
+          result.add(_ConflictGroup([
+            for (final index in component) _rowKey(rows[index]),
+          ]));
+        }
+      }
+    }
+    return result;
+  }
+
+  static bool _samePlaceAndDay(ScheduleSlot a, ScheduleSlot b) =>
+      a.day == b.day && a.location == b.location;
+
+  static bool _timesOverlap(ScheduleSlot a, ScheduleSlot b) =>
+      a.start.compareTo(b.end) < 0 && b.start.compareTo(a.end) < 0;
+
+  static ScheduleSlot _copyRow(ScheduleSlot row, {String? capacityGroup}) =>
+      ScheduleSlot(
+        day: row.day,
+        slot: row.slot,
+        start: row.start,
+        end: row.end,
+        location: row.location,
+        maxPeople: row.maxPeople,
+        capacityGroup: capacityGroup,
+      );
 
   /// One draft line rendered the same way in the acknowledgements and in the
   /// final confirmation, e.g.
@@ -632,6 +741,7 @@ class SetTime {
           end: row.end,
           location: row.location,
           maxPeople: row.maxPeople,
+          capacityGroup: row.capacityGroup,
         ),
       );
     }
@@ -790,6 +900,8 @@ class _Draft {
   DateTime? targetSaturday;
   List<ScheduleSlot>? beforeRows;
   List<ScheduleSlot>? afterRows;
+  List<_ConflictGroup>? conflicts;
+  int conflictIndex = 0;
   final Set<String> removeKeys = {};
   final List<ScheduleSlot> removeRows = [];
 
@@ -828,3 +940,9 @@ class _Draft {
 enum _SetTimeScope { temporary, persistent }
 
 enum _SetTimeAction { add, remove, rewrite }
+
+class _ConflictGroup {
+  final List<String> keys;
+
+  const _ConflictGroup(this.keys);
+}

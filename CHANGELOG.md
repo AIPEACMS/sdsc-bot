@@ -5,6 +5,16 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [3.2.3] - 2026-10-03
+
+### Changed
+
+- **Overlapping session classification.** `/settime` now asks whether
+  overlapping same-day/location sessions are one session with different
+  durations or two separate sessions before confirming the schedule.
+- Same-session choices share one capacity pool without inventing a merged time
+  range.
+
 ## [3.2.2] - 2026-10-03
 
 ### Fixed

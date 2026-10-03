@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   start_at TEXT NOT NULL,
   end_at TEXT NOT NULL,
   max_people INTEGER,
+  capacity_group TEXT,
   UNIQUE(weekend_start, day, slot, location)
 );
 
@@ -162,7 +163,8 @@ CREATE TABLE IF NOT EXISTS schedule_template (
   start_at TEXT NOT NULL,
   end_at TEXT NOT NULL,
   location_key TEXT NOT NULL,
-  max_people INTEGER
+  max_people INTEGER,
+  capacity_group TEXT
 );
 
 CREATE TABLE IF NOT EXISTS schedule_overrides (
@@ -173,6 +175,7 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
   end_at TEXT NOT NULL,
   location_key TEXT NOT NULL,
   max_people INTEGER,
+  capacity_group TEXT,
   PRIMARY KEY (weekend_start, day, slot, location_key)
 );
 ''');
@@ -181,6 +184,11 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
     for (final table in ['sessions', 'schedule_template', 'schedule_overrides']) {
       try {
         db.execute('ALTER TABLE $table ADD COLUMN max_people INTEGER');
+      } catch (_) {
+        // column already present
+      }
+      try {
+        db.execute('ALTER TABLE $table ADD COLUMN capacity_group TEXT');
       } catch (_) {
         // column already present
       }
