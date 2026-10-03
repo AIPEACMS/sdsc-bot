@@ -309,7 +309,7 @@ class Admin {
       service.checkListText(
         w.sat0,
         title: '📋 <b>Allocation · ${_day(w.sat0)}</b>',
-        userIds: activeIds,
+        userIds: group == null ? null : activeIds,
       ),
     );
     sb.writeln();
@@ -317,7 +317,7 @@ class Admin {
       service.checkListText(
         w.sat1,
         title: '📋 <b>Allocation · ${_day(w.sat1)}</b>',
-        userIds: activeIds,
+        userIds: group == null ? null : activeIds,
       ),
     );
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
