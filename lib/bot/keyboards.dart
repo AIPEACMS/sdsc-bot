@@ -56,6 +56,13 @@ class RoleKeyboard {
     GridButton('my-status', '/mystatus', RoleColor.member),
   ];
 
+  /// Out-members keep the complete availability grid and can choose how often
+  /// the weekly availability prompt is sent to them.
+  static const List<GridButton> outMemberButtons = [
+    ...memberButtons,
+    GridButton('notify', '/notify', RoleColor.member),
+  ];
+
   /// The `check` tier's single button: they are not members and only report
   /// on the current week's allocation.
   static const List<GridButton> checkButtons = [
@@ -85,21 +92,24 @@ class RoleKeyboard {
     ...adminButtons,
   ];
 
-  /// Console-only commands remain typed commands, not grid buttons. A console
-  /// who is only a regular member therefore sees the green member grid.
-  static const List<GridButton> consoleButtons = memberButtons;
+  /// Console-only commands remain typed commands, not grid buttons. A
+  /// console-only identity therefore has no normal member grid.
+  static const List<GridButton> consoleButtons = [];
 
+  /// Kept as a named alias for callers that used the old composed preview.
   static const List<GridButton> consoleGlobalAdminButtons = globalAdminButtons;
 
-  /// The full button list for [role] ('console' | 'gadmin' | 'admin' |
-  /// 'console-gadmin' | 'console-old' | 'check' | 'member' | 'old').
+  /// The full button list for [role]. `console-only` deliberately has no
+  /// member buttons: console identity is independent of a stored user role.
   static List<GridButton> gridButtons(String role) => switch (role) {
+    'console-only' => consoleButtons,
     'console' => consoleButtons,
     'gadmin' => globalAdminButtons,
-    'console-gadmin' => consoleGlobalAdminButtons,
-    'console-old' => oldButtons,
+    'console-gadmin' => globalAdminButtons,
     'admin' => adminButtons,
     'check' => checkButtons,
+    MemberTier.outMember => outMemberButtons,
+    'console-old' => oldButtons,
     'old' => oldButtons,
     _ => memberButtons,
   };
@@ -109,16 +119,17 @@ class RoleKeyboard {
     required bool isConsole,
     bool isGlobalAdmin = false,
     required bool isAdmin,
-    String tier = MemberTier.member,
+    String? tier,
   }) {
     if (isConsole) {
-      if (isGlobalAdmin) return 'console-gadmin';
-      if (tier == MemberTier.old) return 'console-old';
-      return 'console';
+      if (isGlobalAdmin) return 'gadmin';
+      if (isAdmin) return 'admin';
+      if (tier == null) return 'console-only';
+      return MemberTier.stored.contains(tier) ? tier : 'console-only';
     }
     if (isGlobalAdmin) return 'gadmin';
     if (isAdmin) return 'admin';
-    return MemberTier.order.contains(tier) ? tier : MemberTier.member;
+    return MemberTier.stored.contains(tier) ? tier : MemberTier.member;
   }
 
   /// Builds the persistent, resized reply keyboard for [role] with up to

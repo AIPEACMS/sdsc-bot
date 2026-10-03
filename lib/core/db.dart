@@ -38,7 +38,9 @@ CREATE TABLE IF NOT EXISTS users (
   preferred_name TEXT NOT NULL DEFAULT '',
   matric_no TEXT NOT NULL DEFAULT '',
   school_email TEXT NOT NULL DEFAULT '',
-  member_tier TEXT NOT NULL DEFAULT 'member'
+  member_tier TEXT NOT NULL DEFAULT 'member',
+  notification_preference TEXT NOT NULL DEFAULT 'weekly',
+  last_prompt_state TEXT NOT NULL DEFAULT 'none'
 );
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -110,7 +112,8 @@ CREATE TABLE IF NOT EXISTS seen_users (
 CREATE TABLE IF NOT EXISTS pending_users (
   username TEXT PRIMARY KEY,
   is_admin INTEGER NOT NULL DEFAULT 0,
-  tier TEXT NOT NULL DEFAULT 'member'
+  tier TEXT NOT NULL DEFAULT 'member',
+  notification_preference TEXT NOT NULL DEFAULT 'weekly'
 );
 
 CREATE TABLE IF NOT EXISTS sent_messages (
@@ -277,6 +280,20 @@ END;
       }
     }
 
+    // Notification scheduling state was added for the v4 role/storage model.
+    // Check PRAGMA first so opening the same database repeatedly is harmless.
+    for (final (column, definition) in [
+      ('notification_preference', "TEXT NOT NULL DEFAULT 'weekly'"),
+      ('last_prompt_state', "TEXT NOT NULL DEFAULT 'none'"),
+    ]) {
+      if (!userColumns.contains(column)) {
+        db.execute(
+          'ALTER TABLE users ADD COLUMN $column $definition',
+        );
+        userColumns.add(column);
+      }
+    }
+
     // Per-slot commitment: the sessions a member *wants* to attend, separate
     // from the ones they can attend if needed (availability.slots). Databases
     // created before the split only have `slots`.
@@ -292,6 +309,16 @@ END;
       db.execute("ALTER TABLE pending_users ADD COLUMN tier TEXT NOT NULL DEFAULT 'member'");
     } catch (_) {
       // column already present
+    }
+    final pendingColumns = db
+        .select('PRAGMA table_info(pending_users)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    if (!pendingColumns.contains('notification_preference')) {
+      db.execute(
+        "ALTER TABLE pending_users ADD COLUMN notification_preference "
+        "TEXT NOT NULL DEFAULT 'weekly'",
+      );
     }
 
     // Exact send time is audit data, not part of the daily deduplication key.

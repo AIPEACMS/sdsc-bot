@@ -85,6 +85,19 @@ class CycleService {
     var failures = 0;
     final today = config.toLocal(Config.nowUtc());
     for (final user in repo.promptTargets(w.sat0)) {
+      if (repo.isQuiet(user.id, w.sat0)) {
+        if (user.notificationPreference == NotificationPreference.everyOther) {
+          repo.setLastPromptState(user.id, LastPromptState.none);
+        }
+        continue;
+      }
+      if (!_shouldPrompt(user)) {
+        if (user.notificationPreference == NotificationPreference.everyOther &&
+            !repo.messageSentOnDay(user.id, 'prompt', today)) {
+          repo.setLastPromptState(user.id, LastPromptState.none);
+        }
+        continue;
+      }
       try {
         // Never send the same prompt to the same user twice in one day.
         if (repo.messageSentOnDay(user.id, 'prompt', today)) continue;
@@ -92,6 +105,7 @@ class CycleService {
         if (text == null) continue; // opted out of this holiday
         await showAvailability(user, w, text);
         repo.markMessageSent(user.id, 'prompt', today);
+        repo.setLastPromptState(user.id, LastPromptState.prompted);
       } catch (_) {
         failures++; // member may have blocked the bot
       }
@@ -104,6 +118,7 @@ class CycleService {
     var failures = 0;
     final today = config.toLocal(Config.nowUtc());
     for (final user in repo.reminderTargets(w.sat0)) {
+      if (!_shouldRemind(user)) continue;
       try {
         if (repo.messageSentOnDay(user.id, 'reminder', today)) continue;
         final text = reminderFor(user, w);
@@ -116,6 +131,25 @@ class CycleService {
     }
     if (failures > 0) LogRing.log('remind: $failures members unreachable');
   }
+
+  /// Every-other preference uses the durable prompt state as a two-cycle
+  /// toggle. A prompt or response occupies one cycle; the next skipped cycle
+  /// clears it so the following weekly prompt is delivered.
+  bool _shouldPrompt(User user) => switch (user.notificationPreference) {
+    NotificationPreference.weekly => true,
+    NotificationPreference.never => false,
+    NotificationPreference.everyOther =>
+      user.lastPromptState != LastPromptState.prompted &&
+          user.lastPromptState != LastPromptState.responded,
+  };
+
+  bool _shouldRemind(User user) => switch (user.notificationPreference) {
+    NotificationPreference.weekly => true,
+    NotificationPreference.never => false,
+    NotificationPreference.everyOther =>
+      user.lastPromptState == LastPromptState.prompted ||
+          user.lastPromptState == LastPromptState.responded,
+  };
 
   /// Whether this window's weekends fall on a holiday week.
   static bool isHolidayWindow(Repo repo, RollingWindow w) =>
@@ -254,9 +288,10 @@ class CycleService {
   /// extends the run, a present PR session resets it. The streak counts
   /// consecutive sessions attended, so the allocator bans the 3rd in a row.
   void markAttendance(int userId, int sessionId, {required bool attended}) {
+    final user = repo.findUser(userId);
+    if (user == null || user.memberTier == MemberTier.outMember) return;
     repo.setAttendanceState(userId, sessionId, attended: attended);
     final session = repo.sessionById(sessionId);
-    final user = repo.findUser(userId);
     if (session == null || user == null) return;
     final streak = session.location == Locations.ocbc ? user.ocbcStreak + 1 : 0;
     repo.setOcbcStreak(userId, streak);
@@ -278,6 +313,7 @@ class CycleService {
           .map((a) => a.userId)
           .toSet();
       for (final (user, _) in allocations) {
+        if (user.memberTier == MemberTier.outMember) continue;
         if (marked.contains(user.id)) continue;
         unmarkedTotal++;
         final admin = repo.groupAdmin(user.group);
@@ -321,7 +357,7 @@ class CycleService {
     final byAdmin = <int, List<String>>{};
     var absentTotal = 0;
     for (final user in repo.activeUsers()) {
-      if (config.isConsole(user.id)) continue; // the console is the operator
+      if (user.memberTier == MemberTier.outMember) continue;
       final streak = repo.consecutiveAbsentWeeks(user.id, latestSat);
       if (streak < 4) continue;
       final admin = repo.groupAdmin(user.group);

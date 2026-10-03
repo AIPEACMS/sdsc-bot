@@ -4,6 +4,10 @@ import 'week.dart';
 
 enum Experience { experienced, newbie }
 
+enum NotificationPreference { weekly, everyOther, never }
+
+enum LastPromptState { none, prompted, responded }
+
 /// Built-in location keys. Locations are dynamic (DB-backed) — these are the
 /// two seeded ones, referenced where behaviour is inherently location-specific
 /// (the OCBC attendance streak, the allocator's default preference).
@@ -73,15 +77,16 @@ class LocationInfo {
 enum HolidayKind { middle, winter, summer }
 
 /// Member tiers, in display/sort order: console > gadmin > admin > check >
-/// member > old. `console` is derived from the configured console id;
-/// `gadmin` and `admin` are stored flags; the remaining tiers are stored in
-/// [User.memberTier].
+/// member > out-member > old. `console` is a separate identity derived from
+/// the configured console id; `gadmin` and `admin` are stored flags; the
+/// remaining tiers are stored in [User.memberTier].
 class MemberTier {
   static const String console = 'console';
   static const String globalAdmin = 'gadmin';
   static const String admin = 'admin';
   static const String check = 'check';
   static const String member = 'member';
+  static const String outMember = 'out-member';
   static const String old = 'old';
 
   /// Display/sort order: first defined = top.
@@ -91,19 +96,41 @@ class MemberTier {
     admin,
     check,
     member,
+    outMember,
     old,
   ];
 
-  /// The tier of [user], given whether their id is the console.
+  static const List<String> stored = [check, member, outMember, old];
+
+  /// The stored role of [user]. Console identity is orthogonal to this role,
+  /// so [isConsole] does not replace an admin or member tier. Callers that
+  /// need a console group should add [console] separately.
   static String of(User user, {required bool isConsole}) {
-    if (isConsole) return console;
     if (user.isGlobalAdmin) return globalAdmin;
     if (user.isAdmin) return admin;
     return user.memberTier;
   }
 
   /// True when the user takes part in availability/allocation/messaging.
+  /// Out-members use the same flow as regular members; only checkers and old
+  /// members are inactive.
   static bool isActive(String tier) => tier != check && tier != old;
+
+  static bool isStored(String tier) => stored.contains(tier);
+}
+
+class PendingRole {
+  final bool isAdmin;
+  final String tier;
+  final NotificationPreference notificationPreference;
+
+  const PendingRole({
+    required this.isAdmin,
+    required this.tier,
+    this.notificationPreference = NotificationPreference.weekly,
+  });
+
+  String get effectiveTier => isAdmin ? MemberTier.admin : tier;
 }
 
 class User {
@@ -122,6 +149,8 @@ class User {
   @Deprecated('No longer collected; use preferredName.')
   String get fullName => _fullName;
 
+  String get storedFullName => _fullName;
+
   /// What the member wants to be called.
   final String preferredName;
 
@@ -131,14 +160,21 @@ class User {
   @Deprecated('No longer collected.')
   String get matricNo => _matricNo;
 
+  String get storedMatricNo => _matricNo;
+
   final String _schoolEmail;
 
   /// @deprecated No longer collected.
   @Deprecated('No longer collected.')
   String get schoolEmail => _schoolEmail;
 
-  /// Stored tier: 'member' | 'check' | 'old'. 'console'/'admin' are derived.
+  String get storedSchoolEmail => _schoolEmail;
+
+  /// Stored tier: 'member' | 'check' | 'out-member' | 'old'. Admin and
+  /// global-admin are stored flags; console identity is separate.
   final String memberTier;
+  final NotificationPreference notificationPreference;
+  final LastPromptState lastPromptState;
 
   const User({
     required this.id,
@@ -154,6 +190,8 @@ class User {
     String matricNo = '',
     String schoolEmail = '',
     this.memberTier = MemberTier.member,
+    this.notificationPreference = NotificationPreference.weekly,
+    this.lastPromptState = LastPromptState.none,
   }) : _fullName = fullName,
        _matricNo = matricNo,
        _schoolEmail = schoolEmail;
@@ -170,6 +208,9 @@ class User {
     String? fullName,
     String? matricNo,
     String? schoolEmail,
+    DateTime? registeredAt,
+    NotificationPreference? notificationPreference,
+    LastPromptState? lastPromptState,
   }) {
     return User(
       id: id,
@@ -179,14 +220,25 @@ class User {
       isAdmin: isAdmin ?? this.isAdmin,
       isGlobalAdmin: isGlobalAdmin ?? this.isGlobalAdmin,
       ocbcStreak: ocbcStreak ?? this.ocbcStreak,
-      registeredAt: registeredAt,
+      registeredAt: registeredAt ?? this.registeredAt,
       fullName: fullName ?? _fullName,
       preferredName: preferredName ?? this.preferredName,
       matricNo: matricNo ?? _matricNo,
       schoolEmail: schoolEmail ?? _schoolEmail,
       memberTier: memberTier ?? this.memberTier,
+      notificationPreference:
+          notificationPreference ?? this.notificationPreference,
+      lastPromptState: lastPromptState ?? this.lastPromptState,
     );
   }
+
+  User asMember() => copyWith(memberTier: MemberTier.member);
+
+  User asOutMember() => copyWith(memberTier: MemberTier.outMember);
+
+  User toMember() => asMember();
+
+  User toOutMember() => asOutMember();
 
   factory User.fromRow(Map<String, Object?> row) => User(
     id: row['id'] as int,
@@ -206,7 +258,30 @@ class User {
     matricNo: (row['matric_no'] as String?) ?? '',
     schoolEmail: (row['school_email'] as String?) ?? '',
     memberTier: (row['member_tier'] as String?) ?? MemberTier.member,
+    notificationPreference: _notificationPreferenceFromRow(row),
+    lastPromptState: _lastPromptStateFromRow(row),
   );
+
+  static NotificationPreference _notificationPreferenceFromRow(
+    Map<String, Object?> row,
+  ) {
+    final value = row['notification_preference'] as String?;
+    return switch (value) {
+      'every-other' || 'every_other' || 'everyOther' =>
+        NotificationPreference.everyOther,
+      'never' => NotificationPreference.never,
+      _ => NotificationPreference.weekly,
+    };
+  }
+
+  static LastPromptState _lastPromptStateFromRow(Map<String, Object?> row) {
+    final value = row['last_prompt_state'] as String?;
+    return switch (value) {
+      'prompted' => LastPromptState.prompted,
+      'responded' => LastPromptState.responded,
+      _ => LastPromptState.none,
+    };
+  }
 }
 
 /// One session of one weekend, e.g. `0:sat:am:ocbc` = weekend 0, Saturday AM,

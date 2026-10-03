@@ -4,6 +4,8 @@ import 'package:sdsc_bot/bot/keyboards.dart';
 void main() {
   test('gadmin adds only hold controls to the normal admin grid', () {
     final member = RoleKeyboard.memberButtons.map((b) => b.command).toSet();
+    final outMember =
+        RoleKeyboard.outMemberButtons.map((b) => b.command).toSet();
     final admin = RoleKeyboard.adminButtons.map((b) => b.command).toSet();
     final gadmin = RoleKeyboard.globalAdminButtons
         .map((b) => b.command)
@@ -15,7 +17,9 @@ void main() {
 
     expect(member.difference(admin).isEmpty, isTrue);
     expect(admin.difference(gadmin).isEmpty, isTrue);
-    expect(console, member);
+    expect(console, isEmpty);
+    expect(outMember, contains('/notify'));
+    expect(outMember.difference(member), {'/notify'});
     expect(combined, gadmin);
     expect(admin.length, greaterThan(member.length));
     expect(gadmin.difference(admin), {'/hold', '/unhold', '/settime'});
@@ -98,8 +102,8 @@ void main() {
   test('roleFor picks the highest role', () {
     expect(RoleKeyboard.roleFor(isConsole: false, isAdmin: false), 'member');
     expect(RoleKeyboard.roleFor(isConsole: false, isAdmin: true), 'admin');
-    expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: false), 'console');
-    expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: true), 'console');
+    expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: false), 'console-only');
+    expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: true), 'admin');
     expect(
       RoleKeyboard.roleFor(
         isConsole: false,
@@ -114,7 +118,7 @@ void main() {
         isGlobalAdmin: true,
         isAdmin: false,
       ),
-      'console-gadmin',
+      'gadmin',
     );
   });
 
@@ -134,12 +138,12 @@ void main() {
     );
     expect(
       RoleKeyboard.roleFor(isConsole: true, isAdmin: false, tier: 'old'),
-      'console-old',
+      'old',
     );
   });
 
   test('gridButtons resolves each role', () {
-    expect(RoleKeyboard.gridButtons('console'), RoleKeyboard.consoleButtons);
+    expect(RoleKeyboard.gridButtons('console-only'), RoleKeyboard.consoleButtons);
     expect(
       RoleKeyboard.gridButtons('gadmin'),
       RoleKeyboard.globalAdminButtons,
@@ -152,7 +156,7 @@ void main() {
 
   test('console commands remain command-only', () {
     final commands = RoleKeyboard.consoleButtons.map((b) => b.command);
-    expect(commands, RoleKeyboard.memberButtons.map((b) => b.command));
+    expect(commands, isEmpty);
     expect(commands, isNot(contains('/addkey')));
     expect(commands, isNot(contains('/addg')));
     expect(commands, isNot(contains('/grid')));

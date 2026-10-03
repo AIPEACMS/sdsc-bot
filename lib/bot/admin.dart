@@ -27,6 +27,13 @@ class Admin {
 
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
+    commandBoth(
+      bot,
+      state,
+      'addoutuser',
+      _guard(_addOutUser),
+      label: 'add-out-user',
+    );
     commandBoth(bot, state, 'status', _guard(_status), label: 'all-status');
     commandBoth(
       bot,
@@ -128,19 +135,29 @@ class Admin {
   /// /adduser with no args starts the wizard: the admin sends one handle and
   /// confirms before anything is added. With a handle, adds it directly.
   Future<void> _addUser(Context ctx) async {
+    await _addUserAs(ctx, MemberTier.member);
+  }
+
+  Future<void> _addOutUser(Context ctx) async {
+    await _addUserAs(ctx, MemberTier.outMember);
+  }
+
+  Future<void> _addUserAs(Context ctx, String tier) async {
     final args = ctx.args;
     if (args.isEmpty) {
       final userId = ctx.from!.id;
       state.pendingArg[userId] = PendingArg('adduser');
+      _pendingAddTier[userId] = tier;
       final message = await ctx.reply(
-        '➕ Send me the handle to add (e.g. <b>@username</b>), or tap Cancel.',
+        '➕ Send me the handle to add as a ${tier == MemberTier.member ? 'member' : 'out-member'} '
+        '(e.g. <b>@username</b>), or tap Cancel.',
         parseMode: ParseMode.html,
         replyMarkup: InlineKeyboard().text('❌ Cancel', 'admincancel|0'),
       );
       state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
     }
-    await ctx.reply(_addOutcome(args.first, isAdmin: false));
+    await ctx.reply(_addOutcome(args.first, tier: tier));
   }
 
   /// Entry point for the /adduser wizard: the admin typed the handle; show
@@ -151,6 +168,8 @@ class Admin {
       await ctx.reply('That is not a valid handle. Try again, or tap Cancel.');
       return;
     }
+    final tier = _pendingAddTier[userId] ?? MemberTier.member;
+    _pendingAddTier[userId] = tier;
     _pendingAddUser[userId] = handle;
     final message = await ctx.reply(
       'Add <b>@$handle</b>?',
@@ -162,17 +181,38 @@ class Admin {
 
   /// The handle awaiting confirmation per admin, from the /adduser wizard.
   final Map<int, String> _pendingAddUser = {};
+  final Map<int, String> _pendingAddTier = {};
 
   /// Registers (or queues) @handle and returns the outcome message.
-  String _addOutcome(String rawHandle, {required bool isAdmin}) {
+  String _addOutcome(String rawHandle, {required String tier}) {
     final handle = rawHandle.replaceFirst('@', '');
     final userId = repo.userIdByUsername(handle);
-    if (userId != null && repo.findUser(userId) != null) {
-      return '@$handle is already a member.';
+    final existing = userId == null ? null : repo.findUser(userId);
+    final pending = repo.pendingRole(handle);
+    if (existing != null) {
+      // A registered user is authoritative: stale pending rows are removed and
+      // never produce a pending warning.
+      repo.removePendingUser(handle);
+      if (existing.isGlobalAdmin) {
+        return '@$handle is the global admin and cannot be converted.';
+      }
+      if (existing.isAdmin) {
+        return '@$handle is already an admin. Use /demote before converting '
+            'them to a ${_tierLabel(tier)}.';
+      }
+      if (existing.memberTier == tier) {
+        return '@$handle is already a ${_tierLabel(tier)}.';
+      }
+      if (!repo.setTier(existing.id, tier)) {
+        return '@$handle cannot be converted to a ${_tierLabel(tier)}.';
+      }
+      return '✅ @$handle is now a ${_tierLabel(tier)}.';
     }
-    if (repo.isPendingUser(handle)) {
-      return '@$handle is already queued — they will be registered the first '
-          'time they message the bot.';
+    if (pending != null) {
+      repo.replacePendingUser(handle, isAdmin: false, tier: tier);
+      return '⚠️ @$handle is not registered. Their pending role '
+          '(${_tierLabel(pending.effectiveTier)}) was replaced with '
+          '${_tierLabel(tier)}. They will be registered when they message the bot.';
     }
     if (userId != null) {
       // Seen before: register now.
@@ -182,21 +222,24 @@ class Admin {
           name: '@$handle',
           experience: Experience.newbie,
           group: '',
+          memberTier: tier,
         ),
       );
-      if (isAdmin) repo.updateAdmin(userId, true); // gets their own group
-      return isAdmin
-          ? '✅ @$handle is now an admin.'
-          : '✅ @$handle added. They can now use /start to see their commands.';
+      return '✅ @$handle added as a ${_tierLabel(tier)}. They can now use '
+          '/start to see their commands.';
     }
     // Not seen yet: queue by handle; auto-register on first contact.
-    repo.addPendingUser(handle, isAdmin: isAdmin);
-    return isAdmin
-        ? '✅ @$handle queued as admin — no need for them to message first. '
-              'The moment they message this bot, they are promoted automatically.'
-        : '✅ @$handle queued — no need for them to message first. The moment '
-              'they message this bot, they are registered automatically.';
+    repo.addPendingUser(handle, isAdmin: false, tier: tier);
+    return '✅ @$handle queued as a ${_tierLabel(tier)} — no need for them to '
+        'message first. The moment they message this bot, they are registered '
+        'automatically.';
   }
+
+  static String _tierLabel(String tier) => tier == MemberTier.outMember
+      ? 'out-member'
+      : tier == MemberTier.member
+      ? 'member'
+      : tier;
 
   // ----------------------------------------------------------- /status
 
@@ -217,7 +260,7 @@ class Admin {
     final responders = responderIds.length;
     final pending = repo
         .reminderTargets(w.sat0)
-        .where((user) => group == null || user.group == group)
+        .where((user) => activeIds.contains(user.id))
         .toList();
 
     final sb = StringBuffer()
@@ -266,7 +309,7 @@ class Admin {
       service.checkListText(
         w.sat0,
         title: '📋 <b>Allocation · ${_day(w.sat0)}</b>',
-        userIds: group == null ? null : activeIds,
+        userIds: activeIds,
       ),
     );
     sb.writeln();
@@ -274,7 +317,7 @@ class Admin {
       service.checkListText(
         w.sat1,
         title: '📋 <b>Allocation · ${_day(w.sat1)}</b>',
-        userIds: group == null ? null : activeIds,
+        userIds: activeIds,
       ),
     );
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);
@@ -309,15 +352,19 @@ class Admin {
       });
     final lines = users.map((u) {
       final tier = _displayTier(u);
+      final outMember = u.memberTier == MemberTier.outMember;
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
-      final stats = repo.attendanceStats(u.id);
-      final byLoc = stats.byLocation.entries
-          .where((e) => e.value > 0)
-          .map((e) => '${e.value} ${repo.locationName(e.key)}')
-          .join(', ');
+      final stats = outMember ? null : repo.attendanceStats(u.id);
+      final byLoc = stats?.byLocation.entries
+              .where((e) => e.value > 0)
+              .map((e) => '${e.value} ${repo.locationName(e.key)}')
+              .join(', ') ??
+          '';
+      final detail = outMember
+          ? 'notifications ${_notificationLabel(u.notificationPreference)}'
+          : '$exp${byLoc.isEmpty ? '' : ', $byLoc'}';
       return '• <b>${_displayName(u)}</b>\n   ($tier, '
-          'group ${u.group.isEmpty ? 'none' : u.group}, '
-          '$exp${byLoc.isEmpty ? '' : ', $byLoc'})';
+          'group ${u.group.isEmpty ? 'none' : u.group}, $detail)';
     });
     await ctx.reply(
       '<b>${group == null ? 'All users' : 'Group $group users'} '
@@ -328,10 +375,16 @@ class Admin {
 
   String _displayTier(User user) {
     if (user.isGlobalAdmin) return MemberTier.globalAdmin;
-    if (config.isConsole(user.id)) return MemberTier.console;
     if (user.isAdmin) return MemberTier.admin;
     return user.memberTier;
   }
+
+  static String _notificationLabel(NotificationPreference preference) =>
+      switch (preference) {
+        NotificationPreference.weekly => 'weekly',
+        NotificationPreference.everyOther => 'every other week',
+        NotificationPreference.never => 'never',
+      };
 
   int _displayTierRank(User user) {
     final index = MemberTier.order.indexOf(_displayTier(user));
@@ -386,7 +439,7 @@ class Admin {
     }
     final id = int.tryParse(args.first);
     final user = id == null ? null : repo.findUser(id);
-    if (user == null) {
+    if (user == null || user.memberTier == MemberTier.outMember) {
       await ctx.reply('Unknown user id.');
       return;
     }
@@ -395,7 +448,10 @@ class Admin {
   }
 
   Future<void> _askPicker(Context ctx, int page) async {
-    final members = repo.activeUsers();
+    final members = repo
+        .activeUsers()
+        .where((u) => u.memberTier != MemberTier.outMember)
+        .toList();
     if (members.isEmpty) {
       await ctx.reply('No members yet. Add some with /adduser.');
       return;
@@ -413,7 +469,7 @@ class Admin {
   Future<void> _askPick(Context ctx, int memberId) async {
     await ctx.answerCallbackQuery();
     final user = repo.findUser(memberId);
-    if (user == null) return;
+    if (user == null || user.memberTier == MemberTier.outMember) return;
     final result = await _sendAsk(ctx, user);
     await ctx.editMessageText(result.$1);
   }
@@ -421,6 +477,9 @@ class Admin {
   /// Sends an individual picker only while the current availability window is
   /// open. Early-week asks use prompt text; late-week asks use reminder text.
   Future<(String, bool)> _sendAsk(Context ctx, User user) async {
+    if (user.memberTier == MemberTier.outMember) {
+      return ('Out-members are not included in /ask.', false);
+    }
     final now = config.toLocal(Config.nowUtc());
     final w = _window();
     final holiday = service.optedOutHolidayFor(user, w);
@@ -516,7 +575,12 @@ class Admin {
   /// group).
   List<User> _sessionMembers(Session s, String group) => repo
       .allocationsForWeekend(s.weekendStart)
-      .where((a) => a.$2.id == s.id && (group.isEmpty || a.$1.group == group))
+      .where(
+        (a) =>
+            a.$2.id == s.id &&
+            a.$1.memberTier != MemberTier.outMember &&
+            (group.isEmpty || a.$1.group == group),
+      )
       .map((a) => a.$1)
       .toList();
 
@@ -566,6 +630,8 @@ class Admin {
   Future<void> _toggleAttendance(Context ctx, int sessionId, int userId) async {
     final session = repo.sessionById(sessionId);
     if (session == null) return;
+    final user = repo.findUser(userId);
+    if (user == null || user.memberTier == MemberTier.outMember) return;
     final current = repo
         .attendanceForSession(sessionId)
         .where((a) => a.userId == userId)
@@ -620,7 +686,10 @@ class Admin {
   }
 
   Future<void> _pickUserFor(Context ctx, String kind, String value) async {
-    final users = repo.activeUsers();
+    final users = repo
+        .activeUsers()
+        .where((u) => u.memberTier != MemberTier.outMember)
+        .toList();
     if (users.isEmpty) {
       await ctx.reply('No registered users yet.');
       return;
@@ -651,7 +720,7 @@ class Admin {
     int userId,
   ) async {
     final user = repo.findUser(userId);
-    if (user == null) return;
+    if (user == null || user.memberTier == MemberTier.outMember) return;
     if (kind == 'setexp') {
       repo.updateExperience(
         userId,
@@ -719,6 +788,7 @@ class Admin {
   Future<void> _doBroadcast(Context ctx, String text) async {
     var sent = 0;
     for (final user in repo.activeUsers()) {
+      if (user.memberTier == MemberTier.outMember) continue;
       try {
         await bot.api.sendMessage(ChatID(user.id), text);
         sent++;
@@ -773,12 +843,14 @@ class Admin {
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
         if (!yes) {
+          _pendingAddTier.remove(ctx.from!.id);
           await ctx.editMessageText('Cancelled — nobody was added.');
           return;
         }
         final handle = _pendingAddUser.remove(ctx.from!.id);
         if (handle == null) return;
-        await ctx.editMessageText(_addOutcome(handle, isAdmin: false));
+        final tier = _pendingAddTier.remove(ctx.from!.id) ?? MemberTier.member;
+        await ctx.editMessageText(_addOutcome(handle, tier: tier));
       case 'prompt':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
@@ -798,6 +870,7 @@ class Admin {
         state.pendingArg.remove(ctx.from!.id);
         _pendingBroadcast.remove(ctx.from!.id);
         _pendingAddUser.remove(ctx.from!.id);
+        _pendingAddTier.remove(ctx.from!.id);
         await ctx.editMessageText('Cancelled.');
     }
   }
@@ -815,7 +888,10 @@ class Admin {
     if (action == 'ask') {
       if (target == 'prev' || target == 'next') {
         // Re-render the picker at the new page.
-        final members = repo.activeUsers();
+        final members = repo
+            .activeUsers()
+            .where((u) => u.memberTier != MemberTier.outMember)
+            .toList();
         await ctx.editMessageText(
           '🤔 Send the availability picker to which member?',
           replyMarkup: Pickers.memberPicker(

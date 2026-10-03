@@ -95,8 +95,8 @@ class Repo {
   List<User> allUsers() =>
       raw.select('SELECT * FROM users ORDER BY name').map(User.fromRow).toList();
 
-  /// Users who take part in availability, allocation and messaging: members,
-  /// admins and the console. Excludes the `check` and `old` tiers.
+  /// Users who take part in availability, allocation and messaging. Checkers
+  /// and old users are excluded; out-members follow the member flow.
   List<User> activeUsers() => raw
       .select(
         "SELECT * FROM users WHERE member_tier NOT IN ('check', 'old') "
@@ -106,29 +106,62 @@ class Repo {
       .toList();
 
   User upsertUser(User user) {
+    final columns = [
+      'id',
+      'name',
+      'experience',
+      'group_id',
+      'is_admin',
+      'is_global_admin',
+      'ocbc_streak',
+      'full_name',
+      'preferred_name',
+      'matric_no',
+      'school_email',
+      'member_tier',
+      'notification_preference',
+      'last_prompt_state',
+    ];
+    final values = <Object?>[
+      user.id,
+      user.name,
+      user.experience.name,
+      user.group,
+      user.isAdmin ? 1 : 0,
+      user.isGlobalAdmin ? 1 : 0,
+      user.ocbcStreak,
+      user.storedFullName,
+      user.preferredName,
+      user.storedMatricNo,
+      user.storedSchoolEmail,
+      _storedTier(user.memberTier),
+      _notificationPreferenceValue(user.notificationPreference),
+      user.lastPromptState.name,
+    ];
+    if (user.registeredAt != null) {
+      columns.add('created_at');
+      values.add(user.registeredAt!.toIso8601String());
+    }
+    final placeholders = List.filled(columns.length, '?').join(', ');
     raw.execute(
       '''
- INSERT INTO users (id, name, experience, group_id, is_admin, ocbc_streak, member_tier, preferred_name)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-ON CONFLICT(id) DO UPDATE SET
-  name = excluded.name,
-  experience = excluded.experience,
-  group_id = excluded.group_id,
-  is_admin = excluded.is_admin,
-  ocbc_streak = excluded.ocbc_streak,
-  member_tier = excluded.member_tier,
-  preferred_name = excluded.preferred_name
-''',
-      [
-        user.id,
-        user.name,
-        user.experience.name,
-        user.group,
-        user.isAdmin ? 1 : 0,
-        user.ocbcStreak,
-        user.memberTier,
-        user.preferredName,
-      ],
+ INSERT INTO users (${columns.join(', ')})
+ VALUES ($placeholders)
+ ON CONFLICT(id) DO UPDATE SET
+   name = excluded.name,
+   experience = excluded.experience,
+   group_id = excluded.group_id,
+   is_admin = excluded.is_admin,
+   ocbc_streak = excluded.ocbc_streak,
+   full_name = excluded.full_name,
+   preferred_name = excluded.preferred_name,
+   matric_no = excluded.matric_no,
+   school_email = excluded.school_email,
+   member_tier = excluded.member_tier,
+   notification_preference = excluded.notification_preference,
+   last_prompt_state = excluded.last_prompt_state
+ ''',
+      values,
     );
     return findUser(user.id)!;
   }
@@ -195,6 +228,20 @@ ON CONFLICT(id) DO UPDATE SET
     raw.execute(
       'UPDATE users SET ocbc_streak = ? WHERE id = ?',
       [streak, id],
+    );
+  }
+
+  void setNotificationPreference(int id, NotificationPreference preference) {
+    raw.execute(
+      'UPDATE users SET notification_preference = ? WHERE id = ?',
+      [_notificationPreferenceValue(preference), id],
+    );
+  }
+
+  void setLastPromptState(int id, LastPromptState state) {
+    raw.execute(
+      'UPDATE users SET last_prompt_state = ? WHERE id = ?',
+      [state.name, id],
     );
   }
 
@@ -301,13 +348,15 @@ ON CONFLICT(id) DO UPDATE SET
     }
   }
 
-  /// Sets a user's tier to one of 'admin', 'check', 'member' or 'old'.
+  /// Sets a user's tier to one of 'admin', 'check', 'member', 'out-member' or
+  /// 'old'.
   /// Promotion to admin sets is_admin and hands the new admin their own
   /// group; every other tier clears admin and dissolves the admin's group.
-  /// The console tier itself is never stored — it is derived from the
-  /// console id.
+  /// Console identity is never stored as a member tier; it is derived from
+  /// the console id and remains separate from the stored role.
   bool setTier(int id, String tier) {
-    if (![MemberTier.admin, MemberTier.check, MemberTier.member, MemberTier.old]
+    if (![MemberTier.admin, MemberTier.check, MemberTier.member,
+          MemberTier.outMember, MemberTier.old]
         .contains(tier)) {
       return false;
     }
@@ -325,11 +374,27 @@ ON CONFLICT(id) DO UPDATE SET
         [stored, id],
       );
       _assignGroupOnPromotion(id);
+    } else if (tier == MemberTier.outMember && user.isAdmin) {
+      // An out-member has no group, but converting an admin to out-member must
+      // not remove the group assignment from the other users who remain in it.
+      raw.execute(
+        'UPDATE users SET member_tier = ?, is_admin = 0, group_id = \'\' '
+        'WHERE id = ?',
+        [stored, id],
+      );
     } else if (!isAdminNext && user.isAdmin) {
       // Demotion: the admin's group dissolves with them.
       _dissolveGroup(user.group);
       raw.execute(
         'UPDATE users SET member_tier = ?, is_admin = 0 WHERE id = ?',
+        [stored, id],
+      );
+    } else if (tier == MemberTier.outMember && user.group.isNotEmpty) {
+      // An out-member leaves their group without dissolving it for the other
+      // members. Admin demotion above is the operation that dissolves a group.
+      raw.execute(
+        'UPDATE users SET member_tier = ?, is_admin = 0, group_id = \'\' '
+        'WHERE id = ?',
         [stored, id],
       );
     } else {
@@ -340,6 +405,10 @@ ON CONFLICT(id) DO UPDATE SET
     }
     return true;
   }
+
+  bool setMember(int id) => setTier(id, MemberTier.member);
+
+  bool setOutMember(int id) => setTier(id, MemberTier.outMember);
 
   // ------------------------------------------------------------ groups
 
@@ -517,23 +586,70 @@ ORDER BY s.username
   /// The user is auto-registered (with admin rights if [isAdmin], and with
   /// [tier] — e.g. `check` from the console's "Add check") the first time
   /// they contact the bot.
-  void addPendingUser(String handle,
-      {required bool isAdmin, String tier = MemberTier.member}) {
+  PendingRole? addPendingUser(String handle,
+      {
+        required bool isAdmin,
+        String tier = MemberTier.member,
+        NotificationPreference notificationPreference =
+            NotificationPreference.weekly,
+      }) {
+    final normalized = _pendingHandle(handle);
+    final previous = pendingRole(normalized);
     raw.execute(
       '''
-INSERT INTO pending_users (username, is_admin, tier) VALUES (?, ?, ?)
+INSERT INTO pending_users
+    (username, is_admin, tier, notification_preference)
+VALUES (?, ?, ?, ?)
 ON CONFLICT(username) DO UPDATE SET
-  is_admin = MAX(pending_users.is_admin, excluded.is_admin),
-  tier = excluded.tier
+  is_admin = excluded.is_admin,
+  tier = excluded.tier,
+  notification_preference = excluded.notification_preference
 ''',
-      [handle.replaceFirst('@', '').toLowerCase(), isAdmin ? 1 : 0, tier],
+      [
+        normalized,
+        isAdmin ? 1 : 0,
+        tier,
+        _notificationPreferenceValue(notificationPreference),
+      ],
+    );
+    return previous;
+  }
+
+  PendingRole? pendingRole(String handle) {
+    final rows = raw.select(
+      'SELECT is_admin, tier, notification_preference '
+      'FROM pending_users WHERE username = ?',
+      [_pendingHandle(handle)],
+    );
+    if (rows.isEmpty) return null;
+    return PendingRole(
+      isAdmin: (rows.first['is_admin'] as int) == 1,
+      tier: rows.first['tier'] as String,
+      notificationPreference: _notificationPreferenceFromValue(
+        rows.first['notification_preference'] as String?,
+      ),
     );
   }
+
+  /// Replaces a queued role and returns the role that was replaced, if any.
+  PendingRole? replacePendingUser(String handle,
+          {
+            required bool isAdmin,
+            String tier = MemberTier.member,
+            NotificationPreference notificationPreference =
+                NotificationPreference.weekly,
+          }) =>
+      addPendingUser(
+        handle,
+        isAdmin: isAdmin,
+        tier: tier,
+        notificationPreference: notificationPreference,
+      );
 
   bool isPendingUser(String handle) {
     final rows = raw.select(
       'SELECT 1 FROM pending_users WHERE username = ?',
-      [handle.replaceFirst('@', '').toLowerCase()],
+      [_pendingHandle(handle)],
     );
     return rows.isNotEmpty;
   }
@@ -541,7 +657,7 @@ ON CONFLICT(username) DO UPDATE SET
   bool pendingIsAdmin(String handle) {
     final rows = raw.select(
       'SELECT is_admin FROM pending_users WHERE username = ?',
-      [handle.replaceFirst('@', '').toLowerCase()],
+      [_pendingHandle(handle)],
     );
     return rows.isNotEmpty && (rows.first['is_admin'] as int) == 1;
   }
@@ -550,7 +666,7 @@ ON CONFLICT(username) DO UPDATE SET
   String pendingTier(String handle) {
     final rows = raw.select(
       'SELECT tier FROM pending_users WHERE username = ?',
-      [handle.replaceFirst('@', '').toLowerCase()],
+      [_pendingHandle(handle)],
     );
     return rows.isEmpty ? MemberTier.member : rows.first['tier'] as String;
   }
@@ -1073,29 +1189,31 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
     return last != null && bundleStart.difference(last).inDays < 14;
   }
 
-  /// Active users to prompt for the bundle: members and admins (not
-  /// check/old), excluding the quiet and anyone who already answered.
+  /// Active users to prompt for the bundle: members, out-members and admins
+  /// (not check/old), excluding anyone who already answered. Quiet users remain
+  /// in this list so the service can advance every-other notification state
+  /// during the skipped week.
   List<User> promptTargets(DateTime bundleStart) {
     final users = raw
         .select(
-          "SELECT * FROM users WHERE member_tier NOT IN ('check', 'old') "
+          "SELECT * FROM users WHERE member_tier NOT IN "
+          "('check', 'old') "
           'ORDER BY name',
         )
         .map(User.fromRow)
         .toList();
     return users
-        .where((u) =>
-            !hasBundleResponse(bundleStart, u.id) &&
-            !isQuiet(u.id, bundleStart))
+        .where((u) => !hasBundleResponse(bundleStart, u.id))
         .toList();
   }
 
-  /// Non-responders of the bundle: active users who neither answered it nor
-  /// are quiet (recently answered a previous bundle).
+  /// Non-responders of the bundle: active users, including out-members, who
+  /// neither answered it nor are quiet (recently answered a previous bundle).
   List<User> reminderTargets(DateTime bundleStart) {
     final users = raw
         .select(
-          "SELECT * FROM users WHERE member_tier NOT IN ('check', 'old') "
+          "SELECT * FROM users WHERE member_tier NOT IN "
+          "('check', 'old') "
           'ORDER BY name',
         )
         .map(User.fromRow)
@@ -1478,4 +1596,25 @@ ON CONFLICT(academic_year) DO UPDATE SET
       int.parse(parts[1]),
     );
   }
+
+  static String _notificationPreferenceValue(
+    NotificationPreference preference,
+  ) => preference == NotificationPreference.everyOther
+      ? 'every-other'
+      : preference.name;
+
+  static NotificationPreference _notificationPreferenceFromValue(String? value) =>
+      switch (value) {
+        'every-other' || 'every_other' || 'everyOther' =>
+          NotificationPreference.everyOther,
+        'never' => NotificationPreference.never,
+        _ => NotificationPreference.weekly,
+      };
+
+  static String _storedTier(String tier) => MemberTier.isStored(tier)
+      ? tier
+      : MemberTier.member;
+
+  static String _pendingHandle(String handle) =>
+      handle.replaceFirst('@', '').toLowerCase();
 }
