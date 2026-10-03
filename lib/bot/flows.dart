@@ -205,7 +205,7 @@ class Flows {
         ..writeln('/addcheck @handle — add a checker')
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/sync-calendar — push the calendar YAML')
-        ..writeln('/settime — set the activity days, times and locations')
+        ..writeln('set-time (/settime) — set activity days, times and locations')
         ..writeln('/hold | /unhold — pause or resume the bot');
     }
 
@@ -733,13 +733,19 @@ class Flows {
     }
 
     final (want, available) = state.picksFor(userId);
-    // Toggle cycle: off ▫️ -> offered 🟢 -> booked 🔒 -> off.
+    final session = _sessionForSlot(w, slot);
+    // Toggle cycle: off ▫️ -> offered 🟢 -> booked 🔒 -> off. A newly
+    // selected choice wins over overlapping choices in the same weekend:
+    // backups may overlap backups, but a booked choice clears every
+    // overlapping choice and a new backup clears overlapping booked choices.
     if (want.contains(slot)) {
       want.remove(slot);
     } else if (available.contains(slot)) {
       available.remove(slot);
+      if (session != null) _clearOverlaps(session, slot, want, available);
       want.add(slot);
     } else {
+      if (session != null) _clearOverlappingWants(session, slot, want);
       available.add(slot);
     }
 
@@ -768,6 +774,52 @@ class Flows {
     } catch (_) {
       // message may be gone; ignore
     }
+  }
+
+  Session? _sessionForSlot(RollingWindow w, Slot slot) {
+    final weekend = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
+    return _sessionForSlotInWeekend(weekend, slot);
+  }
+
+  void _clearOverlappingWants(
+    Session candidate,
+    Slot candidateSlot,
+    Set<Slot> want,
+  ) {
+    want.removeWhere((slot) {
+      if (slot == candidateSlot || slot.weekendIndex != candidateSlot.weekendIndex) {
+        return false;
+      }
+      final other = _sessionForSlotInWeekend(candidate.weekendStart, slot);
+      return other?.overlaps(candidate) ?? false;
+    });
+  }
+
+  void _clearOverlaps(
+    Session candidate,
+    Slot candidateSlot,
+    Set<Slot> want,
+    Set<Slot> available,
+  ) {
+    _clearOverlappingWants(candidate, candidateSlot, want);
+    available.removeWhere((slot) {
+      if (slot == candidateSlot || slot.weekendIndex != candidateSlot.weekendIndex) {
+        return false;
+      }
+      final other = _sessionForSlotInWeekend(candidate.weekendStart, slot);
+      return other?.overlaps(candidate) ?? false;
+    });
+  }
+
+  Session? _sessionForSlotInWeekend(DateTime weekend, Slot slot) {
+    for (final session in repo.sessionsForWeekend(weekend)) {
+      if (session.day == slot.day &&
+          session.slot == slot.slot &&
+          session.location == slot.location) {
+        return session;
+      }
+    }
+    return null;
   }
 
   /// Aborts the in-progress /repick: discards the toggles made in this

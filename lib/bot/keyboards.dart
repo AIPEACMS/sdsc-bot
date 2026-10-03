@@ -81,6 +81,7 @@ class RoleKeyboard {
   static const List<GridButton> globalAdminButtons = [
     GridButton('hold', '/hold', RoleColor.globalAdmin),
     GridButton('unhold', '/unhold', RoleColor.globalAdmin),
+    GridButton('set-time', '/settime', RoleColor.globalAdmin),
     ...adminButtons,
   ];
 

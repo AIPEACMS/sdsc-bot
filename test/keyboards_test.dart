@@ -18,7 +18,7 @@ void main() {
     expect(console, member);
     expect(combined, gadmin);
     expect(admin.length, greaterThan(member.length));
-    expect(gadmin.difference(admin), {'/hold', '/unhold'});
+    expect(gadmin.difference(admin), {'/hold', '/unhold', '/settime'});
   });
 
   test('labels carry no leading slash', () {
@@ -76,7 +76,7 @@ void main() {
     final globalAdminOnly = RoleKeyboard.globalAdminButtons
         .where((b) => !RoleKeyboard.adminButtons.contains(b))
         .toList();
-    expect(globalAdminOnly, hasLength(2));
+    expect(globalAdminOnly, hasLength(3));
     for (final b in globalAdminOnly) {
       expect(b.color, RoleColor.globalAdmin, reason: b.label);
     }

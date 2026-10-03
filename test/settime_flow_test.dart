@@ -266,9 +266,11 @@ void main() {
 
     await sendText(1, 'done');
     final confirmation = sent.last['text'] as String;
-    expect(confirmation, contains('Session 1: Saturday 9:00 to 13:00'));
+    expect(confirmation, contains('Before change:'));
+    expect(confirmation, contains('After change:'));
+    expect(confirmation, contains('Saturday 9:00 to 13:00'));
     expect(confirmation, contains('OCBC'));
-    expect(confirmation, contains('Session 2: Saturday 13:00 to 17:00'));
+    expect(confirmation, contains('Saturday 13:00 to 17:00'));
     expect(confirmation, contains('Pasir Ris'));
 
     await sendCallback(1, 'settime|yes');

@@ -12,12 +12,14 @@ class ParsedSession {
   final String start; // 'HH:MM'
   final String end; // 'HH:MM'
   final String locationToken;
+  final DateTime? targetDate;
 
   const ParsedSession({
     required this.day,
     required this.start,
     required this.end,
     required this.locationToken,
+    this.targetDate,
   });
 }
 
@@ -67,8 +69,51 @@ Object parseSessionLine(String line) {
   );
 }
 
+/// Parses a temporary-change line. A plain weekday resolves to its next
+/// occurrence after [now]. An explicit line uses `day as YYYY-MM-DD` and the
+/// date must actually fall on that weekday.
+Object parseTargetSessionLine(String line, DateTime now) {
+  final parts = line.trim().split(RegExp(r'\s+'));
+  if (parts.length >= 6 && parts[1].toLowerCase() == 'as') {
+    final day = dayAliases[parts[0].toLowerCase()];
+    if (day == null) return 'unknown day "${parts[0]}"';
+    final date = DateTime.tryParse(parts[2]);
+    if (date == null) return 'unknown date "${parts[2]}"';
+    if (_dayForDate(date) != day) {
+      return '${parts[2]} is not a ${dayAliases.entries.firstWhere((e) => e.value == day).key}';
+    }
+    final parsed = parseSessionLine('$day ${parts.sublist(3).join(' ')}');
+    if (parsed is String) return parsed;
+    final session = parsed as ParsedSession;
+    return ParsedSession(
+      day: session.day,
+      start: session.start,
+      end: session.end,
+      locationToken: session.locationToken,
+      targetDate: DateTime(date.year, date.month, date.day),
+    );
+  }
+
+  final parsed = parseSessionLine(line);
+  if (parsed is String) return parsed;
+  final session = parsed as ParsedSession;
+  final weekday = _weekdayForDay(session.day);
+  var delta = (weekday - now.weekday) % 7;
+  if (delta == 0) delta = 7;
+  final date = DateTime(now.year, now.month, now.day + delta);
+  return ParsedSession(
+    day: session.day,
+    start: session.start,
+    end: session.end,
+    locationToken: session.locationToken,
+    targetDate: date,
+  );
+}
+
 /// Parses many lines (one session per line, blank lines ignored).
-({List<ParsedSession> sessions, List<String> errors}) parseSchedule(String text) {
+({List<ParsedSession> sessions, List<String> errors}) parseSchedule(
+  String text,
+) {
   final sessions = <ParsedSession>[];
   final errors = <String>[];
   for (final raw in text.split('\n')) {
@@ -143,3 +188,25 @@ int _minutes(String hm) {
   final parts = hm.split(':');
   return int.parse(parts[0]) * 60 + int.parse(parts[1]);
 }
+
+int _weekdayForDay(String day) => switch (day) {
+  'mon' => DateTime.monday,
+  'tue' => DateTime.tuesday,
+  'wed' => DateTime.wednesday,
+  'thu' => DateTime.thursday,
+  'fri' => DateTime.friday,
+  'sat' => DateTime.saturday,
+  'sun' => DateTime.sunday,
+  _ => 0,
+};
+
+String _dayForDate(DateTime date) => switch (date.weekday) {
+  DateTime.monday => 'mon',
+  DateTime.tuesday => 'tue',
+  DateTime.wednesday => 'wed',
+  DateTime.thursday => 'thu',
+  DateTime.friday => 'fri',
+  DateTime.saturday => 'sat',
+  DateTime.sunday => 'sun',
+  _ => '',
+};
