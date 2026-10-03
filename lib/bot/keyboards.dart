@@ -125,12 +125,13 @@ class RoleKeyboard {
       if (isGlobalAdmin) return 'gadmin';
       if (isAdmin) return 'admin';
       if (tier == null) return 'console-only';
-    if (tier != null && MemberTier.stored.contains(tier)) return tier;
-    return 'console-only';
+      if (MemberTier.stored.contains(tier)) return tier;
+      return 'console-only';
     }
     if (isGlobalAdmin) return 'gadmin';
     if (isAdmin) return 'admin';
-    return MemberTier.stored.contains(tier) ? tier : MemberTier.member;
+    if (tier != null && MemberTier.stored.contains(tier)) return tier;
+    return MemberTier.member;
   }
 
   /// Builds the persistent, resized reply keyboard for [role] with up to
