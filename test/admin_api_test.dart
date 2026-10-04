@@ -447,6 +447,8 @@ void main() {
     final initial = getBody as Map<String, dynamic>;
     expect(initial['schedule'], containsPair('prompt', '18:00'));
     expect(initial['schedule'], containsPair('checker', '21:00'));
+    expect(initial['schedule'], containsPair('promptWeekday', 'mon'));
+    expect(initial['schedule'], containsPair('reminderWeekday', 'thu'));
     expect(initial['timezoneOffset'], 8);
 
     final (postStatus, postBody) = await call(
@@ -462,13 +464,26 @@ void main() {
     expect(postStatus, 200);
     final updated = postBody as Map<String, dynamic>;
     expect(updated['schedule'], containsPair('lock', '19:10'));
+    expect(updated['schedule'], containsPair('promptWeekday', 'mon'));
+    expect(repo.readSchedule().prompt.value, '07:05');
+
+    final (weekdayStatus, weekdayBody) = await call(
+      'POST',
+      '/api/schedule',
+      body: {'reminderWeekday': 'wed'},
+    );
+    expect(weekdayStatus, 200);
+    expect(
+      (weekdayBody as Map<String, dynamic>)['schedule'],
+      containsPair('reminderWeekday', 'wed'),
+    );
     expect(repo.readSchedule().prompt.value, '07:05');
 
     final (_, stateBody) = await call('GET', '/api/state');
-    expect(
-      (stateBody as Map<String, dynamic>)['schedule'],
-      containsPair('checker', '21:20'),
-    );
+    final state = stateBody as Map<String, dynamic>;
+    expect(state['promptWeekday'], 'mon');
+    expect(state['schedule'], containsPair('checker', '21:20'));
+    expect(state['schedule'], containsPair('reminderWeekday', 'wed'));
   });
 
   test('schedule API rejects malformed times and checker before lock', () async {
@@ -485,6 +500,27 @@ void main() {
     );
     expect(badOrderStatus, 400);
     expect((badOrderBody as Map<String, dynamic>)['error'], contains('checker'));
+
+    final (weekendStatus, weekendBody) = await call(
+      'POST',
+      '/api/schedule',
+      body: {'promptWeekday': 'sat'},
+    );
+    expect(weekendStatus, 400);
+    expect((weekendBody as Map<String, dynamic>)['error'], contains('weekday'));
+
+    final (emptyStatus, _) = await call(
+      'POST',
+      '/api/schedule',
+      body: <String, Object?>{},
+    );
+    expect(emptyStatus, 400);
+    final (unknownStatus, _) = await call(
+      'POST',
+      '/api/schedule',
+      body: {'promptDay': 'mon'},
+    );
+    expect(unknownStatus, 400);
   });
 
   test('GET /api/logs returns the in-memory ring', () async {

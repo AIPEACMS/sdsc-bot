@@ -12,10 +12,10 @@ import '../core/schedule.dart';
 /// cron daemon and naturally catches up when the bot restarts.
 ///
 /// The rolling window (bundle = current + next weekend) has, every week:
-///  - Monday at the configured prompt time prompts for the bundle
-///  - Thursday at the configured reminder time reminds non-responders
-///  - Friday at the configured lock time locks availability
-///  - Friday at the configured checker time pushes the allocation list
+///  - the configured prompt weekday/time prompts for the bundle
+///  - the configured reminder weekday/time reminds non-responders
+///  - the configured lock weekday/time locks availability
+///  - the configured checker weekday/time pushes the allocation list
 ///  - Sunday 20:00 / Monday 08:00 attendance-marking reminders to admins
 ///
 /// Allocation is dynamic: every availability indication arms a one-shot run
@@ -84,14 +84,13 @@ class Scheduler {
         tzOffsetHours: config.timezoneOffsetHours,
       );
 
-      // Monday: availability prompts for the current bundle.
-      if (_sameDay(today, monday) && !now.isBefore(w.promptDay)) {
+      // Configured prompt event: availability prompts for the current bundle.
+      if (_sameDay(today, w.promptDay) && !now.isBefore(w.promptDay)) {
         await service.sendPrompts(w);
       }
 
-      // Thursday: reminders to non-responders of the bundle.
-      if (_sameDay(today, monday.add(const Duration(days: 3))) &&
-          !now.isBefore(w.reminderDay)) {
+      // The configured reminder weekday: reminders to non-responders.
+      if (_sameDay(today, w.reminderDay) && !now.isBefore(w.reminderDay)) {
         await service.sendReminders(w);
       }
 
@@ -107,13 +106,10 @@ class Scheduler {
       // members are notified.
       await _runDynamicAllocation();
 
-      // Friday checker time: push the current weekend's full allocation to the
+      // Configured checker event: push the current weekend's full allocation to the
       // `check` tier — a final confirmation list, independent of their
       // on-demand status button.
-      final checkerAt = scheduleRuntime.schedule.checker.on(
-        monday.add(const Duration(days: 4)),
-      );
-      if (_sameDay(today, checkerAt) && !now.isBefore(checkerAt)) {
+      if (_sameDay(today, w.checkerDay) && !now.isBefore(w.checkerDay)) {
         await service.sendCheckList(w.sat0);
       }
 
@@ -150,17 +146,15 @@ class Scheduler {
       // This week's milestones, if still in the future.
       w.promptDay,
       w.reminderDay,
-      w.deadline0,
-      w.deadline1,
-      scheduleRuntime.schedule.checker.on(
-        monday.add(const Duration(days: 4)),
-      ),
+      w.lock0,
+      w.lock1,
+      w.checkerDay,
       monday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
       nextWindow.promptDay,
       nextWindow.reminderDay,
-      nextWindow.deadline0,
-      nextWindow.deadline1,
-      scheduleRuntime.schedule.checker.on(nextMonday.add(const Duration(days: 4))),
+      nextWindow.lock0,
+      nextWindow.lock1,
+      nextWindow.checkerDay,
       nextMonday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
       monday.add(const Duration(hours: 8)), // Monday 08:00
       nextMonday.add(const Duration(hours: 8)), // Monday 08:00

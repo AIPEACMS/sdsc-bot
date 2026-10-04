@@ -44,17 +44,67 @@ class LocalWallClock {
   int get hashCode => Object.hash(hour, minute);
 }
 
-/// The four persisted local wall-clock times that drive the rolling schedule.
+/// Canonical weekdays accepted for schedule milestones.
+const scheduleWeekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
+
+int? scheduleWeekdayNumber(String weekday) {
+  final index = scheduleWeekdays.indexOf(weekday);
+  return index < 0 ? null : index + DateTime.monday;
+}
+
+/// A persisted schedule milestone: a canonical weekday and a local wall-clock
+/// time. Milestones intentionally cannot be placed on Saturday or Sunday.
+class ScheduleEvent {
+  final String weekday;
+  final LocalWallClock time;
+
+  const ScheduleEvent({required this.weekday, required this.time});
+
+  /// Historical convenience accessor for clients that only display the time.
+  String get value => time.value;
+
+  DateTime on(DateTime monday) {
+    final day = scheduleWeekdayNumber(weekday);
+    if (day == null) {
+      throw ArgumentError('unknown schedule weekday "$weekday"');
+    }
+    return time.on(monday.add(Duration(days: day - DateTime.monday)));
+  }
+
+  int compareTo(ScheduleEvent other) {
+    final thisDay = scheduleWeekdayNumber(weekday);
+    final otherDay = scheduleWeekdayNumber(other.weekday);
+    if (thisDay == null || otherDay == null) {
+      throw ArgumentError('schedule weekdays must be mon, tue, wed, thu or fri');
+    }
+    final dayComparison = thisDay.compareTo(otherDay);
+    return dayComparison == 0 ? time.compareTo(other.time) : dayComparison;
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ScheduleEvent && weekday == other.weekday && time == other.time;
+
+  @override
+  int get hashCode => Object.hash(weekday, time);
+}
+
+/// The four persisted weekday + local wall-clock events that drive the rolling
+/// schedule. The time settings retain their historical keys for old databases.
 class ScheduleTimes {
   static const promptKey = 'schedule_prompt';
   static const reminderKey = 'schedule_reminder';
   static const lockKey = 'schedule_lock';
   static const checkerKey = 'schedule_checker';
+  static const promptWeekdayKey = 'schedule_prompt_weekday';
+  static const reminderWeekdayKey = 'schedule_reminder_weekday';
+  static const lockWeekdayKey = 'schedule_lock_weekday';
+  static const checkerWeekdayKey = 'schedule_checker_weekday';
 
-  final LocalWallClock prompt;
-  final LocalWallClock reminder;
-  final LocalWallClock lock;
-  final LocalWallClock checker;
+  final ScheduleEvent prompt;
+  final ScheduleEvent reminder;
+  final ScheduleEvent lock;
+  final ScheduleEvent checker;
 
   const ScheduleTimes({
     required this.prompt,
@@ -64,10 +114,10 @@ class ScheduleTimes {
   });
 
   static const defaults = ScheduleTimes(
-    prompt: LocalWallClock(18, 0),
-    reminder: LocalWallClock(18, 0),
-    lock: LocalWallClock(18, 0),
-    checker: LocalWallClock(21, 0),
+    prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(18, 0)),
+    reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(18, 0)),
+    lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
+    checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
   );
 
   static const defaultSettings = <String, String>{
@@ -75,6 +125,10 @@ class ScheduleTimes {
     reminderKey: '18:00',
     lockKey: '18:00',
     checkerKey: '21:00',
+    promptWeekdayKey: 'mon',
+    reminderWeekdayKey: 'thu',
+    lockWeekdayKey: 'fri',
+    checkerWeekdayKey: 'fri',
   };
 
   factory ScheduleTimes.fromSettings(Map<String, String?> values) {
@@ -88,11 +142,30 @@ class ScheduleTimes {
       }
     }
 
+    String readWeekday(String key) {
+      final raw = values[key];
+      return raw != null && scheduleWeekdayNumber(raw) != null
+          ? raw
+          : defaultSettings[key]!;
+    }
+
     return ScheduleTimes(
-      prompt: read(promptKey),
-      reminder: read(reminderKey),
-      lock: read(lockKey),
-      checker: read(checkerKey),
+      prompt: ScheduleEvent(
+        weekday: readWeekday(promptWeekdayKey),
+        time: read(promptKey),
+      ),
+      reminder: ScheduleEvent(
+        weekday: readWeekday(reminderWeekdayKey),
+        time: read(reminderKey),
+      ),
+      lock: ScheduleEvent(
+        weekday: readWeekday(lockWeekdayKey),
+        time: read(lockKey),
+      ),
+      checker: ScheduleEvent(
+        weekday: readWeekday(checkerWeekdayKey),
+        time: read(checkerKey),
+      ),
     );
   }
 
@@ -100,17 +173,25 @@ class ScheduleTimes {
       LocalWallClock.parse(defaultSettings[key]!);
 
   Map<String, String> get settings => {
-    promptKey: prompt.value,
-    reminderKey: reminder.value,
-    lockKey: lock.value,
-    checkerKey: checker.value,
+    promptKey: prompt.time.value,
+    reminderKey: reminder.time.value,
+    lockKey: lock.time.value,
+    checkerKey: checker.time.value,
+    promptWeekdayKey: prompt.weekday,
+    reminderWeekdayKey: reminder.weekday,
+    lockWeekdayKey: lock.weekday,
+    checkerWeekdayKey: checker.weekday,
   };
 
   Map<String, String> get json => {
-    'prompt': prompt.value,
-    'reminder': reminder.value,
-    'lock': lock.value,
-    'checker': checker.value,
+    'prompt': prompt.time.value,
+    'reminder': reminder.time.value,
+    'lock': lock.time.value,
+    'checker': checker.time.value,
+    'promptWeekday': prompt.weekday,
+    'reminderWeekday': reminder.weekday,
+    'lockWeekday': lock.weekday,
+    'checkerWeekday': checker.weekday,
   };
 
   bool get checkerAfterLock => checker.compareTo(lock) > 0;
@@ -122,7 +203,13 @@ class ScheduleTimes {
       'lock': lock,
       'checker': checker,
     }.entries) {
-      final value = entry.value;
+      final event = entry.value;
+      if (scheduleWeekdayNumber(event.weekday) == null) {
+        throw ArgumentError(
+          '${entry.key} weekday must be mon, tue, wed, thu or fri',
+        );
+      }
+      final value = event.time;
       if (value.hour < 0 ||
           value.hour > 23 ||
           value.minute < 0 ||
@@ -130,10 +217,18 @@ class ScheduleTimes {
         throw ArgumentError('${entry.key} time is outside 00:00-23:59');
       }
     }
-    if (!checkerAfterLock) {
-      throw ArgumentError('checker must be later than lock');
+    final ordered = [prompt, reminder, lock, checker];
+    for (var i = 1; i < ordered.length; i++) {
+      if (ordered[i - 1].compareTo(ordered[i]) >= 0) {
+        throw ArgumentError(
+          '${_scheduleName(i - 1)} must be earlier than ${_scheduleName(i)}',
+        );
+      }
     }
   }
+
+  static String _scheduleName(int index) =>
+      const ['prompt', 'reminder', 'lock', 'checker'][index];
 
   @override
   bool operator ==(Object other) =>
@@ -519,27 +614,34 @@ class Slot {
 /// and next weekend) with its per-weekend deadlines. Everything is computed
 /// from the calendar — no database rows.
 ///
-///   - prompt:    Monday at the configured prompt time
-///   - reminder:  Thursday at the configured reminder time
-///   - deadline0: Friday at the configured lock time (locks this weekend)
-///   - deadline1: Friday at the configured lock time (locks the second weekend)
+///   - prompt:    the configured prompt weekday and time
+///   - reminder:  the configured reminder weekday and time
+///   - lock0:     the configured lock weekday and time (locks this weekend)
+///   - lock1:     the same lock event one week later
+///   - checker:   the configured checker weekday and time
 ///   - weekends:  Saturday of the current week and the next
 class RollingWindow {
   final DateTime sat0;
   final DateTime sat1;
   final DateTime promptDay;
   final DateTime reminderDay;
-  final DateTime deadline0;
-  final DateTime deadline1;
+  final DateTime lock0;
+  final DateTime lock1;
+  final DateTime checkerDay;
 
   const RollingWindow({
     required this.sat0,
     required this.sat1,
     required this.promptDay,
     required this.reminderDay,
-    required this.deadline0,
-    required this.deadline1,
+    required this.lock0,
+    required this.lock1,
+    required this.checkerDay,
   });
+
+  /// Historical names retained for callers of the rolling-window API.
+  DateTime get deadline0 => lock0;
+  DateTime get deadline1 => lock1;
 
   /// The bundle whose first weekend is [sat0].
   factory RollingWindow.fromSat0(
@@ -549,19 +651,32 @@ class RollingWindow {
     ScheduleTimes? schedule,
   }) {
     final times = schedule ?? ScheduleTimes(
-      prompt: LocalWallClock(promptHour, 0),
-      reminder: LocalWallClock(reminderHour, 0),
-      lock: const LocalWallClock(18, 0),
-      checker: const LocalWallClock(21, 0),
+      prompt: ScheduleEvent(
+        weekday: 'mon',
+        time: LocalWallClock(promptHour, 0),
+      ),
+      reminder: ScheduleEvent(
+        weekday: 'thu',
+        time: LocalWallClock(reminderHour, 0),
+      ),
+      lock: const ScheduleEvent(
+        weekday: 'fri',
+        time: LocalWallClock(18, 0),
+      ),
+      checker: const ScheduleEvent(
+        weekday: 'fri',
+        time: LocalWallClock(21, 0),
+      ),
     );
     final monday = sat0.subtract(const Duration(days: 5)); // Sat - 5 = Mon
     return RollingWindow(
       sat0: sat0,
       sat1: sat0.add(const Duration(days: 7)),
       promptDay: times.prompt.on(monday),
-      reminderDay: times.reminder.on(monday.add(const Duration(days: 3))),
-      deadline0: times.lock.on(monday.add(const Duration(days: 4))),
-      deadline1: times.lock.on(monday.add(const Duration(days: 11))),
+      reminderDay: times.reminder.on(monday),
+      lock0: times.lock.on(monday),
+      lock1: times.lock.on(monday.add(const Duration(days: 7))),
+      checkerDay: times.checker.on(monday),
     );
   }
 

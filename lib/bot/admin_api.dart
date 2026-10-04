@@ -34,7 +34,7 @@ import '../core/schedule.dart';
 ///   GET   /api/server-info              -> public key + fingerprint
 ///   GET   /api/state                    -> held flag, debug clock, cycle, schedule
 ///   GET   /api/schedule                 -> persisted local wall-clock schedule
-///   POST  /api/schedule                 -> update prompt/reminder/lock/checker
+///   POST  /api/schedule                 -> partial event time/weekday update
 ///   GET   /api/users                    -> every user with tier + groups + attendance
 ///   POST  /api/users                    -> { "handle": "@name" } (register-or-queue)
 ///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|out-member|old" }
@@ -334,12 +334,21 @@ class AdminApi {
           ? config.toLocal(Config.nowUtc()).toIso8601String()
           : null,
       'logRetentionDays': LogRing.retentionDays,
+      // Keep the event fields available at the state level as well as inside
+      // `schedule` for older console clients that flatten this response.
+      'promptWeekday': scheduleRuntime.schedule.prompt.weekday,
+      'reminderWeekday': scheduleRuntime.schedule.reminder.weekday,
+      'lockWeekday': scheduleRuntime.schedule.lock.weekday,
+      'checkerWeekday': scheduleRuntime.schedule.checker.weekday,
       'schedule': _scheduleJson(),
       'window': {
         'weekend0': w.sat0.toIso8601String(),
         'weekend1': w.sat1.toIso8601String(),
         'promptDay': w.promptDay.toIso8601String(),
         'reminderDay': w.reminderDay.toIso8601String(),
+        'lock0': w.lock0.toIso8601String(),
+        'lock1': w.lock1.toIso8601String(),
+        'checkerDay': w.checkerDay.toIso8601String(),
         'deadline0': w.deadline0.toIso8601String(),
         'deadline1': w.deadline1.toIso8601String(),
         'allocated0': repo.weekendAllocated(w.sat0),
@@ -376,15 +385,40 @@ class AdminApi {
     final nested = hasNested
         ? (body['schedule'] as Map).cast<String, dynamic>()
         : body;
-    const knownKeys = {'prompt', 'reminder', 'lock', 'checker', 'timezoneOffset'};
+    const knownKeys = {
+      'prompt',
+      'reminder',
+      'lock',
+      'checker',
+      'promptWeekday',
+      'reminderWeekday',
+      'lockWeekday',
+      'checkerWeekday',
+      // Kept for clients that POST the complete GET response. The timezone is
+      // configured by the server and is not mutable through this endpoint.
+      'timezoneOffset',
+    };
     if (nested.isEmpty || nested.keys.any((key) => !knownKeys.contains(key))) {
-      return (400, {'ok': false, 'error': 'schedule has no valid timing fields'});
+      return (400, {'ok': false, 'error': 'schedule has no valid fields'});
+    }
+    if (nested.keys.every((key) => key == 'timezoneOffset')) {
+      return (400, {'ok': false, 'error': 'schedule has no timing fields'});
+    }
+    if (nested.containsKey('timezoneOffset')) {
+      final offset = nested['timezoneOffset'];
+      if (offset is! num || offset.toInt() != offset ||
+          offset.toInt() != config.timezoneOffsetHours) {
+        return (400, {
+          'ok': false,
+          'error': 'timezoneOffset is controlled by server configuration',
+        });
+      }
     }
 
     final current = scheduleRuntime.schedule;
     LocalWallClock parse(String key, LocalWallClock fallback) {
+      if (!nested.containsKey(key)) return fallback;
       final raw = nested[key];
-      if (raw == null) return fallback;
       if (raw is! String) {
         throw FormatException('$key: expected HH:MM');
       }
@@ -394,14 +428,34 @@ class AdminApi {
         throw FormatException('$key: ${e.message}');
       }
     }
+    String parseWeekday(String key, String fallback) {
+      if (!nested.containsKey(key)) return fallback;
+      final raw = nested[key];
+      if (raw is! String || scheduleWeekdayNumber(raw) == null) {
+        throw FormatException('$key: expected one of mon, tue, wed, thu, fri');
+      }
+      return raw;
+    }
 
     final ScheduleTimes next;
     try {
       next = ScheduleTimes(
-        prompt: parse('prompt', current.prompt),
-        reminder: parse('reminder', current.reminder),
-        lock: parse('lock', current.lock),
-        checker: parse('checker', current.checker),
+        prompt: ScheduleEvent(
+          weekday: parseWeekday('promptWeekday', current.prompt.weekday),
+          time: parse('prompt', current.prompt.time),
+        ),
+        reminder: ScheduleEvent(
+          weekday: parseWeekday('reminderWeekday', current.reminder.weekday),
+          time: parse('reminder', current.reminder.time),
+        ),
+        lock: ScheduleEvent(
+          weekday: parseWeekday('lockWeekday', current.lock.weekday),
+          time: parse('lock', current.lock.time),
+        ),
+        checker: ScheduleEvent(
+          weekday: parseWeekday('checkerWeekday', current.checker.weekday),
+          time: parse('checker', current.checker.time),
+        ),
       )..validate();
     } on FormatException catch (e) {
       return (400, {'ok': false, 'error': e.message});

@@ -28,25 +28,42 @@ void main() {
     final first = Database.open(_config(path));
     final repo = Repo(first);
     expect(repo.readSchedule(), ScheduleTimes.defaults);
+    expect(repo.readSchedule().prompt.weekday, 'mon');
+    expect(repo.readSchedule().reminder.weekday, 'thu');
     repo.writeSchedule(const ScheduleTimes(
-      prompt: LocalWallClock(17, 30),
-      reminder: LocalWallClock(18, 15),
-      lock: LocalWallClock(19, 0),
-      checker: LocalWallClock(21, 30),
+      prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(17, 30)),
+      reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(18, 15)),
+      lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+      checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 30)),
     ));
     expect(repo.readSchedule().prompt.value, '17:30');
     first.close();
 
     final second = Database.open(_config(path));
-    expect(Repo(second).readSchedule().checker.value, '21:30');
+    final secondRepo = Repo(second);
+    expect(secondRepo.readSchedule().checker.value, '21:30');
+    expect(secondRepo.readSchedule().checker.weekday, 'fri');
     second.raw.execute(
       'DELETE FROM settings WHERE key = ?',
       [ScheduleTimes.reminderKey],
     );
+    second.raw.execute(
+      'DELETE FROM settings WHERE key IN (?, ?, ?, ?)',
+      [
+        ScheduleTimes.promptWeekdayKey,
+        ScheduleTimes.reminderWeekdayKey,
+        ScheduleTimes.lockWeekdayKey,
+        ScheduleTimes.checkerWeekdayKey,
+      ],
+    );
     second.close();
 
     final third = Database.open(_config(path));
-    expect(Repo(third).readSchedule().reminder.value, '18:00');
+    final thirdSchedule = Repo(third).readSchedule();
+    expect(thirdSchedule.prompt.value, '17:30');
+    expect(thirdSchedule.reminder.value, '18:00');
+    expect(thirdSchedule.prompt.weekday, 'mon');
+    expect(thirdSchedule.reminder.weekday, 'thu');
     third.close();
     tmp.deleteSync(recursive: true);
   });
