@@ -8,6 +8,145 @@ enum NotificationPreference { weekly, everyOther, never }
 
 enum LastPromptState { none, prompted, responded }
 
+/// One local wall-clock time used by the rolling schedule.
+class LocalWallClock {
+  final int hour;
+  final int minute;
+
+  const LocalWallClock(this.hour, this.minute);
+
+  factory LocalWallClock.parse(String value) {
+    final match = RegExp(r'^(\d{2}):(\d{2})$').firstMatch(value);
+    if (match == null) throw FormatException('expected HH:MM');
+    final hour = int.parse(match.group(1)!);
+    final minute = int.parse(match.group(2)!);
+    if (hour > 23 || minute > 59) {
+      throw FormatException('time is outside 00:00-23:59');
+    }
+    return LocalWallClock(hour, minute);
+  }
+
+  String get value =>
+      '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+
+  DateTime on(DateTime day) =>
+      DateTime(day.year, day.month, day.day, hour, minute);
+
+  int compareTo(LocalWallClock other) => hour != other.hour
+      ? hour.compareTo(other.hour)
+      : minute.compareTo(other.minute);
+
+  @override
+  bool operator ==(Object other) =>
+      other is LocalWallClock && hour == other.hour && minute == other.minute;
+
+  @override
+  int get hashCode => Object.hash(hour, minute);
+}
+
+/// The four persisted local wall-clock times that drive the rolling schedule.
+class ScheduleTimes {
+  static const promptKey = 'schedule_prompt';
+  static const reminderKey = 'schedule_reminder';
+  static const lockKey = 'schedule_lock';
+  static const checkerKey = 'schedule_checker';
+
+  final LocalWallClock prompt;
+  final LocalWallClock reminder;
+  final LocalWallClock lock;
+  final LocalWallClock checker;
+
+  const ScheduleTimes({
+    required this.prompt,
+    required this.reminder,
+    required this.lock,
+    required this.checker,
+  });
+
+  static const defaults = ScheduleTimes(
+    prompt: LocalWallClock(18, 0),
+    reminder: LocalWallClock(18, 0),
+    lock: LocalWallClock(18, 0),
+    checker: LocalWallClock(21, 0),
+  );
+
+  static const defaultSettings = <String, String>{
+    promptKey: '18:00',
+    reminderKey: '18:00',
+    lockKey: '18:00',
+    checkerKey: '21:00',
+  };
+
+  factory ScheduleTimes.fromSettings(Map<String, String?> values) {
+    LocalWallClock read(String key) {
+      final raw = values[key];
+      if (raw == null) return _defaultFor(key);
+      try {
+        return LocalWallClock.parse(raw);
+      } on FormatException {
+        return _defaultFor(key);
+      }
+    }
+
+    return ScheduleTimes(
+      prompt: read(promptKey),
+      reminder: read(reminderKey),
+      lock: read(lockKey),
+      checker: read(checkerKey),
+    );
+  }
+
+  static LocalWallClock _defaultFor(String key) =>
+      LocalWallClock.parse(defaultSettings[key]!);
+
+  Map<String, String> get settings => {
+    promptKey: prompt.value,
+    reminderKey: reminder.value,
+    lockKey: lock.value,
+    checkerKey: checker.value,
+  };
+
+  Map<String, String> get json => {
+    'prompt': prompt.value,
+    'reminder': reminder.value,
+    'lock': lock.value,
+    'checker': checker.value,
+  };
+
+  bool get checkerAfterLock => checker.compareTo(lock) > 0;
+
+  void validate() {
+    for (final entry in {
+      'prompt': prompt,
+      'reminder': reminder,
+      'lock': lock,
+      'checker': checker,
+    }.entries) {
+      final value = entry.value;
+      if (value.hour < 0 ||
+          value.hour > 23 ||
+          value.minute < 0 ||
+          value.minute > 59) {
+        throw ArgumentError('${entry.key} time is outside 00:00-23:59');
+      }
+    }
+    if (!checkerAfterLock) {
+      throw ArgumentError('checker must be later than lock');
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is ScheduleTimes &&
+      prompt == other.prompt &&
+      reminder == other.reminder &&
+      lock == other.lock &&
+      checker == other.checker;
+
+  @override
+  int get hashCode => Object.hash(prompt, reminder, lock, checker);
+}
+
 /// Built-in location keys. Locations are dynamic (DB-backed) — these are the
 /// two seeded ones, referenced where behaviour is inherently location-specific
 /// (the OCBC attendance streak, the allocator's default preference).
@@ -380,10 +519,10 @@ class Slot {
 /// and next weekend) with its per-weekend deadlines. Everything is computed
 /// from the calendar — no database rows.
 ///
-///   - prompt:    Monday 18:00 of the current week
-///   - reminder:  Thursday 18:00
-///   - deadline0: Friday 18:00 of the current week (locks this weekend)
-///   - deadline1: Friday 18:00 of next week (locks the second weekend)
+///   - prompt:    Monday at the configured prompt time
+///   - reminder:  Thursday at the configured reminder time
+///   - deadline0: Friday at the configured lock time (locks this weekend)
+///   - deadline1: Friday at the configured lock time (locks the second weekend)
 ///   - weekends:  Saturday of the current week and the next
 class RollingWindow {
   final DateTime sat0;
@@ -407,18 +546,22 @@ class RollingWindow {
     DateTime sat0, {
     int promptHour = 18,
     int reminderHour = 18,
+    ScheduleTimes? schedule,
   }) {
+    final times = schedule ?? ScheduleTimes(
+      prompt: LocalWallClock(promptHour, 0),
+      reminder: LocalWallClock(reminderHour, 0),
+      lock: const LocalWallClock(18, 0),
+      checker: const LocalWallClock(21, 0),
+    );
     final monday = sat0.subtract(const Duration(days: 5)); // Sat - 5 = Mon
     return RollingWindow(
       sat0: sat0,
       sat1: sat0.add(const Duration(days: 7)),
-      promptDay: WeekMath.atTime(monday, promptHour),
-      reminderDay: WeekMath.atTime(
-        monday.add(const Duration(days: 3)),
-        reminderHour,
-      ),
-      deadline0: WeekMath.atTime(monday.add(const Duration(days: 4)), 18),
-      deadline1: WeekMath.atTime(monday.add(const Duration(days: 11)), 18),
+      promptDay: times.prompt.on(monday),
+      reminderDay: times.reminder.on(monday.add(const Duration(days: 3))),
+      deadline0: times.lock.on(monday.add(const Duration(days: 4))),
+      deadline1: times.lock.on(monday.add(const Duration(days: 11))),
     );
   }
 
@@ -427,6 +570,7 @@ class RollingWindow {
     DateTime localNow, {
     int promptHour = 18,
     int reminderHour = 18,
+    ScheduleTimes? schedule,
   }) {
     final week = WeekMath.isoWeek(localNow);
     final year = WeekMath.isoYear(localNow);
@@ -434,6 +578,7 @@ class RollingWindow {
       WeekMath.saturdayOfWeek(week, year),
       promptHour: promptHour,
       reminderHour: reminderHour,
+      schedule: schedule,
     );
   }
 

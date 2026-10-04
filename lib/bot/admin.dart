@@ -8,6 +8,7 @@ import 'command_both.dart';
 import 'pickers.dart';
 import 'service.dart';
 import 'state.dart';
+import '../core/schedule.dart';
 
 /// Admin-facing commands and the attendance confirmation flow.
 class Admin {
@@ -16,6 +17,7 @@ class Admin {
   final Config config;
   final BotState state;
   final CycleService service;
+  final ScheduleRuntime scheduleRuntime;
 
   Admin({
     required this.bot,
@@ -23,7 +25,9 @@ class Admin {
     required this.config,
     required this.state,
     required this.service,
-  });
+    ScheduleRuntime? scheduleRuntime,
+  }) : scheduleRuntime =
+           scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
@@ -124,11 +128,7 @@ class Admin {
 
   RollingWindow _window() => _windowFor(config.toLocal(Config.nowUtc()));
 
-  RollingWindow _windowFor(DateTime now) => RollingWindow.forDate(
-    now,
-    promptHour: config.promptHour,
-    reminderHour: config.reminderHour,
-  );
+  RollingWindow _windowFor(DateTime now) => scheduleRuntime.window(now);
 
   // ----------------------------------------------------------- /adduser
 
@@ -650,13 +650,17 @@ class Admin {
 
   Future<void> _pickUser(Context ctx, String kind) async {
     final args = ctx.args;
+    if (args.length > 1) {
+      await ctx.reply('Usage: /setexp');
+      return;
+    }
     if (args.isEmpty) {
       await _pickValue(ctx, kind);
       return;
     }
     final value = args.first.toLowerCase();
     if (kind != 'setexp' || !_isValidValue(kind, value)) {
-      await ctx.reply('Usage: /setexp experienced|newbie');
+      await ctx.reply('Usage: /setexp');
       return;
     }
     await _pickUserFor(ctx, kind, value);

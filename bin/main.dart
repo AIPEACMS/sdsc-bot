@@ -20,6 +20,7 @@ Future<void> main() async {
   final config = Config.fromEnv();
   final database = Database.open(config);
   final repo = Repo(database);
+  final scheduleRuntime = ScheduleRuntime(repo: repo, config: config);
 
   // Load the log retention window persisted by the console (default 14 days).
   final retention = repo.getSetting('log_retention_days');
@@ -73,6 +74,7 @@ Future<void> main() async {
     messages: messages,
     state: state,
     service: service,
+    scheduleRuntime: scheduleRuntime,
   );
 
   final admin = Admin(
@@ -81,6 +83,7 @@ Future<void> main() async {
     config: config,
     state: state,
     service: service,
+    scheduleRuntime: scheduleRuntime,
   );
 
   final calendarSync = CalendarSync(repo: repo, config: config);
@@ -91,6 +94,7 @@ Future<void> main() async {
     config: config,
     state: state,
     service: service,
+    scheduleRuntime: scheduleRuntime,
   );
 
   final console = Console(
@@ -103,7 +107,12 @@ Future<void> main() async {
     setTime: setTime,
   );
 
-  final scheduler = Scheduler(repo: repo, config: config, service: service);
+  final scheduler = Scheduler(
+    repo: repo,
+    config: config,
+    service: service,
+    scheduleRuntime: scheduleRuntime,
+  );
 
   CalendarIpcServer? ipcServer;
   if (config.calendarIpcToken != null) {
@@ -127,6 +136,7 @@ Future<void> main() async {
       token: apiToken,
       port: config.adminApiPort,
       service: service,
+      scheduleRuntime: scheduleRuntime,
     );
     adminApi.onLocationApproved = setTime.onLocationApproved;
   }

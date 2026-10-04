@@ -22,6 +22,35 @@ Config _config(String path) => Config(
 );
 
 void main() {
+  test('schedule settings seed idempotently and round-trip atomically', () {
+    final tmp = Directory.systemTemp.createTempSync('sdsc_schedule_mig_');
+    final path = '${tmp.path}/schedule.db';
+    final first = Database.open(_config(path));
+    final repo = Repo(first);
+    expect(repo.readSchedule(), ScheduleTimes.defaults);
+    repo.writeSchedule(const ScheduleTimes(
+      prompt: LocalWallClock(17, 30),
+      reminder: LocalWallClock(18, 15),
+      lock: LocalWallClock(19, 0),
+      checker: LocalWallClock(21, 30),
+    ));
+    expect(repo.readSchedule().prompt.value, '17:30');
+    first.close();
+
+    final second = Database.open(_config(path));
+    expect(Repo(second).readSchedule().checker.value, '21:30');
+    second.raw.execute(
+      'DELETE FROM settings WHERE key = ?',
+      [ScheduleTimes.reminderKey],
+    );
+    second.close();
+
+    final third = Database.open(_config(path));
+    expect(Repo(third).readSchedule().reminder.value, '18:00');
+    third.close();
+    tmp.deleteSync(recursive: true);
+  });
+
   test('v4 user columns migrate idempotently and keep their defaults', () {
     final tmp = Directory.systemTemp.createTempSync('sdsc_v4_mig_');
     final path = '${tmp.path}/old.db';

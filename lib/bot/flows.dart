@@ -10,6 +10,7 @@ import 'command_both.dart';
 import 'keyboards.dart';
 import 'service.dart';
 import 'state.dart';
+import '../core/schedule.dart';
 
 /// Member-facing commands: gated /start, availability picking, and the
 /// seen-user bookkeeping that lets admins add members by handle.
@@ -20,6 +21,7 @@ class Flows {
   final Messages messages;
   final BotState state;
   final CycleService service;
+  final ScheduleRuntime scheduleRuntime;
 
   /// Fired after a member's availability is saved (Done or Not available).
   /// Wired in main.dart to the scheduler's dynamic-allocation trigger.
@@ -32,7 +34,9 @@ class Flows {
     required this.messages,
     required this.state,
     required this.service,
-  });
+    ScheduleRuntime? scheduleRuntime,
+  }) : scheduleRuntime =
+           scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 
   void register() {
     // Bookkeeping middleware: records seen users and routes pending-input
@@ -208,7 +212,7 @@ class Flows {
         ..writeln('/remind — remind non-responders now')
         ..writeln('/ask [telegram_id] — send one member an availability picker')
         ..writeln('mark-attend — mark attendance')
-        ..writeln('/setexp experienced|newbie — change a member\'s experience')
+        ..writeln('/setexp — change a member\'s experience')
         ..writeln('/allocate — run the allocation now')
         ..writeln('/broadcast &lt;message&gt; — message all members');
     }
@@ -1072,17 +1076,10 @@ class Flows {
     return _windowFor(now);
   }
 
-  RollingWindow _windowFor(DateTime now) => RollingWindow.forDate(
-    now,
-    promptHour: config.promptHour,
-    reminderHour: config.reminderHour,
-  );
+  RollingWindow _windowFor(DateTime now) => scheduleRuntime.window(now);
 
-  RollingWindow _windowForSat(DateTime sat0) => RollingWindow.fromSat0(
-    sat0,
-    promptHour: config.promptHour,
-    reminderHour: config.reminderHour,
-  );
+  RollingWindow _windowForSat(DateTime sat0) =>
+      RollingWindow.fromSat0(sat0, schedule: scheduleRuntime.schedule);
 
   /// Remembers (id, username) from any update so admins can add members by
   /// handle later. If the handle is in the pending queue (added by an admin

@@ -12,6 +12,7 @@ import 'hold.dart';
 import 'key_auth.dart';
 import 'server_identity.dart';
 import 'service.dart';
+import '../core/schedule.dart';
 
 /// HTTP admin API for the desktop console app. Every request must authenticate
 /// with a registered console key (Ed25519 signature) or, as a manual
@@ -31,7 +32,9 @@ import 'service.dart';
 ///
 /// Endpoints:
 ///   GET   /api/server-info              -> public key + fingerprint
-///   GET   /api/state                    -> held flag, debug clock, cycle
+///   GET   /api/state                    -> held flag, debug clock, cycle, schedule
+///   GET   /api/schedule                 -> persisted local wall-clock schedule
+///   POST  /api/schedule                 -> update prompt/reminder/lock/checker
 ///   GET   /api/users                    -> every user with tier + groups + attendance
 ///   POST  /api/users                    -> { "handle": "@name" } (register-or-queue)
 ///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|out-member|old" }
@@ -62,6 +65,7 @@ class AdminApi {
   final String? token;
   final int port;
   final ServerIdentity identity;
+  final ScheduleRuntime scheduleRuntime;
 
   /// Wired from main.dart with the real [CycleService]. The cycle-driving
   /// endpoints (prompt/remind/allocate/ask/broadcast) require it; everything
@@ -83,13 +87,12 @@ class AdminApi {
     required this.token,
     required this.port,
     this.service,
-  }) : identity = ServerIdentity(repo);
+    ScheduleRuntime? scheduleRuntime,
+  }) : identity = ServerIdentity(repo),
+       scheduleRuntime =
+           scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 
-  RollingWindow _window(DateTime now) => RollingWindow.forDate(
-    now,
-    promptHour: config.promptHour,
-    reminderHour: config.reminderHour,
-  );
+  RollingWindow _window(DateTime now) => scheduleRuntime.window(now);
 
   /// The actual bound port (differs from [port] when 0 = ephemeral).
   int get boundPort => _server?.port ?? port;
@@ -205,7 +208,12 @@ class AdminApi {
 
     switch (kind) {
       case 'state':
+        if (segs.length != 2) return (404, {'ok': false, 'error': 'not found'});
         if (method == 'GET') return (200, _stateBody());
+      case 'schedule':
+        if (segs.length != 2) return (404, {'ok': false, 'error': 'not found'});
+        if (method == 'GET') return (200, _scheduleBody());
+        if (method == 'POST') return _setSchedule(bodyText);
       case 'users':
         if (method == 'GET' && segs.length == 2) {
           return (200, {'ok': true, 'users': _usersJson()});
@@ -322,10 +330,11 @@ class AdminApi {
     return {
       'ok': true,
       'held': holdGate.isHeld,
-      'debugNow': Config.nowUtc() != DateTime.now().toUtc()
+      'debugNow': Config.hasDebugNow
           ? config.toLocal(Config.nowUtc()).toIso8601String()
           : null,
       'logRetentionDays': LogRing.retentionDays,
+      'schedule': _scheduleJson(),
       'window': {
         'weekend0': w.sat0.toIso8601String(),
         'weekend1': w.sat1.toIso8601String(),
@@ -337,6 +346,75 @@ class AdminApi {
         'allocated1': repo.weekendAllocated(w.sat1),
       },
     };
+  }
+
+  Map<String, Object?> _scheduleJson() => {
+    ...scheduleRuntime.schedule.json,
+    'timezoneOffset': config.timezoneOffsetHours,
+  };
+
+  Map<String, Object?> _scheduleBody() => {
+    'ok': true,
+    ..._scheduleJson(),
+    'schedule': _scheduleJson(),
+  };
+
+  Future<(int, Object)> _setSchedule(String bodyText) async {
+    final Map<String, dynamic> body;
+    try {
+      body = _jsonBody(bodyText);
+    } catch (_) {
+      return (400, {'ok': false, 'error': 'expected a JSON object'});
+    }
+    if (body.containsKey('schedule') && body['schedule'] is! Map) {
+      return (400, {'ok': false, 'error': 'schedule must be a JSON object'});
+    }
+    final hasNested = body['schedule'] is Map;
+    if (hasNested && body.keys.any((key) => key != 'schedule')) {
+      return (400, {'ok': false, 'error': 'unknown schedule fields'});
+    }
+    final nested = hasNested
+        ? (body['schedule'] as Map).cast<String, dynamic>()
+        : body;
+    const knownKeys = {'prompt', 'reminder', 'lock', 'checker', 'timezoneOffset'};
+    if (nested.isEmpty || nested.keys.any((key) => !knownKeys.contains(key))) {
+      return (400, {'ok': false, 'error': 'schedule has no valid timing fields'});
+    }
+
+    final current = scheduleRuntime.schedule;
+    LocalWallClock parse(String key, LocalWallClock fallback) {
+      final raw = nested[key];
+      if (raw == null) return fallback;
+      if (raw is! String) {
+        throw FormatException('$key: expected HH:MM');
+      }
+      try {
+        return LocalWallClock.parse(raw);
+      } on FormatException catch (e) {
+        throw FormatException('$key: ${e.message}');
+      }
+    }
+
+    final ScheduleTimes next;
+    try {
+      next = ScheduleTimes(
+        prompt: parse('prompt', current.prompt),
+        reminder: parse('reminder', current.reminder),
+        lock: parse('lock', current.lock),
+        checker: parse('checker', current.checker),
+      )..validate();
+    } on FormatException catch (e) {
+      return (400, {'ok': false, 'error': e.message});
+    } on ArgumentError catch (e) {
+      return (400, {'ok': false, 'error': e.message});
+    }
+    scheduleRuntime.update(next);
+    LogRing.log('admin API: schedule updated');
+    return (200, {
+      'ok': true,
+      ..._scheduleJson(),
+      'schedule': _scheduleJson(),
+    });
   }
 
   /// The user's full set of groups, most significant first. The console and

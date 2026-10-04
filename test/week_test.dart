@@ -51,6 +51,23 @@ void main() {
       final sat2 = WeekMath.saturdayOfWeek(34, 2026);
       expect(WeekMath.isoWeek(sat2), 34);
     });
+
+    test('rolling window uses all configured schedule milestones', () {
+      const schedule = ScheduleTimes(
+        prompt: LocalWallClock(17, 15),
+        reminder: LocalWallClock(18, 30),
+        lock: LocalWallClock(19, 45),
+        checker: LocalWallClock(22, 0),
+      );
+      final window = RollingWindow.forDate(
+        DateTime(2026, 8, 12),
+        schedule: schedule,
+      );
+      expect(window.promptDay, DateTime(2026, 8, 10, 17, 15));
+      expect(window.reminderDay, DateTime(2026, 8, 13, 18, 30));
+      expect(window.deadline0, DateTime(2026, 8, 14, 19, 45));
+      expect(window.deadline1, DateTime(2026, 8, 21, 19, 45));
+    });
   });
 
   group('UTC+8 timezone anchoring', () {

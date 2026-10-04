@@ -183,6 +183,30 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
 );
 ''');
 
+    // Schedule settings are durable and seeded once. The transaction keeps a
+    // restart from exposing only part of the four-value schedule.
+    db.execute('BEGIN IMMEDIATE');
+    try {
+      String hour(int value) => '${value.toString().padLeft(2, '0')}:00';
+      final defaults = {
+        ...ScheduleTimes.defaultSettings,
+        ScheduleTimes.promptKey: hour(config.promptHour),
+        ScheduleTimes.reminderKey: hour(config.reminderHour),
+        ScheduleTimes.lockKey: hour(config.deadlineHour),
+        ScheduleTimes.checkerKey: hour(config.checkerHour),
+      };
+      for (final entry in defaults.entries) {
+        db.execute(
+          'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
+          [entry.key, entry.value],
+        );
+      }
+      db.execute('COMMIT');
+    } catch (_) {
+      db.execute('ROLLBACK');
+      rethrow;
+    }
+
     // Column migrations for databases created before session max limits existed.
     for (final table in ['sessions', 'schedule_template', 'schedule_overrides']) {
       try {
