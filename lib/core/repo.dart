@@ -530,18 +530,25 @@ class Repo {
     );
   }
 
-  /// Reads all four schedule values from one SQLite read transaction.
+  /// Reads all schedule values from one SQLite read transaction. Missing
+  /// weekday keys are filled by [ScheduleTimes.fromSettings] for legacy DBs.
   ScheduleTimes readSchedule() {
     raw.execute('BEGIN');
     try {
+      const keys = [
+        ScheduleTimes.promptKey,
+        ScheduleTimes.reminderKey,
+        ScheduleTimes.lockKey,
+        ScheduleTimes.checkerKey,
+        ScheduleTimes.promptWeekdayKey,
+        ScheduleTimes.reminderWeekdayKey,
+        ScheduleTimes.lockWeekdayKey,
+        ScheduleTimes.checkerWeekdayKey,
+      ];
       final rows = raw.select(
-        'SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)',
-        [
-          ScheduleTimes.promptKey,
-          ScheduleTimes.reminderKey,
-          ScheduleTimes.lockKey,
-          ScheduleTimes.checkerKey,
-        ],
+        'SELECT key, value FROM settings WHERE key IN '
+        '(${List.filled(keys.length, '?').join(', ')})',
+        keys,
       );
       final values = <String, String?>{
         for (final row in rows) row['key'] as String: row['value'] as String,

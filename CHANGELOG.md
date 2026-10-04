@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
-- Persisted runtime controls for prompt, reminder, lock, and checker times.
+- Persisted runtime controls for prompt, reminder, lock, and checker weekdays
+  and times.
 - Authenticated schedule read/update API for the desktop console.
 
 ### Changed

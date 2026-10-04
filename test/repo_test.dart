@@ -70,6 +70,24 @@ void main() {
     expect(w.deadline0.isBefore(w.sat0), true);
   });
 
+  test('repo write rejects weekend milestones and bad weekly ordering', () {
+    const weekend = ScheduleTimes(
+      prompt: ScheduleEvent(weekday: 'sat', time: LocalWallClock(9, 0)),
+      reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(10, 0)),
+      lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
+      checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+    );
+    expect(() => repo.writeSchedule(weekend), throwsArgumentError);
+
+    const outOfOrder = ScheduleTimes(
+      prompt: ScheduleEvent(weekday: 'wed', time: LocalWallClock(9, 0)),
+      reminder: ScheduleEvent(weekday: 'tue', time: LocalWallClock(10, 0)),
+      lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
+      checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+    );
+    expect(() => repo.writeSchedule(outOfOrder), throwsArgumentError);
+  });
+
   test('a weekend locks at its Friday deadline', () {
     final w = RollingWindow.forDate(DateTime(2026, 8, 10));
     expect(w.locked(w.sat0, DateTime(2026, 8, 13, 12)), false);

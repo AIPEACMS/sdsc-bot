@@ -54,10 +54,22 @@ void main() {
 
     test('rolling window uses all configured schedule milestones', () {
       const schedule = ScheduleTimes(
-        prompt: LocalWallClock(17, 15),
-        reminder: LocalWallClock(18, 30),
-        lock: LocalWallClock(19, 45),
-        checker: LocalWallClock(22, 0),
+        prompt: ScheduleEvent(
+          weekday: 'mon',
+          time: LocalWallClock(17, 15),
+        ),
+        reminder: ScheduleEvent(
+          weekday: 'thu',
+          time: LocalWallClock(18, 30),
+        ),
+        lock: ScheduleEvent(
+          weekday: 'fri',
+          time: LocalWallClock(19, 45),
+        ),
+        checker: ScheduleEvent(
+          weekday: 'fri',
+          time: LocalWallClock(22, 0),
+        ),
       );
       final window = RollingWindow.forDate(
         DateTime(2026, 8, 12),
@@ -67,6 +79,63 @@ void main() {
       expect(window.reminderDay, DateTime(2026, 8, 13, 18, 30));
       expect(window.deadline0, DateTime(2026, 8, 14, 19, 45));
       expect(window.deadline1, DateTime(2026, 8, 21, 19, 45));
+    });
+
+    test('rolling window uses configured weekdays and weekly lock spacing', () {
+      const schedule = ScheduleTimes(
+        prompt: ScheduleEvent(
+          weekday: 'tue',
+          time: LocalWallClock(9, 0),
+        ),
+        reminder: ScheduleEvent(
+          weekday: 'wed',
+          time: LocalWallClock(10, 0),
+        ),
+        lock: ScheduleEvent(
+          weekday: 'fri',
+          time: LocalWallClock(18, 0),
+        ),
+        checker: ScheduleEvent(
+          weekday: 'fri',
+          time: LocalWallClock(20, 0),
+        ),
+      );
+      final window = RollingWindow.forDate(
+        DateTime(2026, 8, 12),
+        schedule: schedule,
+      );
+      expect(window.promptDay, DateTime(2026, 8, 11, 9));
+      expect(window.reminderDay, DateTime(2026, 8, 12, 10));
+      expect(window.lock0, DateTime(2026, 8, 14, 18));
+      expect(window.lock1, DateTime(2026, 8, 21, 18));
+      expect(window.checkerDay, DateTime(2026, 8, 14, 20));
+      expect(window.lock1.difference(window.lock0), const Duration(days: 7));
+    });
+
+    test('schedule validation orders milestones by weekday then time', () {
+      const valid = ScheduleTimes(
+        prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(20, 0)),
+        reminder: ScheduleEvent(weekday: 'tue', time: LocalWallClock(8, 0)),
+        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
+        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 1)),
+      );
+      expect(valid.validate, returnsNormally);
+
+      const weekend = ScheduleTimes(
+        prompt: ScheduleEvent(weekday: 'sat', time: LocalWallClock(9, 0)),
+        reminder: ScheduleEvent(weekday: 'tue', time: LocalWallClock(10, 0)),
+        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
+        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+      );
+      expect(weekend.validate, throwsArgumentError);
+
+      const outOfOrder = ScheduleTimes(
+        prompt: ScheduleEvent(weekday: 'wed', time: LocalWallClock(9, 0)),
+        reminder: ScheduleEvent(weekday: 'tue', time: LocalWallClock(10, 0)),
+        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
+        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+      );
+      expect(outOfOrder.validate, throwsArgumentError);
     });
   });
 

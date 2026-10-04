@@ -184,7 +184,9 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
 ''');
 
     // Schedule settings are durable and seeded once. The transaction keeps a
-    // restart from exposing only part of the four-value schedule.
+    // restart from exposing only part of the schedule. The four historical
+    // time keys are deliberately retained; weekday keys are additive so old
+    // databases keep their custom times.
     db.execute('BEGIN IMMEDIATE');
     try {
       String hour(int value) => '${value.toString().padLeft(2, '0')}:00';

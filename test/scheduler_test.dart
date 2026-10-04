@@ -13,7 +13,7 @@ import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('schedule updates re-arm the scheduler one-shot milestone', () async {
+  test('schedule updates re-arm the scheduler one-shot milestone', () {
     final tmp = Directory.systemTemp.createTempSync('sdsc_scheduler_');
     final config = Config(
       botToken: 'test',
@@ -50,21 +50,21 @@ void main() {
     Config.setDebugNow(DateTime.utc(2026, 8, 10, 1));
     try {
       runtime.update(const ScheduleTimes(
-        prompt: LocalWallClock(10, 0),
-        reminder: LocalWallClock(11, 0),
-        lock: LocalWallClock(19, 0),
-        checker: LocalWallClock(21, 0),
+        prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(10, 0)),
+        reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(11, 0)),
+        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
       ));
       scheduler.start(interval: const Duration(days: 1));
       expect(scheduler.nextMilestone, DateTime(2026, 8, 10, 10));
 
       runtime.update(const ScheduleTimes(
-        prompt: LocalWallClock(12, 0),
-        reminder: LocalWallClock(13, 0),
-        lock: LocalWallClock(19, 0),
-        checker: LocalWallClock(21, 0),
+        prompt: ScheduleEvent(weekday: 'tue', time: LocalWallClock(12, 0)),
+        reminder: ScheduleEvent(weekday: 'wed', time: LocalWallClock(13, 0)),
+        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
       ));
-      expect(scheduler.nextMilestone, DateTime(2026, 8, 10, 12));
+      expect(scheduler.nextMilestone, DateTime(2026, 8, 11, 12));
     } finally {
       scheduler.stop();
       Config.setDebugNow(null);
