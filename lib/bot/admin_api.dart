@@ -432,7 +432,10 @@ class AdminApi {
       if (!nested.containsKey(key)) return fallback;
       final raw = nested[key];
       if (raw is! String || scheduleWeekdayNumber(raw) == null) {
-        throw FormatException('$key: expected one of mon, tue, wed, thu, fri');
+        throw FormatException(
+          '${key.replaceAll('Weekday', ' weekday')}: '
+          'expected one of mon, tue, wed, thu, fri',
+        );
       }
       return raw;
     }
