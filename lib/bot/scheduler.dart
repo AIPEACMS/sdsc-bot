@@ -6,15 +6,16 @@ import '../core/config.dart';
 import '../core/week.dart';
 import 'service.dart';
 import '../core/log.dart';
+import '../core/schedule.dart';
 
 /// Periodically drives the rolling schedule. A lightweight Timer replaces a
 /// cron daemon and naturally catches up when the bot restarts.
 ///
 /// The rolling window (bundle = current + next weekend) has, every week:
-///  - Monday 18:00   prompts for the bundle (quiet users skipped)
-///  - Thursday 18:00 reminders to the bundle's non-responders
-///  - Friday 18:00   deadline for this weekend (locks availability)
-///  - Friday 21:00   full allocation list pushed to the `check` tier
+///  - Monday at the configured prompt time prompts for the bundle
+///  - Thursday at the configured reminder time reminds non-responders
+///  - Friday at the configured lock time locks availability
+///  - Friday at the configured checker time pushes the allocation list
 ///  - Sunday 20:00 / Monday 08:00 attendance-marking reminders to admins
 ///
 /// Allocation is dynamic: every availability indication arms a one-shot run
@@ -28,16 +29,29 @@ class Scheduler {
   final Repo repo;
   final Config config;
   final CycleService service;
+  final ScheduleRuntime scheduleRuntime;
 
   Timer? _timer;
   Timer? _milestone;
   Timer? _allocTimer;
+  DateTime? _nextMilestone;
 
-  Scheduler({required this.repo, required this.config, required this.service});
+  DateTime? get nextMilestone => _nextMilestone;
+
+  Scheduler({
+    required this.repo,
+    required this.config,
+    required this.service,
+    ScheduleRuntime? scheduleRuntime,
+  }) : scheduleRuntime =
+           scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config) {
+    this.scheduleRuntime.addListener(reschedule);
+  }
 
   void start({Duration interval = const Duration(hours: 12)}) {
-    unawaited(_tick());
     _timer = Timer.periodic(interval, (_) => _tick());
+    _scheduleNext();
+    unawaited(_tick());
   }
 
   void stop() {
@@ -47,6 +61,7 @@ class Scheduler {
     _timer = null;
     _milestone = null;
     _allocTimer = null;
+    _nextMilestone = null;
   }
 
   Future<void> _tick() async {
@@ -92,11 +107,13 @@ class Scheduler {
       // members are notified.
       await _runDynamicAllocation();
 
-      // Friday 21:00: push the current weekend's full allocation to the
+      // Friday checker time: push the current weekend's full allocation to the
       // `check` tier — a final confirmation list, independent of their
       // on-demand status button.
-      if (_sameDay(today, monday.add(const Duration(days: 4))) &&
-          now.hour >= 21) {
+      final checkerAt = scheduleRuntime.schedule.checker.on(
+        monday.add(const Duration(days: 4)),
+      );
+      if (_sameDay(today, checkerAt) && !now.isBefore(checkerAt)) {
         await service.sendCheckList(w.sat0);
       }
 
@@ -118,11 +135,7 @@ class Scheduler {
     _scheduleNext();
   }
 
-  RollingWindow _window(DateTime now) => RollingWindow.forDate(
-    now,
-    promptHour: config.promptHour,
-    reminderHour: config.reminderHour,
-  );
+  RollingWindow _window(DateTime now) => scheduleRuntime.window(now);
 
   /// Arms a one-shot timer for the next upcoming milestone so it fires on
   /// the sharp scheduled hour instead of on the next 12h tick.
@@ -130,20 +143,45 @@ class Scheduler {
     final now = config.toLocal(Config.nowUtc());
     final w = _window(now);
     final monday = WeekMath.mondayOf(now);
+    final nextWindow = _window(now.add(const Duration(days: 7)));
+    final nextMonday = monday.add(const Duration(days: 7));
 
     final due = <DateTime>[
       // This week's milestones, if still in the future.
       w.promptDay,
       w.reminderDay,
-      monday.add(const Duration(days: 4, hours: 21)), // Friday 21:00
+      w.deadline0,
+      w.deadline1,
+      scheduleRuntime.schedule.checker.on(
+        monday.add(const Duration(days: 4)),
+      ),
       monday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
+      nextWindow.promptDay,
+      nextWindow.reminderDay,
+      nextWindow.deadline0,
+      nextWindow.deadline1,
+      scheduleRuntime.schedule.checker.on(nextMonday.add(const Duration(days: 4))),
+      nextMonday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
+      monday.add(const Duration(hours: 8)), // Monday 08:00
+      nextMonday.add(const Duration(hours: 8)), // Monday 08:00
     ];
     DateTime? next;
     for (final d in due) {
       if (d.isAfter(now) && (next == null || d.isBefore(next))) next = d;
     }
-    if (next == null) return;
+    if (next == null) {
+      _nextMilestone = null;
+      return;
+    }
+    _nextMilestone = next;
     _milestone = Timer(next.difference(now), () => _tick());
+  }
+
+  /// Re-arms the one-shot timer after a persisted schedule update.
+  void reschedule() {
+    if (_timer == null) return;
+    _milestone?.cancel();
+    _scheduleNext();
   }
 
   /// Legacy path: arms a one-shot dynamic-allocation run at the next sharp hour.

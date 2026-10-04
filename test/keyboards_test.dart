@@ -169,6 +169,17 @@ void main() {
     );
   });
 
+  test('experience remains command-only while absent from both admin grids', () {
+    expect(
+      RoleKeyboard.adminButtons.map((b) => b.command),
+      isNot(contains('/setexp')),
+    );
+    expect(
+      RoleKeyboard.globalAdminButtons.map((b) => b.command),
+      isNot(contains('/setexp')),
+    );
+  });
+
   test('check grid is a single button', () {
     expect(RoleKeyboard.checkButtons, hasLength(1));
     expect(RoleKeyboard.checkButtons.single.command, '/check-status');

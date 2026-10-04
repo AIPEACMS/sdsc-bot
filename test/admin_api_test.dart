@@ -441,6 +441,52 @@ void main() {
     expect(resetMap['ok'], true);
   });
 
+  test('schedule API returns normalized values and updates state', () async {
+    final (getStatus, getBody) = await call('GET', '/api/schedule');
+    expect(getStatus, 200);
+    final initial = getBody as Map<String, dynamic>;
+    expect(initial['schedule'], containsPair('prompt', '18:00'));
+    expect(initial['schedule'], containsPair('checker', '21:00'));
+    expect(initial['timezoneOffset'], 8);
+
+    final (postStatus, postBody) = await call(
+      'POST',
+      '/api/schedule',
+      body: {
+        'prompt': '07:05',
+        'reminder': '08:06',
+        'lock': '19:10',
+        'checker': '21:20',
+      },
+    );
+    expect(postStatus, 200);
+    final updated = postBody as Map<String, dynamic>;
+    expect(updated['schedule'], containsPair('lock', '19:10'));
+    expect(repo.readSchedule().prompt.value, '07:05');
+
+    final (_, stateBody) = await call('GET', '/api/state');
+    expect(
+      (stateBody as Map<String, dynamic>)['schedule'],
+      containsPair('checker', '21:20'),
+    );
+  });
+
+  test('schedule API rejects malformed times and checker before lock', () async {
+    final (badTimeStatus, _) = await call(
+      'POST',
+      '/api/schedule',
+      body: {'prompt': '7:05'},
+    );
+    expect(badTimeStatus, 400);
+    final (badOrderStatus, badOrderBody) = await call(
+      'POST',
+      '/api/schedule',
+      body: {'lock': '20:00', 'checker': '20:00'},
+    );
+    expect(badOrderStatus, 400);
+    expect((badOrderBody as Map<String, dynamic>)['error'], contains('checker'));
+  });
+
   test('GET /api/logs returns the in-memory ring', () async {
     LogRing.log('hello from the test');
     final (_, body) = await call('GET', '/api/logs');

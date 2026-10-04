@@ -5,6 +5,19 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.1.0] - 2026-10-04
+
+### Added
+
+- Persisted runtime controls for prompt, reminder, lock, and checker times.
+- Authenticated schedule read/update API for the desktop console.
+
+### Changed
+
+- Scheduler and rolling windows now use the persisted timing configuration.
+- Removed the experience control from Telegram role grids while preserving the
+  `/setexp` admin command and existing allocation logic.
+
 ## [4.0.2] - 2026-10-04
 
 ### Fixed

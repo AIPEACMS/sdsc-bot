@@ -24,6 +24,7 @@ class Config {
   final int promptHour;
   final int reminderHour;
   final int deadlineHour;
+  final int checkerHour;
   @Deprecated('Immediate allocation is the default in v3.2.0.')
   final int allocationHour;
   final int bailHour;
@@ -64,6 +65,7 @@ class Config {
     required this.promptHour,
     required this.reminderHour,
     required this.deadlineHour,
+    this.checkerHour = 21,
     required this.allocationHour,
     required this.bailHour,
     required this.timezoneOffsetHours,
@@ -82,6 +84,8 @@ class Config {
   /// The clock the scheduler and flows use: real UTC now, or the debug
   /// override when set.
   static DateTime nowUtc() => _debugNowUtc ?? DateTime.now().toUtc();
+
+  static bool get hasDebugNow => _debugNowUtc != null;
 
   /// True for the console user, who has admin rights + debug rights.
   bool isConsole(int id) => id == consoleId;
@@ -127,6 +131,7 @@ class Config {
       promptHour: envInt('PROMPT_HOUR', 18),
       reminderHour: envInt('REMINDER_HOUR', 18),
       deadlineHour: envInt('DEADLINE_HOUR', 18),
+      checkerHour: envInt('CHECKER_HOUR', 21),
       allocationHour: envInt('ALLOCATION_HOUR', 9),
       bailHour: envInt('BAIL_HOUR', 12),
       timezoneOffsetHours: envInt('TZ_OFFSET', 8),

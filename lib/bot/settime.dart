@@ -10,6 +10,7 @@ import 'command_both.dart';
 import 'pickers.dart';
 import 'service.dart';
 import 'state.dart';
+import '../core/schedule.dart';
 
 /// `/settime` — guided schedule changes for the global admin. The gadmin can
 /// add, remove, or rewrite recurring sessions, or apply one temporary change
@@ -20,6 +21,7 @@ class SetTime {
   final Config config;
   final BotState state;
   final CycleService service;
+  final ScheduleRuntime scheduleRuntime;
 
   SetTime({
     required this.bot,
@@ -27,7 +29,9 @@ class SetTime {
     required this.config,
     required this.state,
     required this.service,
-  });
+    ScheduleRuntime? scheduleRuntime,
+  }) : scheduleRuntime =
+           scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 
   /// Drafts in progress, per gadmin user id.
   final Map<int, _Draft> _drafts = {};
@@ -208,11 +212,7 @@ class SetTime {
 
   Future<void> _showTemporaryWeekPicker(Context ctx, int userId) async {
     final now = config.toLocal(Config.nowUtc());
-    final window = RollingWindow.forDate(
-      now,
-      promptHour: config.promptHour,
-      reminderHour: config.reminderHour,
-    );
+    final window = scheduleRuntime.window(now);
     var kb = InlineKeyboard();
     for (final sat in [window.sat0, window.sat1]) {
       if (window.locked(sat, now)) continue;
@@ -803,11 +803,7 @@ class SetTime {
   /// members whose availability it cleared.
   Future<void> _apply(Context ctx, int userId, _Draft draft) async {
     final now = config.toLocal(Config.nowUtc());
-    final w = RollingWindow.forDate(
-      now,
-      promptHour: config.promptHour,
-      reminderHour: config.reminderHour,
-    );
+    final w = scheduleRuntime.window(now);
     final rows = draft.afterRows;
     if (rows == null || rows.isEmpty) {
       await ctx.editMessageText(

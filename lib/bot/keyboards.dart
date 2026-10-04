@@ -80,7 +80,6 @@ class RoleKeyboard {
     GridButton('group-users', '/groupusers', RoleColor.admin),
     GridButton('ask', '/ask', RoleColor.admin),
     GridButton('mark-attend', '/confirm', RoleColor.admin),
-    GridButton('set-exp', '/setexp', RoleColor.admin),
     GridButton('broadcast', '/broadcast', RoleColor.admin),
     ...memberButtons,
   ];

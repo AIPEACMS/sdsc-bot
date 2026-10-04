@@ -530,6 +530,50 @@ class Repo {
     );
   }
 
+  /// Reads all four schedule values from one SQLite read transaction.
+  ScheduleTimes readSchedule() {
+    raw.execute('BEGIN');
+    try {
+      final rows = raw.select(
+        'SELECT key, value FROM settings WHERE key IN (?, ?, ?, ?)',
+        [
+          ScheduleTimes.promptKey,
+          ScheduleTimes.reminderKey,
+          ScheduleTimes.lockKey,
+          ScheduleTimes.checkerKey,
+        ],
+      );
+      final values = <String, String?>{
+        for (final row in rows) row['key'] as String: row['value'] as String,
+      };
+      final schedule = ScheduleTimes.fromSettings(values);
+      raw.execute('COMMIT');
+      return schedule;
+    } catch (_) {
+      raw.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  /// Replaces all four schedule values atomically.
+  void writeSchedule(ScheduleTimes schedule) {
+    schedule.validate();
+    raw.execute('BEGIN IMMEDIATE');
+    try {
+      for (final entry in schedule.settings.entries) {
+        raw.execute(
+          'INSERT INTO settings (key, value) VALUES (?, ?) '
+          'ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+          [entry.key, entry.value],
+        );
+      }
+      raw.execute('COMMIT');
+    } catch (_) {
+      raw.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
   // ----------------------------------------------------------- seen users
 
   /// Records a (telegram id, username) pair observed in an incoming update.
@@ -733,7 +777,8 @@ ON CONFLICT(username) DO UPDATE SET
   // ------------------------------------------------------------ rolling window
 
   /// The rolling window covering [today] (bundle = current + next weekend).
-  RollingWindow windowFor(DateTime today) => RollingWindow.forDate(today);
+  RollingWindow windowFor(DateTime today, {ScheduleTimes? schedule}) =>
+      RollingWindow.forDate(today, schedule: schedule);
 
   // -------------------------------------------------------------- locations
 
