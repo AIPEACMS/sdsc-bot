@@ -1111,7 +1111,10 @@ void main() {
     );
     expect(t3, 200);
     expect((t3Body as Map<String, dynamic>)['state'], 'unmarked');
-    expect(repo.attendanceForSession(sessionId), isEmpty);
+    expect(
+      repo.attendanceForSession(sessionId).map((mark) => mark.userId),
+      [103],
+    );
 
     final (bad, _) = await call(
       'POST',
