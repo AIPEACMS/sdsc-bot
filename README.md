@@ -41,3 +41,6 @@ secret env file on the VM.
 
 **Fallback — manual copy:** `./deploy.sh` builds the bundle locally and ships
 it over SSH (set `SDSC_HOST=user@host`) when GitHub is unreachable.
+
+## License
+- This project is licensed under the [EUPL-1.2](LICENSE) License.
