@@ -386,6 +386,7 @@ class AdminApi {
       'tier': MemberTier.of(u, isConsole: config.isConsole(u.id)),
       'groups': _groupsOf(u, isConsole: config.isConsole(u.id)),
       'group': u.group,
+      'preferredName': u.preferredName,
       'experience': u.experience.name,
       'notificationPreference': _notificationValue(u.notificationPreference),
       'lastPromptState': u.lastPromptState.name,
