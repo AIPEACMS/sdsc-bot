@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.0.1] - 2026-10-04
+
+### Fixed
+
+- Prevented out-members from becoming global admins.
+- Added notification preference reads for the desktop console.
+- Kept allocated out-members visible in attendance data while disabling their
+  attendance actions.
+
 ## [4.0.0] - 2026-10-03
 
 ### Added

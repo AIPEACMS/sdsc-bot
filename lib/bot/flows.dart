@@ -1108,9 +1108,15 @@ class Flows {
     final tier = pendingRole?.tier ?? MemberTier.member;
     final notificationPreference =
         pendingRole?.notificationPreference ?? NotificationPreference.weekly;
-    repo.removePendingUser(username);
 
     final existing = repo.findUser(userId);
+    if (existing?.memberTier == MemberTier.outMember && isAdmin) {
+      repo.removePendingUser(username);
+      ctx.reply('Out-members cannot be promoted to admin.');
+      return;
+    }
+    repo.removePendingUser(username);
+
     if (existing == null) {
       repo.upsertUser(
         User(

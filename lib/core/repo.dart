@@ -26,6 +26,7 @@ enum GlobalAdminResult {
   success,
   noSuchUser,
   alreadyExists,
+  outMember,
 }
 
 /// Data access layer over SQLite. All dates are stored as ISO-8601 strings in
@@ -245,13 +246,14 @@ class Repo {
     );
   }
 
-  /// Grants or strips the normal-admin flag. Promotion automatically gives the new
-  /// admin their own group (the lowest free group number); demotion dissolves
-  /// their group — every member (including the demoted admin) loses their
-  /// group until reassigned.
+  /// Grants or strips the normal-admin flag. Out-members cannot be promoted.
+  /// Promotion automatically gives the new admin their own group (the lowest
+  /// free group number); demotion dissolves their group — every member
+  /// (including the demoted admin) loses their group until reassigned.
   bool updateAdmin(int id, bool isAdmin) {
     final user = findUser(id);
     if (user == null || user.isGlobalAdmin) return false;
+    if (isAdmin && user.memberTier == MemberTier.outMember) return false;
     if (isAdmin) {
       raw.execute('UPDATE users SET is_admin = 1 WHERE id = ?', [id]);
       _assignGroupOnPromotion(id);
@@ -303,6 +305,10 @@ class Repo {
         tx.execute('ROLLBACK');
         return GlobalAdminResult.noSuchUser;
       }
+      if (user.memberTier == MemberTier.outMember) {
+        tx.execute('ROLLBACK');
+        return GlobalAdminResult.outMember;
+      }
       if (globalAdmin() != null) {
         tx.execute('ROLLBACK');
         return GlobalAdminResult.alreadyExists;
@@ -351,7 +357,8 @@ class Repo {
   /// Sets a user's tier to one of 'admin', 'check', 'member', 'out-member' or
   /// 'old'.
   /// Promotion to admin sets is_admin and hands the new admin their own
-  /// group; every other tier clears admin and dissolves the admin's group.
+  /// group; out-members cannot be promoted. Every other tier clears admin and
+  /// dissolves the admin's group.
   /// Console identity is never stored as a member tier; it is derived from
   /// the console id and remains separate from the stored role.
   bool setTier(int id, String tier) {
@@ -367,6 +374,7 @@ class Repo {
             : tier;
     final user = findUser(id);
     if (user == null || user.isGlobalAdmin) return false;
+    if (isAdminNext && user.memberTier == MemberTier.outMember) return false;
     if (isAdminNext && !user.isAdmin) {
       // Promotion: the new admin leads the lowest free group.
       raw.execute(
