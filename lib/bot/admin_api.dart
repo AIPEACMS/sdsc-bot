@@ -47,7 +47,7 @@ import 'service.dart';
 ///   POST  /api/prompt | /api/remind | /api/allocate -> run the cycle op now
 ///   POST  /api/ask                      -> { "userId": `id` } (send picker to one member)
 ///   POST  /api/broadcast                -> { "text": "..." } (to all members)
-///   GET   /api/attendance               -> sessions + allocated members + attended flags
+///   GET   /api/attendance               -> sessions + allocated members + attendance eligibility/flags
 ///   POST  /api/attendance               -> { "sessionId": `id`, "userId": `id` } (toggle)
 ///   GET   /api/logs                     -> { "lines": [...] }
 ///   POST  /api/log-retention            -> { "days": 14 }
@@ -234,6 +234,12 @@ class AdminApi {
               return _setUserNotification(id, bodyText);
           }
         }
+        if (method == 'GET' && segs.length == 4 &&
+            (segs[3] == 'notification' || segs[3] == 'notify')) {
+          final id = int.tryParse(segs[2]);
+          if (id == null) return (400, {'ok': false, 'error': 'bad user id'});
+          return _getUserNotification(id);
+        }
       case 'assign-groups':
         if (method == 'POST') return _assignGroups();
       case 'locations':
@@ -402,6 +408,12 @@ class AdminApi {
     ].contains(tier)) {
       return (400, {'ok': false, 'error': 'bad tier'});
     }
+    if (tier == MemberTier.admin && user.memberTier == MemberTier.outMember) {
+      return (400, {
+        'ok': false,
+        'error': 'out-members cannot be promoted to admin',
+      });
+    }
     final preference = _notificationFromBody(body);
     if ((body.containsKey('notificationPreference') ||
             body.containsKey('preference') ||
@@ -464,6 +476,21 @@ class AdminApi {
     );
   }
 
+  Future<(int, Object)> _getUserNotification(int id) async {
+    final user = repo.findUser(id);
+    if (user == null) return (404, {'ok': false, 'error': 'no such user'});
+    return (
+      200,
+      {
+        'ok': true,
+        'notificationPreference': _notificationValue(
+          user.notificationPreference,
+        ),
+        'lastPromptState': user.lastPromptState.name,
+      },
+    );
+  }
+
   /// Toggles the admin flag only — the member tier (check/member/old) is
   /// left untouched, unlike [setTier] which clears admin on any non-admin
   /// tier. The console may also use this (e.g. stepping down as admin while
@@ -475,6 +502,12 @@ class AdminApi {
     final admin = body['admin'];
     if (admin is! bool) {
       return (400, {'ok': false, 'error': 'expected {"admin": bool}'});
+    }
+    if (admin && user.memberTier == MemberTier.outMember) {
+      return (400, {
+        'ok': false,
+        'error': 'out-members cannot be promoted to admin',
+      });
     }
     if (!repo.updateAdmin(id, admin)) {
       return (
@@ -574,6 +607,12 @@ class AdminApi {
       }
       if (result == GlobalAdminResult.noSuchUser) {
         return (404, {'ok': false, 'error': 'no such user'});
+      }
+      if (result == GlobalAdminResult.outMember) {
+        return (
+          400,
+          {'ok': false, 'error': 'out-members cannot be global admins'},
+        );
       }
       final updated = repo.findUser(id)!;
       LogRing.log('admin API: ${updated.name} appointed global admin');
@@ -905,7 +944,6 @@ class AdminApi {
     final bySession = <int, List<User>>{};
     for (final sat in w.weekends) {
       for (final (u, s) in repo.allocationsForWeekend(sat)) {
-        if (u.memberTier == MemberTier.outMember) continue;
         bySession.putIfAbsent(s.id, () => []).add(u);
       }
     }
@@ -933,14 +971,22 @@ class AdminApi {
             'started': !s.start.isAfter(now),
             'members': [
               for (final u in bySession[s.id] ?? const <User>[])
-                {
-                  'id': u.id,
-                  'name': u.name,
-                  'state': _attendanceStateFor(u.id, s.id),
-                },
+                _attendanceMemberJson(u, s),
             ],
           },
       ],
+    };
+  }
+
+  /// Out-members are visible in the timetable because they can be allocated,
+  /// but they cannot receive or expose attendance marks.
+  Map<String, Object?> _attendanceMemberJson(User user, Session session) {
+    final eligible = user.memberTier != MemberTier.outMember;
+    return {
+      'id': user.id,
+      'name': user.name,
+      'eligible': eligible,
+      if (eligible) 'state': _attendanceStateFor(user.id, session.id),
     };
   }
 

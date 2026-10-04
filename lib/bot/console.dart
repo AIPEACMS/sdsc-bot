@@ -272,6 +272,10 @@ class Console {
       await ctx.reply('That user is already the global admin.');
       return;
     }
+    if (existing.memberTier == MemberTier.outMember) {
+      await ctx.reply('Out-members cannot be promoted to normal admin.');
+      return;
+    }
     if (existing.isAdmin) {
       await ctx.reply('✅ @$handle is already an admin.');
       return;
@@ -355,6 +359,8 @@ class Console {
         GlobalAdminResult.success => '✅ Global admin appointed.',
         GlobalAdminResult.noSuchUser => 'That user is no longer registered.',
         GlobalAdminResult.alreadyExists => 'A global admin already exists.',
+        GlobalAdminResult.outMember =>
+          'Out-members cannot become the global admin.',
       });
       return;
     }

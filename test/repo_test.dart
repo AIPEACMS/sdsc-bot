@@ -423,6 +423,13 @@ void main() {
     expect(MemberTier.isActive(MemberTier.old), isFalse);
   });
 
+  test('out-members cannot become global admins', () {
+    addUser(19);
+    expect(repo.setTier(19, MemberTier.outMember), isTrue);
+    expect(repo.appointGlobalAdmin(19), GlobalAdminResult.outMember);
+    expect(repo.findUser(19)!.isGlobalAdmin, isFalse);
+  });
+
   test('updateAdmin toggles the admin flag', () {
     addUser(7);
     expect(repo.findUser(7)!.isAdmin, false);
@@ -430,6 +437,15 @@ void main() {
     expect(repo.findUser(7)!.isAdmin, true);
     repo.updateAdmin(7, false);
     expect(repo.findUser(7)!.isAdmin, false);
+  });
+
+  test('out-members cannot be promoted to admin', () {
+    addUser(8);
+    expect(repo.setOutMember(8), isTrue);
+    expect(repo.updateAdmin(8, true), isFalse);
+    expect(repo.setTier(8, MemberTier.admin), isFalse);
+    expect(repo.findUser(8)!.isAdmin, isFalse);
+    expect(repo.findUser(8)!.memberTier, MemberTier.outMember);
   });
 
   test('v2 startup migration converts the existing console admin', () {

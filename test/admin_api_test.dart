@@ -342,6 +342,31 @@ void main() {
     expect(repo.findUser(17)!.notificationPreference,
         NotificationPreference.everyOther);
     expect(repo.findUser(17)!.group, isEmpty);
+    expect(repo.activeUsers().any((user) => user.id == 17), isTrue);
+
+    final (tierAdminStatus, tierAdminBody) = await call(
+      'POST',
+      '/api/users/17/tier',
+      body: {'tier': 'admin'},
+    );
+    expect(tierAdminStatus, 400);
+    expect(
+      (tierAdminBody as Map<String, dynamic>)['error'],
+      contains('out-members'),
+    );
+    expect(repo.findUser(17)!.isAdmin, isFalse);
+
+    final (adminStatus, adminBody) = await call(
+      'POST',
+      '/api/users/17/admin',
+      body: {'admin': true},
+    );
+    expect(adminStatus, 400);
+    expect(
+      (adminBody as Map<String, dynamic>)['error'],
+      contains('out-members'),
+    );
+    expect(repo.findUser(17)!.isAdmin, isFalse);
 
     final (notifyStatus, notifyBody) = await call(
       'POST',
@@ -355,6 +380,32 @@ void main() {
     );
     expect(repo.findUser(17)!.notificationPreference,
         NotificationPreference.never);
+
+    final (getStatus, getBody) = await call(
+      'GET',
+      '/api/users/17/notification',
+    );
+    expect(getStatus, 200);
+    expect(
+      (getBody as Map<String, dynamic>)['notificationPreference'],
+      'never',
+    );
+  });
+
+  test('out-members cannot be appointed as global admins', () async {
+    repo.upsertUser(
+      User(id: 18, name: '@out', experience: Experience.newbie, group: '1'),
+    );
+    repo.setTier(18, MemberTier.outMember);
+
+    final (status, body) = await call(
+      'POST',
+      '/api/users/18/gadmin',
+      body: {'gadmin': true},
+    );
+    expect(status, 400);
+    expect((body as Map<String, dynamic>)['error'], contains('out-member'));
+    expect(repo.globalAdmin(), isNull);
   });
 
   test('POST /api/hold flips the gate and persists it', () async {
@@ -857,6 +908,14 @@ void main() {
     );
     expect(q, 200);
     expect(repo.isPendingUser('newbie'), true);
+    final pending = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@newbie', 'tier': 'check'},
+    );
+    expect(pending.$1, 200);
+    expect((pending.$2 as Map<String, dynamic>)['warning'], true);
+    expect((pending.$2 as Map<String, dynamic>)['message'], isNotEmpty);
 
     // A seen user is registered immediately as a plain member.
     repo.upsertSeenUser(202, 'alice');
@@ -968,6 +1027,15 @@ void main() {
     repo.upsertUser(
       User(id: 102, name: '@bob', experience: Experience.newbie, group: 'B'),
     );
+    repo.upsertUser(
+      User(
+        id: 103,
+        name: '@out',
+        experience: Experience.newbie,
+        group: '',
+        memberTier: MemberTier.outMember,
+      ),
+    );
     final now = api.config.toLocal(Config.nowUtc());
     final w = RollingWindow.forDate(now);
     repo.ensureSessionsForWeekend(
@@ -981,7 +1049,11 @@ void main() {
     repo.replaceAllocationsForWeekend(w.sat0, [
       (101, sessionId),
       (102, sessionId),
+      (103, sessionId),
     ]);
+    // A stale mark must not make an out-member actionable or expose attendance
+    // state in the API payload.
+    repo.setAttendanceState(103, sessionId, attended: true);
 
     final (status, body) = await call('GET', '/api/attendance');
     expect(status, 200);
@@ -994,8 +1066,27 @@ void main() {
     expect(['sat', 'sun'], contains(s['day']));
     expect(['am', 'pm'], contains(s['slot']));
     final members = (s['members'] as List).cast<Map<String, dynamic>>();
-    expect(members, hasLength(2));
-    expect(members.every((m) => m['state'] == 'unmarked'), isTrue);
+    expect(members, hasLength(3));
+    expect(
+      members.where((m) => m['id'] != 103).every(
+            (m) => m['eligible'] == true && m['state'] == 'unmarked',
+          ),
+      isTrue,
+    );
+    final outMember = members.firstWhere((m) => m['id'] == 103);
+    expect(outMember['eligible'], false);
+    expect(outMember.containsKey('state'), isFalse);
+
+    final (outAttendanceStatus, outAttendanceBody) = await call(
+      'POST',
+      '/api/attendance',
+      body: {'sessionId': sessionId, 'userId': 103, 'state': 'present'},
+    );
+    expect(outAttendanceStatus, 400);
+    expect(
+      (outAttendanceBody as Map<String, dynamic>)['error'],
+      contains('out-members'),
+    );
 
     final (t1, t1Body) = await call(
       'POST',
