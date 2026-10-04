@@ -285,6 +285,7 @@ void main() {
         name: '@alice',
         experience: Experience.experienced,
         group: 'A',
+        preferredName: 'Alice',
       ),
     );
     repo.upsertUser(
@@ -300,6 +301,7 @@ void main() {
     final alice = users.firstWhere((u) => u['id'] == 101);
     final bob = users.firstWhere((u) => u['id'] == 2);
     expect(alice['tier'], 'member');
+    expect(alice['preferredName'], 'Alice');
     expect(bob['tier'], 'check');
     expect(alice['group'], 'A');
     expect(alice['attendance'], containsPair('total', 0));
