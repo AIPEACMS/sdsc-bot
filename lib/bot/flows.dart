@@ -22,53 +22,7 @@ part 'flows/availability.dart';
 part 'flows/callbacks.dart';
 part 'flows/presentation.dart';
 
-NotificationPreference? _parseNotificationPreference(String raw) =>
-    switch (raw.toLowerCase()) {
-      'weekly' || 'week' => NotificationPreference.weekly,
-      'every-other' || 'every_other' || 'everyother' =>
-        NotificationPreference.everyOther,
-      'never' => NotificationPreference.never,
-      _ => null,
-    };
-
-String _notificationLabel(NotificationPreference preference) =>
-    switch (preference) {
-      NotificationPreference.weekly => 'every week',
-      NotificationPreference.everyOther => 'every other week',
-      NotificationPreference.never => 'never',
-    };
-
-String _notifyUsage() => 'Usage: /notify weekly|every-other|never';
-
-String _hm(DateTime d) =>
-    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-
-String _day(DateTime date) {
-  const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-  ];
-  return '${date.day} ${months[date.month - 1]}';
-}
-
-String _html(String text) =>
-    text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-
-String _slotLabel(Slot slot, RollingWindow w, Repo repo) {
-  final date = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
-  final location = repo.locationName(slot.location);
-  final match = repo.sessionsForWeekend(date).where((s) =>
-      s.day == slot.day && s.slot == slot.slot && s.location == slot.location).firstOrNull;
-  if (match == null) return '${Slot.dayLabel(slot.day)} · $location';
-  return '${Slot.dayLabel(match.day)} · $location · ${_hm(match.start)}-${_hm(match.end)}';
-}
-
 class _FlowsBase {
-
-  @Deprecated('Immediate allocation is the default in v3.2.0.')
-  static String nextSharpHourLabel(DateTime now) =>
-      FlowsPresentation.nextSharpHourLabel(now);
-
   final Bot bot;
 
   final Repo repo;
