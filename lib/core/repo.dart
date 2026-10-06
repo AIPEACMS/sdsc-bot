@@ -1333,7 +1333,9 @@ SELECT u.*,
        s.slot           AS session_slot,
        s.location       AS session_location,
        s.start_at       AS session_start_at,
-       s.end_at         AS session_end_at
+       s.end_at         AS session_end_at,
+       s.max_people     AS session_max_people,
+       s.capacity_group AS session_capacity_group
 FROM allocations al
 JOIN users u ON u.id = al.user_id
 JOIN sessions s ON s.id = al.session_id
@@ -1352,6 +1354,8 @@ ORDER BY s.start_at, u.name
         location: r['session_location'] as String,
         start: DateTime.parse(r['session_start_at'] as String),
         end: DateTime.parse(r['session_end_at'] as String),
+        maxPeople: r['session_max_people'] as int?,
+        capacityGroup: r['session_capacity_group'] as String?,
       );
       return (user, session);
     }).toList();

@@ -171,6 +171,22 @@ void main() {
     expect(repo.weekendAllocated(sat), true);
   });
 
+  test('allocation round-trip preserves session capacity metadata', () {
+    final sat = DateTime(2026, 8, 15);
+    addUser(1);
+    repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
+    final session = repo.sessionsForWeekend(sat).first;
+    repo.raw.execute(
+      'UPDATE sessions SET max_people = ?, capacity_group = ? WHERE id = ?',
+      [4, 'capacity-1', session.id],
+    );
+    repo.replaceAllocationsForWeekend(sat, [(1, session.id)]);
+
+    final loaded = repo.allocationsForWeekend(sat).single.$2;
+    expect(loaded.maxPeople, 4);
+    expect(loaded.capacityGroup, 'capacity-1');
+  });
+
   test('reminder targets exclude respondents and the quiet', () {
     addUser(1);
     addUser(2);
