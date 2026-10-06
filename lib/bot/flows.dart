@@ -200,7 +200,7 @@ class Flows {
     }
 
     if (isPrivileged) {
-      sb.write('\nTap more-cmd for additional commands.');
+      sb.write('\n\nTap more-cmd for additional commands.');
     }
     if (isConsole) {
       sb.write('\nType /grid to switch which grid you see (console only).');
