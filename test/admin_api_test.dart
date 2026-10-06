@@ -423,6 +423,43 @@ void main() {
     expect(repo.isHeld(), false);
   });
 
+  test('active outreach API validates and updates one route', () async {
+    final (_, initialBody) = await call('GET', '/api/state');
+    final initial = initialBody as Map<String, dynamic>;
+    final initialRoutes = (initial['activeOutreach'] as Map).cast<String, bool>();
+    expect(initialRoutes.length, 9);
+    expect(initialRoutes.values, everyElement(isTrue));
+
+    final (status, body) = await call(
+      'POST',
+      '/api/active-outreach',
+      body: {'route': 'prompt', 'enabled': false},
+    );
+    expect(status, 200);
+    expect((body as Map<String, dynamic>)['activeOutreach'],
+        containsPair('prompt', false));
+    expect(repo.activeOutreachEnabled('reminder'), isTrue);
+
+    final (unknownStatus, _) = await call(
+      'POST',
+      '/api/active-outreach',
+      body: {'route': 'nope', 'enabled': false},
+    );
+    expect(unknownStatus, 400);
+    final (malformedStatus, _) = await call(
+      'POST',
+      '/api/active-outreach',
+      body: {'route': 'prompt', 'enabled': 'no'},
+    );
+    expect(malformedStatus, 400);
+    final (extraStatus, _) = await call(
+      'POST',
+      '/api/active-outreach',
+      body: {'route': 'prompt', 'enabled': true, 'extra': true},
+    );
+    expect(extraStatus, 400);
+  });
+
   test('POST /api/date sets and resets the debug clock', () async {
     await call('GET', '/api/state'); // warm up
     Config.setDebugNow(null);

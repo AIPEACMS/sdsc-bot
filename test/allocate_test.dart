@@ -71,6 +71,90 @@ void main() {
     expect(sids, {1, 3}); // am OCBC + pm OCBC (first of each slot)
   });
 
+  test('same capacity group is independent across weekends', () {
+    final sessions = [
+      Session(
+        id: 1,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'am',
+        location: Locations.ocbc,
+        start: DateTime(2026, 8, 8, 9),
+        end: DateTime(2026, 8, 8, 13),
+        maxPeople: 1,
+        capacityGroup: 'same-session',
+      ),
+      Session(
+        id: 2,
+        weekendStart: DateTime(2026, 8, 15),
+        day: 'sat',
+        slot: 'am',
+        location: Locations.ocbc,
+        start: DateTime(2026, 8, 15, 9),
+        end: DateTime(2026, 8, 15, 13),
+        maxPeople: 1,
+        capacityGroup: 'same-session',
+      ),
+    ];
+    final result = allocator.run(
+      sessions: sessions,
+      availability: [
+        Availability(
+          weekendStart: DateTime(2026, 8, 8),
+          userId: 1,
+          bundleStart: DateTime(2026, 8, 8),
+          slots: {const Slot(0, 'sat', 'am', Locations.ocbc)},
+          available: true,
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+        Availability(
+          weekendStart: DateTime(2026, 8, 15),
+          userId: 2,
+          bundleStart: DateTime(2026, 8, 8),
+          slots: {const Slot(1, 'sat', 'am', Locations.ocbc)},
+          available: true,
+          updatedAt: DateTime(2026, 8, 1),
+        ),
+      ],
+    );
+    expect(result, containsAll([(1, 1), (2, 2)]));
+  });
+
+  test('same weekend capacity group is shared across session lengths', () {
+    final sessions = [
+      Session(
+        id: 1,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'am',
+        location: Locations.ocbc,
+        start: DateTime(2026, 8, 8, 9),
+        end: DateTime(2026, 8, 8, 12),
+        maxPeople: 1,
+        capacityGroup: 'same-session',
+      ),
+      Session(
+        id: 2,
+        weekendStart: DateTime(2026, 8, 8),
+        day: 'sat',
+        slot: 'pm',
+        location: Locations.ocbc,
+        start: DateTime(2026, 8, 8, 9),
+        end: DateTime(2026, 8, 8, 13),
+        maxPeople: 1,
+        capacityGroup: 'same-session',
+      ),
+    ];
+    final result = allocator.run(
+      sessions: sessions,
+      availability: [
+        _avail(1, want: {const Slot(0, 'sat', 'am', Locations.ocbc)}),
+        _avail(2, want: {const Slot(0, 'sat', 'pm', Locations.ocbc)}),
+      ],
+    );
+    expect(result.length, 1);
+  });
+
   test('no double-booking: two locations of the same slot never both assigned',
       () {
     final result = allocator.run(

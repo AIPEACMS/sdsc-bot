@@ -1,4 +1,5 @@
 import 'models.dart';
+import 'domain/capacity.dart';
 
 /// Result of running the allocator: one entry per (user, session).
 typedef AllocationResult = List<(int userId, int sessionId)>;
@@ -32,8 +33,6 @@ class Allocator {
     final sessionById = {for (final s in sessions) s.id: s};
     final allocatedByCapacity = <String, int>{};
     final maxByCapacity = <String, int?>{};
-    String capacityKey(Session session) =>
-        session.capacityGroup ?? 'session:${session.id}';
     for (final session in sessions) {
       final key = capacityKey(session);
       final current = maxByCapacity[key];
