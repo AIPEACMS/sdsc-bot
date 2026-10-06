@@ -145,20 +145,21 @@ class Flows {
 
     final name = user?.name ??
         (ctx.from?.username == null ? 'Console' : '@${ctx.from!.username}');
-    final isAdmin = user?.isAdmin == true || user?.isGlobalAdmin == true;
+    final isAdmin = user?.isAdmin == true;
     final retired = user?.memberTier == MemberTier.old;
-    final checker = user?.memberTier == MemberTier.check && !isAdmin;
-    final outMember = user?.memberTier == MemberTier.outMember && !isAdmin;
+    final checker = user?.memberTier == MemberTier.check;
 
-    final sb = StringBuffer('👋 <b>$name</b>, here is what you can do:');
+    final sb = StringBuffer('👋 <b>${_html(name)}</b>, here is what you can do:');
 
     if (retired) {
       sb.writeln('\nThank you for your commitment! Hope to see you in the future!');
     }
 
+    // Checkers are not members. Keep their focused start response and single
+    // check-status keyboard instead of presenting the generic role sections.
     if (checker && !isConsole) {
       await ctx.reply(
-        '👋 <b>$name</b>, you are a checker.\n\n'
+        '👋 <b>${_html(name)}</b>, you are a checker.\n\n'
         '/check-status — the current week\'s allocation',
         parseMode: ParseMode.html,
         replyMarkup: RoleKeyboard.build('check'),
@@ -166,24 +167,29 @@ class Flows {
       return;
     }
 
-    if (user != null && !retired && !checker && !isAdmin && !isConsole) {
-      sb
-        ..writeln('\n<b>${outMember ? 'Out-member' : 'Member'}</b>')
-        ..writeln(
-          're-pick — update your availability',
-        )
-        ..writeln(
-          'set-info — update your preferred name',
-        )
-        ..writeln(
-          outMember
-              ? 'my-status — your picks and allocation'
-              : 'my-status — your picks, allocation and attendance',
-        )
-        ..writeln(outMember ? '/notify — choose prompt frequency' : '');
+    for (final section in CommandCatalog.roleSections(
+      isConsole: isConsole,
+      isAdmin: isAdmin,
+      isGlobalAdmin: user?.isGlobalAdmin == true,
+      tier: user?.memberTier,
+    )) {
+      sb.write('\n\n<b>$section</b>');
     }
 
-    if (isConsole || isAdmin) {
+    final isGlobalAdmin = user?.isGlobalAdmin == true;
+    final isPrivileged = isConsole || isAdmin || isGlobalAdmin;
+    if (user != null && !retired && !checker && !isPrivileged) {
+      final isOutMember = user.memberTier == MemberTier.outMember;
+      sb
+        ..write('\nre-pick — update your availability')
+        ..write('\nset-info — update your preferred name')
+        ..write(
+          '\n${isOutMember ? 'my-status — your picks and allocation' : 'my-status — your picks, allocation and attendance'}',
+        )
+        ..write(isOutMember ? '\n/notify — choose prompt frequency' : '');
+    }
+
+    if (isPrivileged) {
       sb.write('\nTap more-cmd for additional commands.');
     }
     if (isConsole) {
@@ -212,16 +218,24 @@ class Flows {
     final user = repo.findUser(userId);
     final isConsole = config.isConsole(userId);
     if (user == null && !isConsole) return;
-    final commands = CommandCatalog.commands(
+    final sections = CommandCatalog.sections(
       isConsole: isConsole,
       isAdmin: user?.isAdmin == true,
       isGlobalAdmin: user?.isGlobalAdmin == true,
       tier: user?.memberTier,
     );
+    final text = sections.isEmpty
+        ? 'No additional commands.'
+        : sections
+              .map(
+                (section) =>
+                    '<b>${section.title}</b>\n'
+                    '${section.commands.map((entry) => entry.display).join('\n')}',
+              )
+              .join('\n\n');
     await ctx.reply(
-      commands.isEmpty
-          ? 'No additional commands.'
-          : commands.map((entry) => entry.display).join('\n'),
+      text,
+      parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(
         _gridFor(userId),
         consoleIdentity: isConsole,

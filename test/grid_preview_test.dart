@@ -273,50 +273,90 @@ void main() {
     ];
   }
 
-  test('/start for console leaves only greeting and the console grid note', () async {
-    final sentBefore = sent.length;
-    await sendText(1, '/start');
-    final welcome = sent[sentBefore];
-    expect(welcome['text'],
-        '👋 <b>@console</b>, here is what you can do:\n'
-        'Tap more-cmd for additional commands.\n'
-        'Type /grid to switch which grid you see (console only).');
-    expect(welcome['parse_mode'], 'HTML');
-    expect(keyboardTexts(welcome).first, 'more-cmd');
-    expect(keyboardTexts(welcome), contains('hold'));
-  });
+  test('/start shows every actual role in the approved order', () async {
+    Future<String> startText(int userId) async {
+      final before = sent.length;
+      await sendText(userId, '/start');
+      return sent[before]['text'] as String;
+    }
 
-  test('/start for admin and global admin omits every command-list section', () async {
-    repo.upsertUser(
-      User(id: 5, name: '@adminonly', experience: Experience.newbie, group: '1'),
-    );
-    repo.updateAdmin(5, true);
-    repo.updatePreferredName(5, 'Admin');
-    await sendText(5, '/start');
+    repo.updatePreferredName(1, 'Console');
     expect(
-      sent.last['text'],
-      '👋 <b>@adminonly</b>, here is what you can do:\n'
-      'Tap more-cmd for additional commands.',
+      await startText(1),
+      '👋 <b>@console</b>, here is what you can do:\n\n'
+      '<b>Console</b>\n\n'
+      '<b>Global admin</b>\n\n'
+      '<b>Admin</b>\n\n'
+      '<b>Member</b>\n'
+      'Tap more-cmd for additional commands.\n'
+      'Type /grid to switch which grid you see (console only).',
     );
     expect(keyboardTexts(sent.last).first, 'more-cmd');
+    expect(keyboardTexts(sent.last), contains('hold'));
 
-    final before = sent.length;
-    await sendText(1, '/start');
-    expect(sent[before]['text'], isNot(contains('<b>Admin</b>')));
-    expect(sent[before]['text'], isNot(contains('<b>Global admin</b>')));
-    expect(sent[before]['text'], isNot(contains('/addadmin')));
-  });
+    expect(repo.removeGlobalAdmin(1), isTrue);
+    repo.upsertUser(
+      User(
+        id: 5,
+        name: '@adminonly',
+        experience: Experience.newbie,
+        group: '1',
+      ),
+    );
+    expect(repo.appointGlobalAdmin(5), GlobalAdminResult.success);
+    repo.updatePreferredName(5, 'Global');
+    expect(
+      await startText(5),
+      '👋 <b>@adminonly</b>, here is what you can do:\n\n'
+      '<b>Global admin</b>\n\n'
+      '<b>Admin</b>\n\n'
+      '<b>Member</b>\n'
+      'Tap more-cmd for additional commands.',
+    );
 
-  test('/start keeps member and checker greetings and uses exact retired text', () async {
+    expect(repo.removeGlobalAdmin(5), isTrue);
+    expect(repo.updateAdmin(1, true), isTrue);
+    expect(
+      await startText(1),
+      '👋 <b>@console</b>, here is what you can do:\n\n'
+      '<b>Console</b>\n\n'
+      '<b>Admin</b>\n\n'
+      '<b>Member</b>\n'
+      'Tap more-cmd for additional commands.\n'
+      'Type /grid to switch which grid you see (console only).',
+    );
+
+    expect(repo.updateAdmin(1, false), isTrue);
+    repo.raw.execute('DELETE FROM users WHERE id = ?', [1]);
+    expect(
+      await startText(1),
+      '👋 <b>Console</b>, here is what you can do:\n\n'
+      '<b>Console</b>\n'
+      'Tap more-cmd for additional commands.\n'
+      'Type /grid to switch which grid you see (console only).',
+    );
+
+    repo.updatePreferredName(2, 'Admin');
+    expect(
+      await startText(2),
+      '👋 <b>@admin</b>, here is what you can do:\n\n'
+      '<b>Admin</b>\n\n'
+      '<b>Member</b>\n'
+      'Tap more-cmd for additional commands.',
+    );
+
     repo.upsertUser(
       User(id: 4, name: '@member', experience: Experience.newbie, group: '1'),
     );
-    final beforeMember = sent.length;
-    await sendText(4, '/start');
-    final memberWelcome = sent[beforeMember];
-    expect(memberWelcome['text'], contains('<b>Member</b>'));
-    expect(memberWelcome['text'], contains('re-pick — update your availability'));
-    expect(memberWelcome['text'], isNot(contains('(console only)')));
+    repo.updatePreferredName(4, 'Member');
+    expect(
+      await startText(4),
+      '👋 <b>@member</b>, here is what you can do:\n\n'
+      '<b>Member</b>\n'
+      're-pick — update your availability\n'
+      'set-info — update your preferred name\n'
+      'my-status — your picks, allocation and attendance',
+    );
 
     repo.upsertUser(
       User(
@@ -327,31 +367,37 @@ void main() {
         memberTier: MemberTier.outMember,
       ),
     );
-    final beforeOutMember = sent.length;
-    await sendText(7, '/start');
-    final outMemberWelcome = sent[beforeOutMember];
-    expect(outMemberWelcome['text'], contains('<b>Out-member</b>'));
-    expect(outMemberWelcome['text'], contains('re-pick — update your availability'));
-    expect(outMemberWelcome['text'], contains('/notify — choose prompt frequency'));
-    expect(outMemberWelcome['text'], isNot(contains('(console only)')));
-
-    repo.upsertUser(
-      User(id: 6, name: '@retired', experience: Experience.newbie, group: '1', memberTier: MemberTier.old),
-    );
-    await sendText(6, '/start');
     expect(
-      sent.last['text'],
-      '👋 <b>@retired</b>, here is what you can do:\n'
-      'Thank you for your commitment! Hope to see you in the future!\n',
+      await startText(7),
+      '👋 <b>@outmember</b>, here is what you can do:\n\n'
+      '<b>Out-member</b>\n'
+      're-pick — update your availability\n'
+      'set-info — update your preferred name\n'
+      'my-status — your picks and allocation\n'
+      '/notify — choose prompt frequency',
     );
 
-    await sendText(3, '/start');
     expect(
-      sent.last['text'],
+      await startText(3),
       '👋 <b>@checker</b>, you are a checker.\n\n'
       '/check-status — the current week\'s allocation',
     );
     expect(keyboardTexts(sent.last), ['check-status']);
+
+    repo.upsertUser(
+      User(
+        id: 6,
+        name: '@retired',
+        experience: Experience.newbie,
+        group: '1',
+        memberTier: MemberTier.old,
+      ),
+    );
+    expect(
+      await startText(6),
+      '👋 <b>@retired</b>, here is what you can do:\n'
+      'Thank you for your commitment! Hope to see you in the future!\n',
+    );
   });
 
   test(
@@ -547,11 +593,20 @@ void main() {
     expect(adminButtons, isNot(contains('all-users')));
   });
 
-  test('More Commands uses actual permissions while a different grid is previewed', () async {
+  test('More Commands is sectioned and excludes every button-backed command', () async {
     await sendPlainText(2, 'more-cmd');
     final adminCommands = sent.last['text'] as String;
-    expect(adminCommands, contains('/allstatus - show cycle state and responders'));
-    expect(adminCommands, contains('/allusers - list registered members'));
+    expect(
+      adminCommands,
+      '<b>Admin</b>\n'
+      '/allstatus - show cycle state and responders\n'
+      '/allusers - list registered members\n'
+      '/prompt - send availability prompts now\n'
+      '/remind - remind non-responders now\n'
+      '/setexp - change a member\'s experience\n'
+      '/allocate - run the allocation now',
+    );
+    expect(adminCommands, isNot(contains('<b>Member</b>')));
     expect(adminCommands, isNot(contains('/groupstatus')));
     expect(adminCommands, isNot(contains('/groupusers')));
     expect(adminCommands, isNot(contains('/ask')));
@@ -561,9 +616,19 @@ void main() {
     await sendText(1, '/grid');
     await sendPlainText(1, 'more-cmd');
     final text = sent.last['text'] as String;
+    expect(text, contains('<b>Console</b>'));
+    expect(text, contains('<b>Global admin</b>'));
+    expect(text, contains('<b>Admin</b>'));
+    expect(text.indexOf('<b>Console</b>'), lessThan(text.indexOf('<b>Global admin</b>')));
+    expect(text.indexOf('<b>Global admin</b>'), lessThan(text.indexOf('<b>Admin</b>')));
     expect(text, contains('/addcheck @handle - add a checker'));
     expect(text, contains('/allstatus - show cycle state and responders'));
+    expect(text, contains('/check-status - show the current week\'s allocation'));
     expect(text, isNot(contains('/hold')));
+    expect(text, isNot(contains('/start -')));
+    expect(text, isNot(contains('/repick')));
+    expect(text, isNot(contains('/setinfo')));
+    expect(text, isNot(contains('/mystatus')));
     expect(keyboardTexts(sent.last).first, 'more-cmd');
     expect(keyboardTexts(sent.last), contains('add-user'));
   });
