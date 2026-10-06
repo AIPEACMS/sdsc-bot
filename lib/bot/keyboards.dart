@@ -58,6 +58,30 @@ class VisibleRoleSection {
 class RoleKeyboard {
   RoleKeyboard._();
 
+  static String descriptionFor(GridButton button, {bool outMember = false}) =>
+      switch (button.label) {
+    'more-cmd' => 'show additional commands',
+    'hold' => 'pause outgoing messages',
+    'unhold' => 'resume outgoing messages',
+    'set-time' => 'set activity days, times and locations',
+    'add-user' => 'add members',
+    'add-out-user' => 'add out-members',
+    'group-status' => 'show your group\'s cycle state and responders',
+    'group-users' => 'show your group\'s member details',
+    'ask' => 'send one member an availability picker',
+    'mark-attend' => 'mark attendance',
+    'broadcast' => 'message all members',
+    'start' => 'show the welcome and role buttons',
+    're-pick' => 'update your availability',
+    'set-info' => 'update your preferred name',
+    'my-status' => outMember
+        ? 'show your picks and allocation'
+        : 'show your picks, allocation and attendance',
+    'notify' => 'choose prompt frequency',
+    'check-status' => 'show the current week\'s allocation',
+    _ => '',
+  };
+
   static const List<GridButton> memberButtons = [
     GridButton('start', '/start', RoleColor.member),
     GridButton('re-pick', '/repick', RoleColor.member),
