@@ -243,7 +243,7 @@ void main() {
   test('cancel button appears only after the member has responded', () {
     final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
     final now = DateTime(2026, 8, 12); // Wednesday, both weekends open
-    final kbNo = CycleService.buildKeyboard(
+    final kbNo = CycleServiceNotifications.buildKeyboard(
       w,
       (const {}, const {}),
       now: now,
@@ -255,7 +255,7 @@ void main() {
         .map((b) => b.text)
         .toList();
     expect(labelsNo.contains('❌ Cancel'), isFalse);
-    final kbYes = CycleService.buildKeyboard(
+    final kbYes = CycleServiceNotifications.buildKeyboard(
       w,
       (const {}, const {}),
       now: now,
@@ -272,7 +272,7 @@ void main() {
 
   test('repick names locked weekends and the holiday opt-out', () {
     final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
-    final keyboard = CycleService.buildKeyboard(
+    final keyboard = CycleServiceNotifications.buildKeyboard(
       w,
       (const {}, const {}),
       now: DateTime(2026, 8, 17),
@@ -306,7 +306,7 @@ void main() {
       end: DateTime(2026, 8, 15, 15),
       maxPeople: 3,
     );
-    final keyboard = CycleService.buildKeyboard(
+    final keyboard = CycleServiceNotifications.buildKeyboard(
       w,
       (const {}, const {}),
       now: DateTime(2026, 8, 12),

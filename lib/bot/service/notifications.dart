@@ -2,6 +2,9 @@ part of '../service.dart';
 
 extension CycleServiceNotifications on CycleService {
 
+  static String _day(DateTime d) =>
+      '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
+
   /// Builds the availability inline keyboard from the window's actual
   /// sessions — the schedule template decides the days, times and locations.
   /// Weekends whose deadline has passed are not offered (locked). Each session
