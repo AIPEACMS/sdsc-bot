@@ -187,11 +187,11 @@ extension CycleServiceAllocation on CycleService {
         if (allocatedUser.id == user.id) ownCapacityGroups.add(key);
       }
     }
-    final keyboard = CycleService.buildKeyboard(
+    final keyboard = CycleServiceNotifications.buildKeyboard(
       w,
       picked,
       now: config.toLocal(Config.nowUtc()),
-        holidays: CycleService.holidaysForWindow(repo, w),
+        holidays: CycleServicePrompts.holidaysForWindow(repo, w),
       allocatedCounts: allocatedCounts,
       ownCapacityGroups: ownCapacityGroups,
       hasIndicated: repo.hasBundleResponse(w.sat0, user.id),

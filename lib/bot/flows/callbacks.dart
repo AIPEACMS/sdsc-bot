@@ -256,11 +256,11 @@ extension FlowsCallbacks on Flows {
       await ctx.editMessageText(
         text,
         parseMode: ParseMode.html,
-        replyMarkup: CycleService.buildKeyboard(
+        replyMarkup: CycleServiceNotifications.buildKeyboard(
           w,
           (want, available),
           now: now,
-           holidays: CycleService.holidaysForWindow(repo, w),
+            holidays: CycleServicePrompts.holidaysForWindow(repo, w),
            allocatedCounts: allocationInfo.$1,
            ownCapacityGroups: allocationInfo.$2,
           hasIndicated: repo.hasBundleResponse(sat0, userId),

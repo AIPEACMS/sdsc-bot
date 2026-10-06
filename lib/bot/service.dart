@@ -26,34 +26,6 @@ String _fmt(DateTime d) =>
     '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
 class _CycleServiceBase {
-
-  static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) =>
-      CycleServicePrompts.holidaysForWindow(repo, w);
-
-  static InlineKeyboard buildKeyboard(
-    RollingWindow w,
-    (Set<Slot>, Set<Slot>) picked, {
-    bool holiday = false,
-    List<Holiday> holidays = const [],
-    Map<String, int> allocatedCounts = const {},
-    Set<String> ownCapacityGroups = const {},
-    bool hasIndicated = false,
-    required DateTime now,
-    required List<Session> sessions,
-    required String Function(String locationKey) locationName,
-  }) => CycleServiceNotifications.buildKeyboard(
-        w,
-        picked,
-        holiday: holiday,
-        holidays: holidays,
-        allocatedCounts: allocatedCounts,
-        ownCapacityGroups: ownCapacityGroups,
-        hasIndicated: hasIndicated,
-        now: now,
-        sessions: sessions,
-        locationName: locationName,
-      );
-
   final Repo repo;
 
   final Config config;
@@ -82,30 +54,4 @@ class CycleService extends _CycleServiceBase {
     required super.bot,
   });
 
-  static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) =>
-      CycleServicePrompts.holidaysForWindow(repo, w);
-
-  static InlineKeyboard buildKeyboard(
-    RollingWindow w,
-    (Set<Slot>, Set<Slot>) picked, {
-    bool holiday = false,
-    List<Holiday> holidays = const [],
-    Map<String, int> allocatedCounts = const {},
-    Set<String> ownCapacityGroups = const {},
-    bool hasIndicated = false,
-    required DateTime now,
-    required List<Session> sessions,
-    required String Function(String locationKey) locationName,
-  }) => CycleServiceNotifications.buildKeyboard(
-        w,
-        picked,
-        holiday: holiday,
-        holidays: holidays,
-        allocatedCounts: allocatedCounts,
-        ownCapacityGroups: ownCapacityGroups,
-        hasIndicated: hasIndicated,
-        now: now,
-        sessions: sessions,
-        locationName: locationName,
-      );
 }
