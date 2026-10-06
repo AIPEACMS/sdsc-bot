@@ -302,7 +302,7 @@ void main() {
       're-pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
-      'Tap more-cmd for additional commands.\n'
+      '\nTap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
     expect(keyboardTexts(sent.last).first, 'more-cmd');
@@ -340,7 +340,7 @@ void main() {
       're-pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
-      'Tap more-cmd for additional commands.',
+      '\nTap more-cmd for additional commands.',
     );
 
     expect(repo.removeGlobalAdmin(5), isTrue);
@@ -362,7 +362,7 @@ void main() {
       're-pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
-      'Tap more-cmd for additional commands.\n'
+      '\nTap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
 
@@ -372,7 +372,7 @@ void main() {
       await startText(1),
       '👋 <b>Console</b>, here is what you can do:\n\n'
       '<b>Console</b>\nmore-cmd - show additional commands\n'
-      'Tap more-cmd for additional commands.\n'
+      '\nTap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
 
@@ -394,7 +394,7 @@ void main() {
       're-pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
-      'Tap more-cmd for additional commands.',
+      '\nTap more-cmd for additional commands.',
     );
 
     repo.upsertUser(

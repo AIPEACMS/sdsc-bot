@@ -5,6 +5,12 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.3.5] - 2026-10-06
+
+### Fixed
+
+- Added spacing before the privileged `/start` `more-cmd` guidance.
+
 ## [4.3.4] - 2026-10-06
 
 ### Fixed
