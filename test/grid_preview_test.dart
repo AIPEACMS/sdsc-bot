@@ -284,10 +284,10 @@ void main() {
     expect(
       await startText(1),
       '👋 <b>@console</b>, here is what you can do:\n\n'
-      '<b>Console</b>\n\n'
-      '<b>Global admin</b>\n\n'
-      '<b>Admin</b>\n\n'
-      '<b>Member</b>\n'
+      '<b>Console</b>\nmore-cmd\n\n'
+      '<b>Global admin</b>\nhold\nunhold\nset-time\n\n'
+      '<b>Admin</b>\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
+      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
       'Tap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -308,9 +308,9 @@ void main() {
     expect(
       await startText(5),
       '👋 <b>@adminonly</b>, here is what you can do:\n\n'
-      '<b>Global admin</b>\n\n'
-      '<b>Admin</b>\n\n'
-      '<b>Member</b>\n'
+      '<b>Global admin</b>\nmore-cmd\nhold\nunhold\nset-time\n\n'
+      '<b>Admin</b>\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
+      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
       'Tap more-cmd for additional commands.',
     );
 
@@ -319,9 +319,9 @@ void main() {
     expect(
       await startText(1),
       '👋 <b>@console</b>, here is what you can do:\n\n'
-      '<b>Console</b>\n\n'
-      '<b>Admin</b>\n\n'
-      '<b>Member</b>\n'
+      '<b>Console</b>\nmore-cmd\n\n'
+      '<b>Admin</b>\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
+      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
       'Tap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -331,7 +331,7 @@ void main() {
     expect(
       await startText(1),
       '👋 <b>Console</b>, here is what you can do:\n\n'
-      '<b>Console</b>\n'
+      '<b>Console</b>\nmore-cmd\n'
       'Tap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -340,8 +340,8 @@ void main() {
     expect(
       await startText(2),
       '👋 <b>@admin</b>, here is what you can do:\n\n'
-      '<b>Admin</b>\n\n'
-      '<b>Member</b>\n'
+      '<b>Admin</b>\nmore-cmd\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
+      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
       'Tap more-cmd for additional commands.',
     );
 
@@ -352,7 +352,7 @@ void main() {
     expect(
       await startText(4),
       '👋 <b>@member</b>, here is what you can do:\n\n'
-      '<b>Member</b>\n'
+      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
       're-pick — update your availability\n'
       'set-info — update your preferred name\n'
       'my-status — your picks, allocation and attendance',
@@ -370,11 +370,11 @@ void main() {
     expect(
       await startText(7),
       '👋 <b>@outmember</b>, here is what you can do:\n\n'
-      '<b>Out-member</b>\n'
+      '<b>Out-member</b>\nstart\nre-pick\nset-info\nmy-status\nnotify\n'
       're-pick — update your availability\n'
       'set-info — update your preferred name\n'
       'my-status — your picks and allocation\n'
-      '/notify — choose prompt frequency',
+      'notify — choose prompt frequency',
     );
 
     expect(

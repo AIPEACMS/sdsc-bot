@@ -39,6 +39,14 @@ class GridButton {
   const GridButton(this.label, this.command, this.color);
 }
 
+/// The labels shown by `/start`, grouped by the user's actual roles.
+class VisibleRoleSection {
+  final String title;
+  final List<GridButton> buttons;
+
+  const VisibleRoleSection(this.title, this.buttons);
+}
+
 /// Reply-keyboard grids (the persistent button grid above the message bar).
 ///
 /// Separate grids exist for the member, admin, global-admin, and console
@@ -113,6 +121,60 @@ class RoleKeyboard {
 
   /// Kept as a named alias for callers that used the old composed preview.
   static const List<GridButton> consoleGlobalAdminButtons = globalAdminButtons;
+
+  /// Returns the role sections displayed by `/start`.
+  ///
+  /// The section order is independent of `more-cmd` ownership: console users
+  /// keep it in the Console section, using the same effective-role color as
+  /// their attached keyboard.
+  static List<VisibleRoleSection> visibleSections({
+    required bool isConsole,
+    required bool isAdmin,
+    required bool isGlobalAdmin,
+    required String? tier,
+  }) {
+    final sections = <VisibleRoleSection>[];
+    final moreButton = isGlobalAdmin
+        ? moreGlobalAdminCommandsButton
+        : isAdmin
+            ? moreAdminCommandsButton
+            : moreCommandsButton;
+    if (isConsole) {
+      sections.add(
+        VisibleRoleSection('Console', [moreButton]),
+      );
+    }
+
+    final roleMore = !isConsole && (isGlobalAdmin || isAdmin) ? moreButton : null;
+    if (isGlobalAdmin) {
+      sections.add(
+        VisibleRoleSection('Global admin', [
+          if (roleMore != null) roleMore,
+          ...globalAdminButtons.where((button) =>
+              !adminButtons.contains(button) &&
+              button != moreGlobalAdminCommandsButton),
+        ]),
+      );
+    }
+    if (isAdmin || isGlobalAdmin) {
+      sections.add(
+        VisibleRoleSection('Admin', [
+          if (roleMore != null && isAdmin && !isGlobalAdmin) roleMore,
+          ...adminButtons.where(
+            (button) => !memberButtons.contains(button),
+          ),
+        ]),
+      );
+    }
+    if (tier == MemberTier.member) {
+      sections.add(VisibleRoleSection('Member', memberButtons));
+    } else if (tier == MemberTier.outMember) {
+      sections.add(VisibleRoleSection('Out-member', outMemberButtons));
+    } else if (tier == MemberTier.check) {
+      sections.add(VisibleRoleSection('Checker', checkButtons));
+    }
+    return sections;
+  }
 
   /// The full button list for [role]. `console-only` deliberately has no
   /// member buttons: console identity is independent of a stored user role.
