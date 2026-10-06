@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.3.3] - 2026-10-06
+
+### Fixed
+
+- `/start` now visibly lists every role button under its Console, Global
+  admin, Admin, Member, Out-member, or Checker section.
+- `more-cmd` keeps the same effective-role color in the visible `/start`
+  sections and the attached keyboard.
+
 ## [4.3.2] - 2026-10-06
 
 ### Fixed

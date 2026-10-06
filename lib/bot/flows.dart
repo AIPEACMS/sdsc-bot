@@ -167,13 +167,17 @@ class Flows {
       return;
     }
 
-    for (final section in CommandCatalog.roleSections(
+    final visibleSections = RoleKeyboard.visibleSections(
       isConsole: isConsole,
       isAdmin: isAdmin,
       isGlobalAdmin: user?.isGlobalAdmin == true,
       tier: user?.memberTier,
-    )) {
-      sb.write('\n\n<b>$section</b>');
+    );
+    for (final section in visibleSections) {
+      sb.write('\n\n<b>${_html(section.title)}</b>');
+      for (final button in section.buttons) {
+        sb.write('\n${_html(button.label)}');
+      }
     }
 
     final isGlobalAdmin = user?.isGlobalAdmin == true;
@@ -186,7 +190,7 @@ class Flows {
         ..write(
           '\n${isOutMember ? 'my-status — your picks and allocation' : 'my-status — your picks, allocation and attendance'}',
         )
-        ..write(isOutMember ? '\n/notify — choose prompt frequency' : '');
+        ..write(isOutMember ? '\nnotify — choose prompt frequency' : '');
     }
 
     if (isPrivileged) {
