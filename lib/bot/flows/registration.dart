@@ -1,11 +1,9 @@
 part of '../flows.dart';
 
-mixin _Flows1 on _FlowsBase {
+extension FlowsRegistration on Flows {
 
   /// Fired after a member's availability is saved (Done or Not available).
   /// Wired in main.dart to the scheduler's dynamic-allocation trigger.
-  Future<void> Function()? onAvailabilitySaved;
-
   void register() {
     // Bookkeeping middleware: records seen users and routes pending-input
     // text, then ALWAYS continues the chain so command handlers registered
@@ -14,10 +12,10 @@ mixin _Flows1 on _FlowsBase {
       final text = ctx.message?.text;
       if (text != null) {
         final userId = ctx.from!.id;
-        _recordSeen(ctx, userId);
+        this._recordSeen(ctx, userId);
 
         if (state.isValidCommandText(text)) {
-          await _dismissInteractiveMessages(userId);
+          await this._dismissInteractiveMessages(userId);
           await next();
           return;
         }
@@ -27,7 +25,7 @@ mixin _Flows1 on _FlowsBase {
         final pending = state.pendingArg[userId];
         if (pending != null && !pending.isExpired) {
           state.pendingArg.remove(userId);
-          await _consumePendingArg(ctx, userId, pending.command, text);
+          await this._consumePendingArg(ctx, userId, pending.command, text);
           return;
         }
         // The preferred-name profile wizard.
@@ -53,7 +51,7 @@ mixin _Flows1 on _FlowsBase {
           head == 'cancel' ||
           head == 'holidayout' ||
           head == 'notify') {
-        await _onCallback(ctx);
+        await this._onCallback(ctx);
         return;
       }
       if (head == 'noop' || head == 'locked' || head == 'full') {
@@ -81,16 +79,16 @@ mixin _Flows1 on _FlowsBase {
     // Register commands after the bookkeeping middleware. This lets a valid
     // command cancel a pending text flow before its handler runs.
     commandBoth(bot, state, 'start', _onStart, label: 'start');
-    commandBoth(bot, state, 'repick', _onRepick, label: 're-pick');
+    commandBoth(bot, state, 'repick', this._onRepick, label: 're-pick');
     commandBoth(bot, state, 'setinfo', _onSetInfo, label: 'set-info');
-    commandBoth(bot, state, 'mystatus', _onMyStatus, label: 'my-status');
+    commandBoth(bot, state, 'mystatus', this._onMyStatus, label: 'my-status');
     state.registerCommand('checkstatus');
-    bot.command('checkstatus', _onCheckStatusCommand);
+    bot.command('checkstatus', this._onCheckStatusCommand);
     state.registerLabel('check-status');
-    bot.hears('check-status', _onCheckStatus);
-    commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
-    commandBoth(bot, state, 'resetgrid', _onResetGrid, label: 'reset-grid');
-    commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
+    bot.hears('check-status', this._onCheckStatus);
+    commandBoth(bot, state, 'grid', this._onGrid, label: 'grid');
+    commandBoth(bot, state, 'resetgrid', this._onResetGrid, label: 'reset-grid');
+    commandBoth(bot, state, 'notify', this._onNotify, label: 'notify');
     state.registerLabel('more-cmd');
     bot.hears('more-cmd', _onMoreCommands);
   }
@@ -99,7 +97,7 @@ mixin _Flows1 on _FlowsBase {
 
   Future<void> _onStart(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
 
     final user = repo.findUser(userId);
     final isConsole = config.isConsole(userId);
@@ -113,7 +111,7 @@ mixin _Flows1 on _FlowsBase {
     final retired = user?.memberTier == MemberTier.old;
     final checker = user?.memberTier == MemberTier.check;
 
-    final sb = StringBuffer('👋 <b>${_html(name)}</b>, here is what you can do:');
+    final sb = StringBuffer('👋 <b>${this._html(name)}</b>, here is what you can do:');
 
     if (retired) {
       sb.writeln('\nThank you for your commitment! Hope to see you in the future!');
@@ -123,7 +121,7 @@ mixin _Flows1 on _FlowsBase {
     // check-status keyboard instead of presenting the generic role sections.
     if (checker && !isConsole) {
       await ctx.reply(
-          '👋 <b>${_html(name)}</b>, you are a checker.\n\n'
+          '👋 <b>${this._html(name)}</b>, you are a checker.\n\n'
           'check-status - show the current week\'s allocation',
         parseMode: ParseMode.html,
         replyMarkup: RoleKeyboard.build('check'),
@@ -138,11 +136,11 @@ mixin _Flows1 on _FlowsBase {
       tier: user?.memberTier,
     );
     for (final section in visibleSections) {
-      sb.write('\n\n<b>${_html(section.title)}</b>');
+      sb.write('\n\n<b>${this._html(section.title)}</b>');
       for (final button in section.buttons) {
         sb.write(
-          '\n${_html(button.label)} - '
-          '${_html(RoleKeyboard.descriptionFor(
+          '\n${this._html(button.label)} - '
+          '${this._html(RoleKeyboard.descriptionFor(
             button,
             outMember: section.title == 'Out-member',
           ))}',
@@ -174,7 +172,7 @@ mixin _Flows1 on _FlowsBase {
       sb.toString(),
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(
-        _gridFor(userId),
+        this._gridFor(userId),
         consoleIdentity: isConsole,
       ),
     );
@@ -188,7 +186,7 @@ mixin _Flows1 on _FlowsBase {
 
   Future<void> _onMoreCommands(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     final isConsole = config.isConsole(userId);
     if (user == null && !isConsole) return;
@@ -211,7 +209,7 @@ mixin _Flows1 on _FlowsBase {
       text,
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(
-        _gridFor(userId),
+        this._gridFor(userId),
         consoleIdentity: isConsole,
       ),
     );
@@ -224,9 +222,9 @@ mixin _Flows1 on _FlowsBase {
   /// without losing their info.
   Future<void> _onSetInfo(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
     final user = repo.findUser(userId);
-    if (user == null || !_isActive(user)) return;
+    if (user == null || !this._isActive(user)) return;
     await _startProfileWizard(ctx, userId, user);
   }
 
@@ -246,7 +244,7 @@ mixin _Flows1 on _FlowsBase {
     state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
-  static String _profilePrompt(int step) => switch (step) {
+  String _profilePrompt(int step) => switch (step) {
     0 => 'What is your preferred name?',
     _ => '',
   }

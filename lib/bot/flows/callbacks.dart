@@ -1,8 +1,8 @@
 part of '../flows.dart';
 
-mixin _Flows3 on _FlowsBase {
+extension FlowsCallbacks on Flows {
 
-  static NotificationPreference? _parseNotificationPreference(String raw) {
+  NotificationPreference? _parseNotificationPreference(String raw) {
     return switch (raw.toLowerCase()) {
       'weekly' || 'week' => NotificationPreference.weekly,
       'every-other' || 'every_other' || 'everyother' =>
@@ -12,7 +12,7 @@ mixin _Flows3 on _FlowsBase {
     };
   }
 
-  static String _notificationLabel(NotificationPreference preference) =>
+  String _notificationLabel(NotificationPreference preference) =>
       switch (preference) {
         NotificationPreference.weekly => 'every week',
         NotificationPreference.everyOther => 'every other week',
@@ -21,10 +21,10 @@ mixin _Flows3 on _FlowsBase {
 
 ;
 
-  static String _notifyUsage() =>
+  String _notifyUsage() =>
       'Usage: /notify weekly|every-other|never';
 
-  static String _slotLabel(Slot slot, RollingWindow w, Repo repo) {
+  String _slotLabel(Slot slot, RollingWindow w, Repo repo) {
     final date = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
     final location = repo.locationName(slot.location);
     final match = repo
@@ -41,11 +41,11 @@ mixin _Flows3 on _FlowsBase {
         '${_hm(match.start)}-${_hm(match.end)}';
   }
 
-  static String _hm(DateTime d) =>
+  String _hm(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:'
       '${d.minute.toString().padLeft(2, '0')}';
 
-  static String _day(DateTime date) {
+  String _day(DateTime date) {
     const months = [
       'Jan',
       'Feb',
@@ -63,7 +63,7 @@ mixin _Flows3 on _FlowsBase {
     return '${date.day} ${months[date.month - 1]}';
   }
 
-  static String _html(String text) => text
+  String _html(String text) => text
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
@@ -83,7 +83,7 @@ mixin _Flows3 on _FlowsBase {
   /// must be able to actually test the output).
   Future<void> _onCheckStatus(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     final isConsoleUser = config.isConsole(userId);
     if (user == null && !isConsoleUser) return;
@@ -96,7 +96,7 @@ mixin _Flows3 on _FlowsBase {
     }
 
     final now = config.toLocal(Config.nowUtc());
-    final w = _windowFor(now);
+    final w = this._windowFor(now);
 
     // "This week": weekend-0 during its week, weekend-1 once we roll over.
     final sat = now.isBefore(w.sat1) ? w.sat0 : w.sat1;
@@ -139,12 +139,8 @@ mixin _Flows3 on _FlowsBase {
 
   /// Set by main.dart: handles the pending "type the message" step of
   /// /broadcast (shows the confirm dialog).
-  Future<void> Function(Context ctx, int userId, String text)? onBroadcastText;
-
   /// Set by main.dart: handles the typed handle of the /adduser wizard
   /// (shows the confirm dialog).
-  Future<void> Function(Context ctx, int userId, String text)? onAddUserText;
-
   // ---------------------------------------------------------- callback
 
   Future<void> _onCallback(Context ctx) async {
@@ -152,21 +148,21 @@ mixin _Flows3 on _FlowsBase {
     if (data.isEmpty) return;
     final parts = data.split('|');
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
 
     switch (parts[0]) {
       case 'slot':
         await _toggleSlot(ctx, userId, parts);
       case 'done':
-        await _saveAvailability(ctx, userId, parts[1], false);
+        await this._saveAvailability(ctx, userId, parts[1], false);
       case 'no':
-        await _saveAvailability(ctx, userId, parts[1], true);
+        await this._saveAvailability(ctx, userId, parts[1], true);
       case 'cancel':
-        await _cancelAvailability(ctx, userId, parts);
+        await this._cancelAvailability(ctx, userId, parts);
       case 'holidayout':
         await _optOutHoliday(ctx, userId, parts);
       case 'notify':
-        await _onNotifyCallback(ctx);
+        await this._onNotifyCallback(ctx);
     }
   }
 
@@ -222,7 +218,7 @@ mixin _Flows3 on _FlowsBase {
     final sat0 = DateTime.tryParse(parts[1]);
     final slot = Slot.parse(parts[2]);
     if (sat0 == null || slot == null) return;
-    final w = _windowForSat(sat0);
+    final w = this._windowForSat(sat0);
     final sat = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
     final now = config.toLocal(Config.nowUtc());
     if (w.locked(sat, now)) {
@@ -234,7 +230,7 @@ mixin _Flows3 on _FlowsBase {
     }
 
     final (want, available) = state.picksFor(userId);
-    final session = _sessionForSlot(w, slot);
+    final session = this._sessionForSlot(w, slot);
     // Toggle cycle: off ▫️ -> offered 🟢 -> booked 🔒 -> off. A newly
     // selected choice wins over overlapping choices in the same weekend:
     // backups may overlap backups, but a booked choice clears every
@@ -243,10 +239,10 @@ mixin _Flows3 on _FlowsBase {
       want.remove(slot);
     } else if (available.contains(slot)) {
       available.remove(slot);
-      if (session != null) _clearOverlaps(session, slot, want, available);
+      if (session != null) this._clearOverlaps(session, slot, want, available);
       want.add(slot);
     } else {
-      if (session != null) _clearOverlappingWants(session, slot, want);
+      if (session != null) this._clearOverlappingWants(session, slot, want);
       available.add(slot);
     }
 

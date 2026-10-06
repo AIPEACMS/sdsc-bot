@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo4 on _RepoBase {
+extension RepoSessions on Repo {
 
   LocationInfo? locationByKey(String key) {
     final rows = raw.select('SELECT * FROM locations WHERE key = ?', [key]);
@@ -41,7 +41,7 @@ mixin _Repo4 on _RepoBase {
     return null;
   }
 
-  static String _normLocation(String s) =>
+  String _normLocation(String s) =>
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 
   /// Derives a unique camelCase key from a display name.
@@ -129,7 +129,7 @@ mixin _Repo4 on _RepoBase {
     );
   }
 
-  static List<String> _cleanAliases(List<String> aliases) {
+  List<String> _cleanAliases(List<String> aliases) {
     final seen = <String>{};
     final out = <String>[];
     for (final a in aliases) {
@@ -164,7 +164,7 @@ mixin _Repo4 on _RepoBase {
     final rows = raw.select(
       'SELECT day, slot, start_at, end_at, location_key, max_people, capacity_group '
       'FROM schedule_overrides WHERE weekend_start = ? ORDER BY rowid',
-      [_dayKey(sat)],
+      [this._dayKey(sat)],
     );
     if (rows.isEmpty) return scheduleTemplate();
     return rows
@@ -212,7 +212,7 @@ mixin _Repo4 on _RepoBase {
     tx.execute('BEGIN IMMEDIATE');
     try {
       tx.execute('DELETE FROM schedule_overrides WHERE weekend_start = ?', [
-        _dayKey(sat),
+        this._dayKey(sat),
       ]);
       for (final r in rows) {
         tx.execute(
@@ -220,7 +220,7 @@ mixin _Repo4 on _RepoBase {
           '(weekend_start, day, slot, start_at, end_at, location_key, '
           'max_people, capacity_group) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           [
-            _dayKey(sat),
+            this._dayKey(sat),
             r.day,
             r.slot,
             r.start,
@@ -241,7 +241,7 @@ mixin _Repo4 on _RepoBase {
 
   void clearScheduleOverride(DateTime sat) {
     raw.execute('DELETE FROM schedule_overrides WHERE weekend_start = ?', [
-      _dayKey(sat),
+      this._dayKey(sat),
     ]);
   }
 
@@ -254,7 +254,7 @@ mixin _Repo4 on _RepoBase {
     required int tzOffsetHours,
   }) {
     for (final t in template) {
-      final date = _sessionDate(sat, t.day);
+      final date = this._sessionDate(sat, t.day);
       if (date == null) continue;
       raw.execute(
         '''
@@ -263,12 +263,12 @@ INSERT OR IGNORE INTO sessions
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ''',
         [
-          _dayKey(sat),
+          this._dayKey(sat),
           t.day,
           t.slot,
           t.location,
-          _fmt(_parseTime(date, t.start)),
-          _fmt(_parseTime(date, t.end)),
+          this._fmt(this._parseTime(date, t.start)),
+          this._fmt(this._parseTime(date, t.end)),
           t.maxPeople,
           t.capacityGroup,
         ],

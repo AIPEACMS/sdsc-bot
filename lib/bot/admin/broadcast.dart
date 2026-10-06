@@ -1,6 +1,6 @@
 part of '../admin.dart';
 
-mixin _Admin3 on _AdminBase {
+extension AdminBroadcast on Admin {
 
   /// The calling admin's group. Empty when the user has no group (e.g. the
   /// console before being added as a member) — then no group filter applies.
@@ -13,7 +13,7 @@ mixin _Admin3 on _AdminBase {
   /// group the admin leads, so a leader never marks (or is reminded about)
   /// another group's members.
   Future<void> _confirm(Context ctx) async {
-    final sat = _currentWeekendSat();
+    final sat = this._currentWeekendSat();
     final sessions = repo.sessionsForWeekend(sat);
     if (sessions.isEmpty) {
       await ctx.reply('No sessions yet. Run /allocate first.');
@@ -36,7 +36,7 @@ mixin _Admin3 on _AdminBase {
           .row();
     }
     await ctx.reply(
-      'Mark attendance for ${_day(sat)}:\n'
+      'Mark attendance for ${this._day(sat)}:\n'
       '🔵 some of your group unmarked · 🟢 all marked · '
       'no icon = nobody from your group',
       replyMarkup: kb,
@@ -105,7 +105,7 @@ mixin _Admin3 on _AdminBase {
     );
   }
 
-  static String _markFor(int userId, List<Attendance> marks) {
+  String _markFor(int userId, List<Attendance> marks) {
     for (final m in marks) {
       if (m.userId == userId) return m.attended ? '✅' : '❌';
     }
@@ -259,7 +259,7 @@ mixin _Admin3 on _AdminBase {
   }
 
   Future<void> _confirmBroadcast(Context ctx, String text) async {
-    final preview = _html(
+    final preview = this._html(
       text.length > 200 ? '${text.substring(0, 200)}…' : text,
     );
     final message = await ctx.reply(

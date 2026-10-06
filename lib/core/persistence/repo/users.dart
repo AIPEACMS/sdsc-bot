@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo1 on _RepoBase {
+extension RepoUsers on Repo {
 
   sqlite.Database get raw => _db.raw;
 
@@ -101,8 +101,8 @@ mixin _Repo1 on _RepoBase {
       user.preferredName,
       user.storedMatricNo,
       user.storedSchoolEmail,
-      _storedTier(user.memberTier),
-      _notificationPreferenceValue(user.notificationPreference),
+      this._storedTier(user.memberTier),
+      this._notificationPreferenceValue(user.notificationPreference),
       user.lastPromptState.name,
     ];
     if (user.registeredAt != null) {
@@ -201,7 +201,7 @@ mixin _Repo1 on _RepoBase {
   void setNotificationPreference(int id, NotificationPreference preference) {
     raw.execute(
       'UPDATE users SET notification_preference = ? WHERE id = ?',
-      [_notificationPreferenceValue(preference), id],
+      [this._notificationPreferenceValue(preference), id],
     );
   }
 
@@ -222,10 +222,10 @@ mixin _Repo1 on _RepoBase {
     if (isAdmin && user.memberTier == MemberTier.outMember) return false;
     if (isAdmin) {
       raw.execute('UPDATE users SET is_admin = 1 WHERE id = ?', [id]);
-      _assignGroupOnPromotion(id);
+      this._assignGroupOnPromotion(id);
     } else {
       raw.execute('UPDATE users SET is_admin = 0 WHERE id = ?', [id]);
-      _dissolveGroup(user.group);
+      this._dissolveGroup(user.group);
     }
     return true;
   }
@@ -238,7 +238,7 @@ mixin _Repo1 on _RepoBase {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
-      _dissolveGroup(user.group);
+      this._dissolveGroup(user.group);
       tx.execute(
         'UPDATE users SET is_admin = 0, member_tier = ?, group_id = \'\' '
         'WHERE id = ?',

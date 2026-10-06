@@ -1,6 +1,6 @@
 part of '../service.dart';
 
-mixin _CycleService3 on _CycleServiceBase {
+extension CycleServiceNotifications on CycleService {
 
   /// Builds the availability inline keyboard from the window's actual
   /// sessions — the schedule template decides the days, times and locations.
@@ -75,7 +75,7 @@ mixin _CycleService3 on _CycleServiceBase {
     if (holidayRows.isNotEmpty) {
       for (final row in holidayRows) {
         kb = kb.row().text(
-          '🔕 Skip me for the whole ${holidayName(row.kind)}',
+          '🔕 Skip me for the whole ${CycleServicePrompts.holidayName(row.kind)}',
           'holidayout|${_satKey(w.sat0)}|${row.kind.name}',
         );
       }

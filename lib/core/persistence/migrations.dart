@@ -1,5 +1,5 @@
 part of '../db.dart';
-mixin _Database2 on _DatabaseBase {
+extension DatabaseMigrations on Database {
   static void _applySchema(sqlite.Database db, Config config) {
     db.execute('''
 CREATE TABLE IF NOT EXISTS users (

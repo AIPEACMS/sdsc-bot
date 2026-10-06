@@ -36,6 +36,8 @@ class _SetTimeBase {
 
   final ScheduleRuntime scheduleRuntime;
 
+  final Map<int, _Draft> _drafts = {};
+
   _SetTimeBase({
     required this.bot,
     required this.repo,

@@ -1,6 +1,6 @@
 part of '../flows.dart';
 
-mixin _Flows2 on _FlowsBase {
+extension FlowsAvailability on Flows {
 
   // ------------------------------------------------------------- /grid
 
@@ -9,7 +9,7 @@ mixin _Flows2 on _FlowsBase {
   /// or /resetgrid to return to the console's own grid.
   Future<void> _onGrid(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
 
     if (!config.isConsole(userId)) {
       await ctx.reply(
@@ -53,7 +53,7 @@ mixin _Flows2 on _FlowsBase {
   /// grid.
   Future<void> _onResetGrid(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
 
     if (!config.isConsole(userId)) {
       await ctx.reply(
@@ -103,7 +103,7 @@ mixin _Flows2 on _FlowsBase {
       LogRing.log('repick $userId: ignored (not an active member)');
       return;
     }
-    final window = _currentWindow(ctx);
+    final window = this._currentWindow(ctx);
     state.forgetAvailability(userId);
     LogRing.log('repick $userId: opening availability picker');
     await service.showAvailability(user, window, messages.msg1(user.group));
@@ -138,16 +138,16 @@ mixin _Flows2 on _FlowsBase {
   /// and their attendance (total + per location).
   Future<void> _onMyStatus(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     if (user == null || !_isActive(user)) return;
-    final w = _currentWindow(ctx);
+    final w = this._currentWindow(ctx);
 
     final sb = StringBuffer()
       ..writeln('👤 <b>Your information</b>')
-      ..writeln('Preferred name: ${_html(user.preferredName)}')
+      ..writeln('Preferred name: ${this._html(user.preferredName)}')
       ..writeln('\n📋 <b>Your status</b>')
-      ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"');
+      ..writeln('Bundle: "${this._day(w.sat0)}, ${this._day(w.sat1)}"');
 
     final avail0 = repo.getAvailability(w.sat0, userId);
     final avail1 = repo.getAvailability(w.sat1, userId);
@@ -162,19 +162,19 @@ mixin _Flows2 on _FlowsBase {
       avail.addAll(avail1.slots);
     }
     final unavailableDates = [
-      if (avail0 != null && !avail0.available) _day(w.sat0),
-      if (avail1 != null && !avail1.available) _day(w.sat1),
+      if (avail0 != null && !avail0.available) this._day(w.sat0),
+      if (avail1 != null && !avail1.available) this._day(w.sat1),
     ];
     if (want.isNotEmpty || avail.isNotEmpty) {
       sb.writeln('\n<b>Indicated</b> — 🔒 booked · 🟢 backup:');
       if (want.isNotEmpty) {
         sb.writeln(
-          want.map((s) => '🔒 ${_slotLabel(s, w, repo)}').join('\n'),
+          want.map((s) => '🔒 ${this._slotLabel(s, w, repo)}').join('\n'),
         );
       }
       if (avail.isNotEmpty) {
         sb.writeln(
-          avail.map((s) => '🟢 ${_slotLabel(s, w, repo)}').join('\n'),
+          avail.map((s) => '🟢 ${this._slotLabel(s, w, repo)}').join('\n'),
         );
       }
     } else if (unavailableDates.isNotEmpty) {
@@ -222,7 +222,7 @@ mixin _Flows2 on _FlowsBase {
 
   Future<void> _onNotify(Context ctx) async {
     final userId = ctx.from!.id;
-    _recordSeen(ctx, userId);
+    this._recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     if (user == null || user.memberTier != MemberTier.outMember) {
       await ctx.reply('Only out-members can change notification frequency.');
@@ -230,9 +230,9 @@ mixin _Flows2 on _FlowsBase {
     }
     final args = ctx.args;
     if (args.isNotEmpty) {
-      final preference = _parseNotificationPreference(args.first);
+      final preference = this._parseNotificationPreference(args.first);
       if (preference == null) {
-        await ctx.reply(_notifyUsage());
+        await ctx.reply(this._notifyUsage());
         return;
       }
       await _saveNotificationPreference(ctx, userId, preference);
@@ -256,11 +256,11 @@ mixin _Flows2 on _FlowsBase {
     final userId = ctx.from!.id;
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
     final preference = parts.length > 1
-        ? _parseNotificationPreference(parts[1])
+        ? this._parseNotificationPreference(parts[1])
         : null;
     await ctx.answerCallbackQuery();
     if (preference == null) {
-      await ctx.editMessageText(_notifyUsage());
+      await ctx.editMessageText(this._notifyUsage());
       return;
     }
     final user = repo.findUser(userId);
@@ -280,7 +280,7 @@ mixin _Flows2 on _FlowsBase {
     bool edit = false,
   }) async {
     repo.setNotificationPreference(userId, preference);
-    final text = '✅ Notification preference: ${_notificationLabel(preference)}.';
+    final text = '✅ Notification preference: ${this._notificationLabel(preference)}.';
     if (edit) {
       await ctx.editMessageText(text);
     } else {

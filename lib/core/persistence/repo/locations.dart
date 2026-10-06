@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo3 on _RepoBase {
+extension RepoLocations on Repo {
 
   /// Reads all schedule values from one SQLite read transaction. Missing
   /// weekday keys are filled by [ScheduleTimes.fromSettings] for legacy DBs.
@@ -124,7 +124,7 @@ ORDER BY s.username
         NotificationPreference notificationPreference =
             NotificationPreference.weekly,
       }) {
-    final normalized = _pendingHandle(handle);
+    final normalized = this._pendingHandle(handle);
     final previous = pendingRole(normalized);
     raw.execute(
       '''
@@ -140,7 +140,7 @@ ON CONFLICT(username) DO UPDATE SET
         normalized,
         isAdmin ? 1 : 0,
         tier,
-        _notificationPreferenceValue(notificationPreference),
+        this._notificationPreferenceValue(notificationPreference),
       ],
     );
     return previous;
@@ -150,13 +150,13 @@ ON CONFLICT(username) DO UPDATE SET
     final rows = raw.select(
       'SELECT is_admin, tier, notification_preference '
       'FROM pending_users WHERE username = ?',
-      [_pendingHandle(handle)],
+      [this._pendingHandle(handle)],
     );
     if (rows.isEmpty) return null;
     return PendingRole(
       isAdmin: (rows.first['is_admin'] as int) == 1,
       tier: rows.first['tier'] as String,
-      notificationPreference: _notificationPreferenceFromValue(
+      notificationPreference: this._notificationPreferenceFromValue(
         rows.first['notification_preference'] as String?,
       ),
     );
@@ -180,7 +180,7 @@ ON CONFLICT(username) DO UPDATE SET
   bool isPendingUser(String handle) {
     final rows = raw.select(
       'SELECT 1 FROM pending_users WHERE username = ?',
-      [_pendingHandle(handle)],
+      [this._pendingHandle(handle)],
     );
     return rows.isNotEmpty;
   }
@@ -188,7 +188,7 @@ ON CONFLICT(username) DO UPDATE SET
   bool pendingIsAdmin(String handle) {
     final rows = raw.select(
       'SELECT is_admin FROM pending_users WHERE username = ?',
-      [_pendingHandle(handle)],
+      [this._pendingHandle(handle)],
     );
     return rows.isNotEmpty && (rows.first['is_admin'] as int) == 1;
   }
@@ -197,7 +197,7 @@ ON CONFLICT(username) DO UPDATE SET
   String pendingTier(String handle) {
     final rows = raw.select(
       'SELECT tier FROM pending_users WHERE username = ?',
-      [_pendingHandle(handle)],
+      [this._pendingHandle(handle)],
     );
     return rows.isEmpty ? MemberTier.member : rows.first['tier'] as String;
   }
@@ -218,7 +218,7 @@ ON CONFLICT(username) DO UPDATE SET
     final rows = raw.select(
       'SELECT COUNT(*) AS c FROM sent_messages '
       'WHERE user_id = ? AND kind = ? AND day = ?',
-      [userId, kind, _dayKey(day)],
+      [userId, kind, this._dayKey(day)],
     );
     return (rows.first['c'] as int) > 0;
   }
@@ -230,7 +230,7 @@ ON CONFLICT(username) DO UPDATE SET
     final rows = raw.select(
       'SELECT sent_at FROM sent_messages '
       'WHERE user_id = ? AND kind = ? AND day = ?',
-      [userId, kind, _dayKey(day)],
+      [userId, kind, this._dayKey(day)],
     );
     if (rows.isEmpty) return null;
     return rows.first['sent_at'] as String?;
@@ -240,11 +240,11 @@ ON CONFLICT(username) DO UPDATE SET
     raw.execute(
       'INSERT OR IGNORE INTO sent_messages (user_id, kind, day, sent_at) '
       'VALUES (?, ?, ?, ?)',
-      [userId, kind, _dayKey(day), _sgtNow()],
+      [userId, kind, this._dayKey(day), _sgtNow()],
     );
   }
 
-  static String _sgtNow() {
+  String _sgtNow() {
     final now = DateTime.now().toUtc().add(const Duration(hours: 8));
     String two(int value) => value.toString().padLeft(2, '0');
     String three(int value) => value.toString().padLeft(3, '0');

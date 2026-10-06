@@ -1,6 +1,6 @@
 part of '../service.dart';
 
-mixin _CycleService2 on _CycleServiceBase {
+extension CycleServiceAllocation on CycleService {
 
   /// Sunday/Monday attendance-marking reminders: for every allocated member
   /// of [sat]'s weekend with no attendance mark yet, remind the member's
@@ -120,7 +120,7 @@ mixin _CycleService2 on _CycleServiceBase {
     final bySession = <int, List<String>>{};
     for (final (u, s) in allocations) {
       if (userIds != null && !userIds.contains(u.id)) continue;
-      bySession.putIfAbsent(s.id, () => []).add(_displayName(u));
+       bySession.putIfAbsent(s.id, () => []).add(CycleServiceNotifications._displayName(u));
     }
 
     final sessions = repo.sessionsForWeekend(sat)
@@ -250,7 +250,7 @@ mixin _CycleService2 on _CycleServiceBase {
     }
   }
 
-  static String _logText(String text) {
+  String _logText(String text) {
     final singleLine = text.replaceAll(RegExp(r'\s+'), ' ');
     return singleLine.length <= 160
         ? singleLine
@@ -265,7 +265,7 @@ mixin _CycleService2 on _CycleServiceBase {
     return '$loc · $day ${_fmt(s.start)}-${_fmt(s.end)} (${_day(s.start)})';
   }
 
-  static String _day(DateTime d) {
+  String _day(DateTime d) {
     const months = [
       'Jan',
       'Feb',
@@ -283,10 +283,10 @@ mixin _CycleService2 on _CycleServiceBase {
     return '${d.day} ${months[d.month - 1]}';
   }
 
-  static String _dayShort(DateTime d) =>
+  String _dayShort(DateTime d) =>
       '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
 
-  static String _fmt(DateTime d) =>
+  String _fmt(DateTime d) =>
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
   /// The single mechanical explanation shown under every picker (prompt,

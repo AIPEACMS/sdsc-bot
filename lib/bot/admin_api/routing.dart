@@ -1,6 +1,6 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi1 on _AdminApiBase {
+extension AdminApiRouting on AdminApi {
 
   /// Wired from main.dart with the real [CycleService]. The cycle-driving
   /// endpoints (prompt/remind/allocate/ask/broadcast) require it; everything
@@ -105,7 +105,7 @@ mixin _AdminApi1 on _AdminApiBase {
     }
   }
 
-  static Future<List<int>> _readBody(HttpRequest req) async {
+  Future<List<int>> _readBody(HttpRequest req) async {
     final bytes = <int>[];
     await for (final chunk in req) {
       bytes.addAll(chunk);
@@ -133,13 +133,13 @@ mixin _AdminApi1 on _AdminApiBase {
       case 'schedule':
         if (segs.length != 2) return (404, {'ok': false, 'error': 'not found'});
         if (method == 'GET') return (200, _scheduleBody());
-        if (method == 'POST') return _setSchedule(bodyText);
+        if (method == 'POST') return this._setSchedule(bodyText);
       case 'users':
         if (method == 'GET' && segs.length == 2) {
           return (200, {'ok': true, 'users': _usersJson()});
         }
         if (method == 'POST' && segs.length == 2) {
-          return _addUser(bodyText);
+          return this._addUser(bodyText);
         }
         if (method == 'POST' && segs.length == 4 && segs[3].isNotEmpty) {
           final id = int.tryParse(segs[2]);
@@ -148,34 +148,34 @@ mixin _AdminApi1 on _AdminApiBase {
           }
           switch (segs[3]) {
             case 'tier':
-              return _setTier(id, bodyText);
+              return this._setTier(id, bodyText);
             case 'admin':
-              return _setUserAdmin(id, bodyText);
+              return this._setUserAdmin(id, bodyText);
             case 'gadmin':
-              return _setUserGlobalAdmin(id, bodyText);
+              return this._setUserGlobalAdmin(id, bodyText);
             case 'exp':
-              return _setUserExp(id, bodyText);
+              return this._setUserExp(id, bodyText);
             case 'group':
-              return _setUserGroup(id, bodyText);
+              return this._setUserGroup(id, bodyText);
             case 'notification':
             case 'notify':
-              return _setUserNotification(id, bodyText);
+              return this._setUserNotification(id, bodyText);
           }
         }
         if (method == 'GET' && segs.length == 4 &&
             (segs[3] == 'notification' || segs[3] == 'notify')) {
           final id = int.tryParse(segs[2]);
           if (id == null) return (400, {'ok': false, 'error': 'bad user id'});
-          return _getUserNotification(id);
+          return this._getUserNotification(id);
         }
       case 'assign-groups':
-        if (method == 'POST') return _assignGroups();
+        if (method == 'POST') return this._assignGroups();
       case 'locations':
         if (method == 'GET' && segs.length == 2) {
-          return (200, _locationsBody());
+          return (200, this._locationsBody());
         }
         if (method == 'POST' && segs.length == 2) {
-          return _createLocation(bodyText);
+          return this._createLocation(bodyText);
         }
         if (method == 'POST' &&
             segs.length == 4 &&
@@ -185,33 +185,33 @@ mixin _AdminApi1 on _AdminApiBase {
           if (id == null) {
             return (400, {'ok': false, 'error': 'bad location id'});
           }
-          return _approveLocation(id, bodyText);
+          return this._approveLocation(id, bodyText);
         }
       case 'hold':
-        if (method == 'POST') return _setHold(bodyText);
+        if (method == 'POST') return this._setHold(bodyText);
       case 'date':
-        if (method == 'POST') return _setDate(bodyText);
+        if (method == 'POST') return this._setDate(bodyText);
       case 'sync-calendar':
-        if (method == 'POST') return _syncCalendar(bodyText);
+        if (method == 'POST') return this._syncCalendar(bodyText);
       case 'prompt':
-        if (method == 'POST') return _runCycleOp('prompt');
+        if (method == 'POST') return this._runCycleOp('prompt');
       case 'remind':
-        if (method == 'POST') return _runCycleOp('remind');
+        if (method == 'POST') return this._runCycleOp('remind');
       case 'allocate':
-        if (method == 'POST') return _runCycleOp('allocate');
+        if (method == 'POST') return this._runCycleOp('allocate');
       case 'ask':
-        if (method == 'POST') return _ask(bodyText);
+        if (method == 'POST') return this._ask(bodyText);
       case 'broadcast':
-        if (method == 'POST') return _broadcast(bodyText);
+        if (method == 'POST') return this._broadcast(bodyText);
       case 'attendance':
-        if (method == 'GET') return (200, _attendanceBody());
-        if (method == 'POST') return _toggleAttendance(bodyText);
+        if (method == 'GET') return (200, this._attendanceBody());
+        if (method == 'POST') return this._toggleAttendance(bodyText);
       case 'logs':
         if (method == 'GET') {
           return (200, {'ok': true, 'lines': LogRing.snapshot});
         }
       case 'log-retention':
-        if (method == 'POST') return _setLogRetention(bodyText);
+        if (method == 'POST') return this._setLogRetention(bodyText);
     }
     return (404, {'ok': false, 'error': 'not found'});
   }
@@ -288,7 +288,7 @@ mixin _AdminApi1 on _AdminApiBase {
   Future<(int, Object)> _setActiveOutreach(String bodyText) async {
     final Map<String, dynamic> body;
     try {
-      body = _jsonBody(bodyText);
+      body = this._jsonBody(bodyText);
     } catch (_) {
       return (400, {'ok': false, 'error': 'expected a JSON object'});
     }

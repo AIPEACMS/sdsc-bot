@@ -1,6 +1,6 @@
 part of '../flows.dart';
 
-mixin _Flows4 on _FlowsBase {
+extension FlowsPresentation on Flows {
 
   (Map<String, int>, Set<String>) _allocationInfo(
     RollingWindow w,
@@ -162,7 +162,7 @@ mixin _Flows4 on _FlowsBase {
               want,
               available,
               immediate: true,
-              label: (s) => _slotLabel(s, w, repo),
+              label: (s) => this._slotLabel(s, w, repo),
             ),
       parseMode: ParseMode.html,
     );

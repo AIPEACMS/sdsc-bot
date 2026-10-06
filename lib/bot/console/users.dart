@@ -1,6 +1,6 @@
 part of '../console.dart';
 
-mixin _Console2 on _ConsoleBase {
+extension ConsoleUsers on Console {
 
   Future<void> _removeGlobalAdminConfirm(Context ctx) async {
     final current = repo.globalAdmin();
@@ -244,7 +244,7 @@ mixin _Console2 on _ConsoleBase {
     }
   }
 
-  static String _fmt(DateTime d) {
+  String _fmt(DateTime d) {
     final h = d.hour.toString().padLeft(2, '0');
     final m = d.minute.toString().padLeft(2, '0');
     return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
@@ -252,11 +252,6 @@ mixin _Console2 on _ConsoleBase {
   }
 
   // ------------------------------------- /locations /addlocation /addalias
-
-  /// Alias wizard state: userId → (location key, aliases typed so far).
-  final Map<int, (String, List<String>)> _aliasFlow = {}
-
-;
 
   Future<void> _locations(Context ctx) async {
     final approved = repo.approvedLocations();

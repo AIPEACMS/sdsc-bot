@@ -1,6 +1,6 @@
 part of '../console.dart';
 
-mixin _Console1 on _ConsoleBase {
+extension ConsoleRegistration on Console {
 
   /// Set from main.dart: resumed when a new location is approved so the
   /// waiting global admin gets the updated session list.
@@ -19,47 +19,47 @@ mixin _Console1 on _ConsoleBase {
       bot,
       state,
       'setdate',
-      _consoleGuard(_setDate),
+      _consoleGuard(this._setDate),
       label: 'set-date',
     );
     commandBoth(
       bot,
       state,
       'resetdate',
-      _consoleGuard(_resetDate),
+      _consoleGuard(this._resetDate),
       label: 'reset-date',
     );
     commandBoth(
       bot,
       state,
       'demote',
-      _globalAdminGuard(_demote),
+      _globalAdminGuard(this._demote),
       label: 'demote',
     );
     commandBoth(
       bot,
       state,
       'synccalendar',
-      _globalAdminGuard(_syncCalendar),
+      _globalAdminGuard(this._syncCalendar),
       label: 'sync-calendar',
     );
     commandBoth(
       bot,
       state,
       'hold',
-      _globalAdminGuard(_holdConfirm),
+      _globalAdminGuard(this._holdConfirm),
       label: 'hold',
     );
     commandBoth(
       bot,
       state,
       'unhold',
-      _globalAdminGuard(_unholdConfirm),
+      _globalAdminGuard(this._unholdConfirm),
       label: 'unhold',
     );
-    commandBoth(bot, state, 'addkey', _consoleGuard(_addKey), label: 'add-key');
-    commandBoth(bot, state, 'keys', _consoleGuard(_keys), label: 'keys');
-    commandBoth(bot, state, 'rmkey', _consoleGuard(_rmKey), label: 'rm-key');
+    commandBoth(bot, state, 'addkey', _consoleGuard(this._addKey), label: 'add-key');
+    commandBoth(bot, state, 'keys', _consoleGuard(this._keys), label: 'keys');
+    commandBoth(bot, state, 'rmkey', _consoleGuard(this._rmKey), label: 'rm-key');
     commandBoth(
       bot,
       state,
@@ -71,28 +71,28 @@ mixin _Console1 on _ConsoleBase {
       bot,
       state,
       'rmg',
-      _consoleGuard(_removeGlobalAdminConfirm),
+      _consoleGuard(this._removeGlobalAdminConfirm),
       label: 'rmg',
     );
     commandBoth(
       bot,
       state,
       'locations',
-      _consoleGuard(_locations),
+      _consoleGuard(this._locations),
       label: 'locations',
     );
     commandBoth(
       bot,
       state,
       'addlocation',
-      _consoleGuard(_addLocation),
+      _consoleGuard(this._addLocation),
       label: 'add-location',
     );
     commandBoth(
       bot,
       state,
       'addalias',
-      _consoleGuard(_addAlias),
+      _consoleGuard(this._addAlias),
       label: 'add-alias',
     );
 
@@ -102,11 +102,11 @@ mixin _Console1 on _ConsoleBase {
       if (data == null) return next();
       final head = data.split('|').first;
       if (head == 'hold' || head == 'unhold') {
-        if (_isGlobalAdmin(ctx)) await _onHoldCallback(ctx);
+        if (_isGlobalAdmin(ctx)) await this._onHoldCallback(ctx);
         return;
       }
       if (head == 'addgadmin' || head == 'rmgadmin') {
-        if (_isConsole(ctx)) await _onGlobalAdminCallback(ctx, head);
+        if (_isConsole(ctx)) await this._onGlobalAdminCallback(ctx, head);
         return;
       }
       await next();
@@ -257,14 +257,6 @@ mixin _Console1 on _ConsoleBase {
   }
 
   // -------------------------------------------------------- /addg /rmg
-
-  final Map<int, int> _pendingGlobalAdmin = {}
-
-;
-
-  final Map<int, int> _pendingGlobalAdminRemoval = {}
-
-;
 
   Future<void> _addGlobalAdminConfirm(Context ctx) async {
     if (ctx.args.length != 1) {

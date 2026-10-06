@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime3 on _SetTimeBase {
+extension SetTimeValidation on SetTime {
 
   Future<void> _showConfirmation(
     Context ctx,
@@ -136,13 +136,13 @@ mixin _SetTime3 on _SetTimeBase {
     return result;
   }
 
-  static bool _samePlaceAndDay(ScheduleSlot a, ScheduleSlot b) =>
+  bool _samePlaceAndDay(ScheduleSlot a, ScheduleSlot b) =>
       a.day == b.day && a.location == b.location;
 
-  static bool _timesOverlap(ScheduleSlot a, ScheduleSlot b) =>
+  bool _timesOverlap(ScheduleSlot a, ScheduleSlot b) =>
       a.start.compareTo(b.end) < 0 && b.start.compareTo(a.end) < 0;
 
-  static ScheduleSlot _copyRow(ScheduleSlot row, {String? capacityGroup}) =>
+  ScheduleSlot _copyRow(ScheduleSlot row, {String? capacityGroup}) =>
       ScheduleSlot(
         day: row.day,
         slot: row.slot,
@@ -163,7 +163,7 @@ mixin _SetTime3 on _SetTimeBase {
     final loc = key != null
         ? repo.locationName(key)
         : (draft.requestedNames[line.locationToken] ?? line.locationToken);
-    final date = line.targetDate == null ? '' : ' ${_date(line.targetDate!)}';
+    final date = line.targetDate == null ? '' : ' ${this._date(line.targetDate!)}';
     final max = line.maxPeople == null ? '' : ' [max ${line.maxPeople}]';
     return 'Session $n: ${Slot.dayName(line.day)}$date '
         '${prettyClock(line.start)} to ${prettyClock(line.end)} '
@@ -182,7 +182,7 @@ mixin _SetTime3 on _SetTimeBase {
       _writeRows(sb, before);
       sb.writeln('\nAfter change:');
       sb.writeln(
-        'Week ${_date(sat)} - ${_date(sat.add(const Duration(days: 6)))} '
+        'Week ${this._date(sat)} - ${this._date(sat.add(const Duration(days: 6)))} '
         'will be updated to:',
       );
       _writeRows(sb, after);
@@ -205,7 +205,7 @@ mixin _SetTime3 on _SetTimeBase {
       sb.writeln(
         '${i + 1}. ${Slot.dayName(row.day)} '
         '${prettyClock(row.start)} to ${prettyClock(row.end)} '
-        'at location: ${_html(repo.locationName(row.location))}'
+        'at location: ${this._html(repo.locationName(row.location))}'
         '${row.maxPeople == null ? '' : ' [max ${row.maxPeople}]'}',
       );
     }
@@ -255,13 +255,13 @@ mixin _SetTime3 on _SetTimeBase {
     return out;
   }
 
-  static bool _sameRow(ScheduleSlot a, ScheduleSlot b) =>
+  bool _sameRow(ScheduleSlot a, ScheduleSlot b) =>
       a.day == b.day &&
       a.start == b.start &&
       a.end == b.end &&
       a.location == b.location;
 
-  static String _rowKey(ScheduleSlot row) =>
+  String _rowKey(ScheduleSlot row) =>
       '${row.day}|${row.start}|${row.end}|${row.location}';
 
   Future<void> _onConfirmOrCancel(Context ctx) async {
@@ -284,7 +284,7 @@ mixin _SetTime3 on _SetTimeBase {
       );
       return;
     }
-    await _apply(ctx, userId, draft);
+    await this._apply(ctx, userId, draft);
     _drafts.remove(userId);
   }
 
