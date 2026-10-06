@@ -28,11 +28,12 @@ enum RoleColor {
   };
 }
 
-/// A command grid button: the label shown in the grid and the command it
-/// triggers (label has no leading slash; command is the slash form).
+/// A role-grid button: [label] is shown in the keyboard, and [command] is the
+/// slash command it triggers when one exists. Action-only buttons have no
+/// command.
 class GridButton {
   final String label;
-  final String command;
+  final String? command;
   final RoleColor color;
 
   const GridButton(this.label, this.command, this.color);
@@ -94,6 +95,12 @@ class RoleKeyboard {
   /// console-only identity therefore has no normal member grid.
   static const List<GridButton> consoleButtons = [];
 
+  static const GridButton moreCommandsButton = GridButton(
+    'more-commands',
+    null,
+    RoleColor.console,
+  );
+
   /// Kept as a named alias for callers that used the old composed preview.
   static const List<GridButton> consoleGlobalAdminButtons = globalAdminButtons;
 
@@ -111,6 +118,23 @@ class RoleKeyboard {
     'old' => oldButtons,
     _ => memberButtons,
   };
+
+  /// Builds a grid and, when requested, puts the console-only More Commands
+  /// button first. Preview grids use the ordinary role grid so member/check
+  /// previews never acquire a console control.
+  static List<GridButton> buttonsFor(
+    String role, {
+    bool consoleIdentity = false,
+  }) {
+    final buttons = gridButtons(role);
+    final showMore =
+        consoleIdentity ||
+        role == 'console-only' ||
+        role == 'console-gadmin' ||
+        role == 'admin' ||
+        role == 'gadmin';
+    return showMore ? [moreCommandsButton, ...buttons] : buttons;
+  }
 
   /// The grid a user should see by default (highest tier wins).
   static String roleFor({
@@ -135,9 +159,13 @@ class RoleKeyboard {
   /// Builds the persistent, resized reply keyboard for [role] with up to
   /// [columns] buttons per row. Labels carry no leading slash; buttons are
   /// colored by role tier.
-  static Keyboard build(String role, {int columns = 4}) {
+  static Keyboard build(
+    String role, {
+    int columns = 4,
+    bool consoleIdentity = false,
+  }) {
     final rows = <List<tg.KeyboardButton>>[];
-    final buttons = gridButtons(role);
+    final buttons = buttonsFor(role, consoleIdentity: consoleIdentity);
     for (var i = 0; i < buttons.length; i += columns) {
       final row = buttons
           .skip(i)

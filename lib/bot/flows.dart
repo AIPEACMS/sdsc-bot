@@ -7,6 +7,7 @@ import '../core/config.dart';
 import '../core/log.dart';
 import '../core/messages.dart';
 import 'command_both.dart';
+import 'command_catalog.dart';
 import 'keyboards.dart';
 import 'service.dart';
 import 'state.dart';
@@ -126,6 +127,8 @@ class Flows {
     commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, state, 'resetgrid', _onResetGrid, label: 'reset-grid');
     commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
+    state.registerLabel('more-commands');
+    bot.hears('more-commands', _onMoreCommands);
   }
 
   // ------------------------------------------------------------- /start
@@ -147,28 +150,10 @@ class Flows {
     final checker = user?.memberTier == MemberTier.check && !isAdmin;
     final outMember = user?.memberTier == MemberTier.outMember && !isAdmin;
 
-    final sb = StringBuffer()
-      ..writeln('👋 <b>$name</b>, here is what you can do:');
-
-    if (isConsole) {
-      sb
-        ..writeln('\n<b>Console</b>')
-        ..writeln('/setdate | /resetdate — custom or calendar dates')
-        ..writeln('/grid | /resetgrid — preview role grids')
-        ..writeln('/addkey — register a console app key')
-        ..writeln('/keys | /rmkey — manage console keys')
-        ..writeln('/addg @handle — appoint the global admin')
-        ..writeln('/rmg [@handle] — remove the global admin')
-        ..writeln('/locations — list locations and their aliases')
-        ..writeln('/addlocation &lt;name&gt; — approve or add a location')
-        ..writeln('/addalias &lt;location&gt; — add aliases (send done to end)');
-    }
+    final sb = StringBuffer('👋 <b>$name</b>, here is what you can do:');
 
     if (retired) {
-      sb.writeln(
-        '\n<i>You are not an active member — you will not be '
-        'prompted or allocated.</i>',
-      );
+      sb.writeln('\nThank you for your commitment! Hope to see you in the future!');
     }
 
     if (checker && !isConsole) {
@@ -181,45 +166,7 @@ class Flows {
       return;
     }
 
-    if (checker) {
-      sb
-        ..writeln('\n<b>Checker</b>')
-        ..writeln('/check-status — the current week\'s allocation');
-    }
-
-    if (user?.isGlobalAdmin == true) {
-      sb
-        ..writeln('\n<b>Global admin</b>')
-        ..writeln('/addadmin @handle — promote a registered user')
-        ..writeln('/addcheck @handle — add a checker')
-        ..writeln('/demote @handle — demote an admin')
-        ..writeln('/sync-calendar — push the calendar YAML')
-        ..writeln('set-time (/settime) — set activity days, times and locations')
-        ..writeln('/hold | /unhold — pause or resume the bot');
-    }
-
-    if (isAdmin) {
-      sb
-        ..writeln('\n<b>Admin</b>')
-        ..writeln(
-          'add-user @handle [@handle ...] - add members '
-          '(they can then use /start)',
-        )
-        ..writeln('add-out-user @handle [@handle ...] - add out-members')
-        ..writeln('all-status (/status) - cycle state and responders')
-        ..writeln('group-status — your group\'s cycle state and responders')
-        ..writeln('all-users (/users) - registered members')
-        ..writeln('group-users — your group\'s member details')
-        ..writeln('/prompt — send availability prompts now')
-        ..writeln('/remind — remind non-responders now')
-        ..writeln('/ask [telegram_id] — send one member an availability picker')
-        ..writeln('mark-attend — mark attendance')
-        ..writeln('/setexp — change a member\'s experience')
-        ..writeln('/allocate — run the allocation now')
-        ..writeln('/broadcast &lt;message&gt; — message all members');
-    }
-
-    if (user != null && !retired && !checker) {
+    if (user != null && !retired && !checker && !isAdmin && !isConsole) {
       sb
         ..writeln('\n<b>${outMember ? 'Out-member' : 'Member'}</b>')
         ..writeln(
@@ -233,17 +180,20 @@ class Flows {
               ? 'my-status — your picks and allocation'
               : 'my-status — your picks, allocation and attendance',
         )
-        ..writeln(outMember ? '/notify — choose prompt frequency' : '')
-        ..writeln(
-          '\nUse the buttons above the keyboard to jump to a command. '
-          'Type /grid to switch which grid you see (console only).',
-        );
+        ..writeln(outMember ? '/notify — choose prompt frequency' : '');
+    }
+
+    if (isConsole) {
+      sb.write('\nType /grid to switch which grid you see (console only).');
     }
 
     await ctx.reply(
       sb.toString(),
       parseMode: ParseMode.html,
-      replyMarkup: RoleKeyboard.build(_gridFor(userId)),
+      replyMarkup: RoleKeyboard.build(
+        _gridFor(userId),
+        consoleIdentity: isConsole,
+      ),
     );
 
     // First-time profile: collect the preferred name. Only prompted until
@@ -251,6 +201,29 @@ class Flows {
     if (user != null && !retired && !checker && user.preferredName.isEmpty) {
       await _startProfileWizard(ctx, userId, user);
     }
+  }
+
+  Future<void> _onMoreCommands(Context ctx) async {
+    final userId = ctx.from!.id;
+    _recordSeen(ctx, userId);
+    final user = repo.findUser(userId);
+    final isConsole = config.isConsole(userId);
+    if (user == null && !isConsole) return;
+    final commands = CommandCatalog.commands(
+      isConsole: isConsole,
+      isAdmin: user?.isAdmin == true,
+      isGlobalAdmin: user?.isGlobalAdmin == true,
+      tier: user?.memberTier,
+    );
+    await ctx.reply(
+      commands.isEmpty
+          ? 'No additional commands.'
+          : commands.map((entry) => entry.display).join('\n'),
+      replyMarkup: RoleKeyboard.build(
+        _gridFor(userId),
+        consoleIdentity: isConsole,
+      ),
+    );
   }
 
   // ----------------------------------------------------------- /setinfo
@@ -391,7 +364,7 @@ class Flows {
     );
     await ctx.reply(
       'Back to your console grid.',
-      replyMarkup: RoleKeyboard.build(ownGrid),
+      replyMarkup: RoleKeyboard.build(ownGrid, consoleIdentity: true),
     );
   }
 

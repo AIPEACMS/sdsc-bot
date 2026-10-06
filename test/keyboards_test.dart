@@ -1,5 +1,6 @@
 import 'package:test/test.dart';
 import 'package:sdsc_bot/bot/keyboards.dart';
+import 'package:sdsc_bot/bot/command_catalog.dart';
 
 void main() {
   test('gadmin adds only hold controls to the normal admin grid', () {
@@ -238,5 +239,190 @@ void main() {
         expect(['success', 'primary', 'danger'], contains(b.style?.name));
       }
     }
+  });
+
+  test('More Commands leads admin grids in green without reordering others', () {
+    for (final role in ['admin', 'gadmin']) {
+      final buttons = RoleKeyboard.buttonsFor(role);
+      expect(buttons.first, RoleKeyboard.moreCommandsButton);
+      expect(buttons.first.label, 'more-commands');
+      expect(buttons.first.command, isNull);
+      expect(buttons.first.color, RoleColor.console);
+      expect(
+        buttons.skip(1).map((button) => button.command),
+        RoleKeyboard.gridButtons(role).map((button) => button.command),
+      );
+      final keyboard = RoleKeyboard.build(role);
+      final flattened = [
+        for (final row in keyboard.keyboard) ...row.map((button) => button.text),
+      ];
+      expect(flattened, [
+        'more-commands',
+        ...RoleKeyboard.gridButtons(role).map((button) => button.label),
+      ]);
+      final first = keyboard.keyboard.first.first;
+      expect(first.text, 'more-commands');
+      expect(first.style?.name, 'success');
+    }
+
+    final consoleOnlyButton =
+        RoleKeyboard.build('console-only').keyboard.first.first;
+    expect(consoleOnlyButton.text, 'more-commands');
+    expect(consoleOnlyButton.style?.name, 'success');
+  });
+
+  test('console identity gets More Commands on lower-tier grids only', () {
+    for (final role in ['member', 'out-member', 'check', 'old']) {
+      expect(RoleKeyboard.buttonsFor(role, consoleIdentity: true).first,
+          RoleKeyboard.moreCommandsButton);
+      expect(RoleKeyboard.buttonsFor(role).map((button) => button.label),
+          isNot(contains('more-commands')));
+    }
+    expect(RoleKeyboard.buttonsFor('console-only').first.label, 'more-commands');
+    expect(RoleKeyboard.buttonsFor('admin').first.label, 'more-commands');
+    expect(RoleKeyboard.buttonsFor('gadmin').first.label, 'more-commands');
+    for (final role in ['member', 'out-member', 'check', 'old']) {
+      expect(RoleKeyboard.build(role, consoleIdentity: true).keyboard.first.first.text,
+          'more-commands');
+    }
+  });
+
+  test('catalog omits every role grid button function', () {
+    final cases = <({
+      String role,
+      bool console,
+      bool admin,
+      bool gadmin,
+      String? tier,
+    })>[
+      (role: 'member', console: false, admin: false, gadmin: false, tier: 'member'),
+      (role: 'out-member', console: false, admin: false, gadmin: false, tier: 'out-member'),
+      (role: 'check', console: false, admin: false, gadmin: false, tier: 'check'),
+      (role: 'old', console: false, admin: false, gadmin: false, tier: 'old'),
+      (role: 'admin', console: false, admin: true, gadmin: false, tier: 'member'),
+      (role: 'gadmin', console: false, admin: true, gadmin: true, tier: 'member'),
+      (role: 'console-only', console: true, admin: false, gadmin: false, tier: null),
+      (role: 'member', console: true, admin: false, gadmin: false, tier: 'member'),
+      (role: 'check', console: true, admin: false, gadmin: false, tier: 'check'),
+      (role: 'old', console: true, admin: false, gadmin: false, tier: 'old'),
+      (role: 'admin', console: true, admin: true, gadmin: false, tier: 'member'),
+      (role: 'gadmin', console: true, admin: true, gadmin: true, tier: 'member'),
+    ];
+    for (final testCase in cases) {
+      final commands = CommandCatalog.commands(
+        isConsole: testCase.console,
+        isAdmin: testCase.admin,
+        isGlobalAdmin: testCase.gadmin,
+        tier: testCase.tier,
+      );
+      final buttons = RoleKeyboard.gridButtons(testCase.role)
+          .map((button) => button.command)
+          .toSet();
+      for (final entry in commands) {
+        expect(entry.command, startsWith('/'));
+        expect(entry.command, isNot('more-commands'));
+        expect(
+          buttons,
+          isNot(contains(entry.command)),
+          reason: '${testCase.role}: ${entry.command}',
+        );
+      }
+    }
+    expect(
+      CommandCatalog.commands(
+        isConsole: false,
+        isAdmin: false,
+        isGlobalAdmin: false,
+        tier: 'member',
+      ),
+      isEmpty,
+    );
+    expect(
+      CommandCatalog.commands(
+        isConsole: false,
+        isAdmin: false,
+        isGlobalAdmin: false,
+        tier: 'out-member',
+      ),
+      isEmpty,
+    );
+    expect(
+      CommandCatalog.commands(
+        isConsole: false,
+        isAdmin: false,
+        isGlobalAdmin: false,
+        tier: 'check',
+      ),
+      isEmpty,
+    );
+    expect(
+      CommandCatalog.commands(
+        isConsole: false,
+        isAdmin: false,
+        isGlobalAdmin: false,
+        tier: 'old',
+      ),
+      isEmpty,
+    );
+    final admin = CommandCatalog.commands(
+      isConsole: false,
+      isAdmin: true,
+      tier: 'member',
+      isGlobalAdmin: false,
+    );
+    expect(admin.map((entry) => entry.display), [
+      '/allstatus - show cycle state and responders',
+      '/allusers - list registered members',
+      '/prompt - send availability prompts now',
+      '/remind - remind non-responders now',
+      '/setexp - change a member\'s experience',
+      '/allocate - run the allocation now',
+    ]);
+    final gadmin = CommandCatalog.commands(
+      isConsole: false,
+      isAdmin: true,
+      isGlobalAdmin: true,
+      tier: 'member',
+    );
+    expect(gadmin.map((entry) => entry.command), [
+      ...admin.map((entry) => entry.command),
+      '/addadmin',
+      '/addcheck',
+      '/demote',
+      '/sync-calendar',
+    ]);
+    expect(gadmin.map((entry) => entry.command), isNot(contains('/hold')));
+    expect(gadmin.map((entry) => entry.command), isNot(contains('/unhold')));
+    expect(gadmin.map((entry) => entry.command), isNot(contains('/settime')));
+    final consoleOnly = CommandCatalog.commands(
+      isConsole: true,
+      isAdmin: false,
+      isGlobalAdmin: false,
+      tier: null,
+    );
+    expect(consoleOnly.map((entry) => entry.command), [
+      '/check-status',
+      '/start',
+      '/grid',
+      '/resetgrid',
+      '/setdate',
+      '/resetdate',
+      '/addkey',
+      '/keys',
+      '/rmkey',
+      '/addg',
+      '/rmg',
+      '/locations',
+      '/addlocation',
+      '/addalias',
+    ]);
+    expect(
+      consoleOnly.map((entry) => entry.command),
+      isNot(contains('/addadmin')),
+    );
+    expect(
+      consoleOnly.map((entry) => entry.display),
+      contains('/addlocation <name> - approve or add a location'),
+    );
   });
 }
