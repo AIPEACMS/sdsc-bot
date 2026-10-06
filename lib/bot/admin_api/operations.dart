@@ -1,6 +1,6 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi3 on AdminApi {
+mixin _AdminApi3 on _AdminApiBase {
 
   /// Toggles the admin flag only — the member tier (check/member/old) is
   /// left untouched, unlike [setTier] which clears admin on any non-admin

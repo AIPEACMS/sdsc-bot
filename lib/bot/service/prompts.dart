@@ -1,6 +1,6 @@
 part of '../service.dart';
 
-mixin _CycleService1 on CycleService {
+mixin _CycleService1 on _CycleServiceBase {
 
   /// Picks the right prompt for [user] for [window]: holiday variant first,
   /// then the "you did not attend" variant for lapsed members. Returns null

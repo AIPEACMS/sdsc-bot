@@ -19,7 +19,7 @@ part 'console/registration.dart';
 part 'console/users.dart';
 part 'console/schedule.dart';
 
-class Console with _Console1, _Console2, _Console3 {
+class _ConsoleBase {
 
   final Bot bot;
 
@@ -33,7 +33,9 @@ class Console with _Console1, _Console2, _Console3 {
 
   final HoldGate holdGate;
 
-  Console({
+  SetTime? setTime;
+
+  _ConsoleBase({
     required this.bot,
     required this.repo,
     required this.config,
@@ -41,5 +43,17 @@ class Console with _Console1, _Console2, _Console3 {
     this.calendarSync,
     required this.holdGate,
     this.setTime,
+  });
+}
+
+class Console extends _ConsoleBase with _Console1, _Console2, _Console3 {
+  Console({
+    required super.bot,
+    required super.repo,
+    required super.config,
+    required super.state,
+    super.calendarSync,
+    required super.holdGate,
+    super.setTime,
   });
 }

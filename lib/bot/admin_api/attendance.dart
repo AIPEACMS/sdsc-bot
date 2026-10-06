@@ -1,6 +1,6 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi4 on AdminApi {
+mixin _AdminApi4 on _AdminApiBase {
 
   /// Registers (or queues) a member by @handle, mirroring the /adduser
   /// outcome: already-registered → already member; pending → already queued;

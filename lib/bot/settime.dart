@@ -22,7 +22,7 @@ part 'settime/validation.dart';
 part 'settime/persistence.dart';
 part 'settime/part_05.dart';
 
-class SetTime with _SetTime1, _SetTime2, _SetTime3, _SetTime4, _SetTime5 {
+class _SetTimeBase {
 
   final Bot bot;
 
@@ -36,7 +36,7 @@ class SetTime with _SetTime1, _SetTime2, _SetTime3, _SetTime4, _SetTime5 {
 
   final ScheduleRuntime scheduleRuntime;
 
-  SetTime({
+  _SetTimeBase({
     required this.bot,
     required this.repo,
     required this.config,
@@ -45,4 +45,17 @@ class SetTime with _SetTime1, _SetTime2, _SetTime3, _SetTime4, _SetTime5 {
     ScheduleRuntime? scheduleRuntime,
   }) : scheduleRuntime =
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
+}
+
+class SetTime
+    extends _SetTimeBase
+    with _SetTime1, _SetTime2, _SetTime3, _SetTime4, _SetTime5 {
+  SetTime({
+    required super.bot,
+    required super.repo,
+    required super.config,
+    required super.state,
+    required super.service,
+    super.scheduleRuntime,
+  });
 }

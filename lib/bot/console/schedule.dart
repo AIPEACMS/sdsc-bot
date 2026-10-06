@@ -1,6 +1,6 @@
 part of '../console.dart';
 
-mixin _Console3 on Console {
+mixin _Console3 on _ConsoleBase {
 
   Future<void> _addLocation(Context ctx) async {
     if (ctx.args.isEmpty) {

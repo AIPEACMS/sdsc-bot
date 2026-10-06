@@ -1,6 +1,6 @@
 part of '../admin.dart';
 
-mixin _Admin4 on Admin {
+mixin _Admin4 on _AdminBase {
 
   Future<void> _doBroadcast(Context ctx, String text) async {
     if (!repo.activeOutreachEnabled('broadcast')) {

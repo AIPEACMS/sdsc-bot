@@ -1,6 +1,6 @@
 part of '../flows.dart';
 
-mixin _Flows4 on Flows {
+mixin _Flows4 on _FlowsBase {
 
   (Map<String, int>, Set<String>) _allocationInfo(
     RollingWindow w,

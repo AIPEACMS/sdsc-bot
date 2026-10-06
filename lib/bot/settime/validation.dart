@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime3 on SetTime {
+mixin _SetTime3 on _SetTimeBase {
 
   Future<void> _showConfirmation(
     Context ctx,

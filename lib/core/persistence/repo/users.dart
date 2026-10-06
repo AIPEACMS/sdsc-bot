@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo1 on Repo {
+mixin _Repo1 on _RepoBase {
 
   sqlite.Database get raw => _db.raw;
 

@@ -40,11 +40,18 @@ part 'persistence/repo/availability.dart';
 part 'persistence/repo/attendance.dart';
 part 'persistence/repo/holidays.dart';
 
-class Repo with _Repo1, _Repo2, _Repo3, _Repo4, _Repo5, _Repo6, _Repo7 {
+class _RepoBase {
 
   static const activeOutreachRouteKeys = defaultActiveOutreachRouteKeys;
 
-  Repo(this._db);
+  _RepoBase(this._db);
 
   final Database _db;
+}
+
+class Repo extends _RepoBase
+    with _Repo1, _Repo2, _Repo3, _Repo4, _Repo5, _Repo6, _Repo7 {
+  static const activeOutreachRouteKeys = defaultActiveOutreachRouteKeys;
+
+  Repo(Database db) : super(db);
 }

@@ -1,6 +1,6 @@
 part of '../service.dart';
 
-mixin _CycleService2 on CycleService {
+mixin _CycleService2 on _CycleServiceBase {
 
   /// Sunday/Monday attendance-marking reminders: for every allocated member
   /// of [sat]'s weekend with no attendance mark yet, remind the member's

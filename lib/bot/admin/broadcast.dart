@@ -1,6 +1,6 @@
 part of '../admin.dart';
 
-mixin _Admin3 on Admin {
+mixin _Admin3 on _AdminBase {
 
   /// The calling admin's group. Empty when the user has no group (e.g. the
   /// console before being added as a member) — then no group filter applies.

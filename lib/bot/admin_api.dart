@@ -92,7 +92,7 @@ String _tierLabel(String tier) => tier == MemberTier.outMember
     : tier;
 part 'admin_api/part_05.dart';
 
-class AdminApi with _AdminApi1, _AdminApi2, _AdminApi3, _AdminApi4, _AdminApi5 {
+class _AdminApiBase {
 
   final Repo repo;
 
@@ -110,11 +110,15 @@ class AdminApi with _AdminApi1, _AdminApi2, _AdminApi3, _AdminApi4, _AdminApi5 {
 
   final ScheduleRuntime scheduleRuntime;
 
+  final CycleService? service;
+
+  Future<void> Function(LocationInfo location)? onLocationApproved;
+
   final NonceGuard _nonces = NonceGuard();
 
   HttpServer? _server;
 
-  AdminApi({
+  _AdminApiBase({
     required this.repo,
     required this.config,
     required this.calendarSync,
@@ -126,4 +130,19 @@ class AdminApi with _AdminApi1, _AdminApi2, _AdminApi3, _AdminApi4, _AdminApi5 {
   }) : identity = ServerIdentity(repo),
        scheduleRuntime =
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
+}
+
+class AdminApi
+    extends _AdminApiBase
+    with _AdminApi1, _AdminApi2, _AdminApi3, _AdminApi4, _AdminApi5 {
+  AdminApi({
+    required super.repo,
+    required super.config,
+    required super.calendarSync,
+    required super.holdGate,
+    required super.token,
+    required super.port,
+    super.service,
+    super.scheduleRuntime,
+  });
 }

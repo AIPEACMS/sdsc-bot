@@ -1,10 +1,9 @@
 part of '../console.dart';
 
-mixin _Console1 on Console {
+mixin _Console1 on _ConsoleBase {
 
   /// Set from main.dart: resumed when a new location is approved so the
   /// waiting global admin gets the updated session list.
-  SetTime? setTime;
 
   void register() {
     commandBoth(

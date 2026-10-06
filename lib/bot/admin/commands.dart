@@ -1,6 +1,6 @@
 part of '../admin.dart';
 
-mixin _Admin1 on Admin {
+mixin _Admin1 on _AdminBase {
 
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');

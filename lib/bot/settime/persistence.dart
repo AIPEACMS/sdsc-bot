@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime4 on SetTime {
+mixin _SetTime4 on _SetTimeBase {
 
   /// Stores the template and rebuilds every open weekend, then re-prompts the
   /// members whose availability it cleared.

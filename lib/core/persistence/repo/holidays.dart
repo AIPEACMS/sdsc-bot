@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo7 on Repo {
+mixin _Repo7 on _RepoBase {
 
   /// Maps calendar week types to bot holiday kinds.
   ///

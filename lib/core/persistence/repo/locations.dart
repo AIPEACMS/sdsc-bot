@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo3 on Repo {
+mixin _Repo3 on _RepoBase {
 
   /// Reads all schedule values from one SQLite read transaction. Missing
   /// weekday keys are filled by [ScheduleTimes.fromSettings] for legacy DBs.

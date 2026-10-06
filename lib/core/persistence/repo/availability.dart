@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo5 on Repo {
+mixin _Repo5 on _RepoBase {
 
   /// Deletes and recreates [sat]'s sessions from [template]. Destructive:
   /// callers must also clear availability/allocations for the weekend (see

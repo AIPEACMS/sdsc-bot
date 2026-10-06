@@ -1,6 +1,6 @@
 part of '../flows.dart';
 
-mixin _Flows2 on Flows {
+mixin _Flows2 on _FlowsBase {
 
   // ------------------------------------------------------------- /grid
 
