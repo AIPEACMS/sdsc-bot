@@ -69,28 +69,6 @@ Map<String, dynamic> _jsonBody(String text) {
   return jsonDecode(text) as Map<String, dynamic>;
 }
 
-NotificationPreference? _notificationFromBody(Map<String, dynamic> body) {
-  final raw = body['notificationPreference'] ?? body['preference'] ?? body['notify'];
-  if (raw is! String) return null;
-  return switch (raw.toLowerCase()) {
-    'weekly' || 'week' => NotificationPreference.weekly,
-    'every-other' || 'every_other' || 'everyother' =>
-      NotificationPreference.everyOther,
-    'never' => NotificationPreference.never,
-    _ => null,
-  };
-}
-
-String _notificationValue(NotificationPreference preference) =>
-    preference == NotificationPreference.everyOther
-    ? 'every-other'
-    : preference.name;
-
-String _tierLabel(String tier) => tier == MemberTier.outMember
-    ? 'out-member'
-    : tier == MemberTier.member
-    ? 'member'
-    : tier;
 class _AdminApiBase {
 
   final Repo repo;
