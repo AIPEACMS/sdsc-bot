@@ -22,30 +22,8 @@ part 'service/notifications.dart';
 String _dayShort(DateTime d) =>
     '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
 
-String _day(DateTime d) =>
-    '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
-
 String _fmt(DateTime d) =>
     '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-
-String _satKey(DateTime sat) =>
-    '${sat.year}-${sat.month.toString().padLeft(2, '0')}-'
-    '${sat.day.toString().padLeft(2, '0')}';
-
-int? _capacityFor(Session session, List<Session> sessions) {
-  final same = sessions.where((other) => capacityKey(other) == capacityKey(session));
-  final limited = same.map((item) => item.maxPeople).whereType<int>().toList();
-  if (limited.isEmpty) return null;
-  return limited.reduce((a, b) => a < b ? a : b);
-}
-
-String _html(String text) =>
-    text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
-
-String _displayName(User user) {
-  final human = user.preferredName;
-  return human.isEmpty ? _html(user.name) : '${_html(human)} ${_html(user.name)}';
-}
 
 class _CycleServiceBase {
 
