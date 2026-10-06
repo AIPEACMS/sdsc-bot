@@ -131,9 +131,7 @@ class _AdminApiBase {
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 }
 
-class AdminApi
-    extends _AdminApiBase
-    with _AdminApi1, _AdminApi2, _AdminApi3, _AdminApi4, _AdminApi5 {
+class AdminApi extends _AdminApiBase {
   AdminApi({
     required super.repo,
     required super.config,

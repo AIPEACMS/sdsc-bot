@@ -40,10 +40,10 @@ extension CycleServiceNotifications on CycleService {
           sessions.where((s) => s.weekendStart == sat).toList()
             ..sort((a, b) => a.start.compareTo(b.start));
       for (final s in weekendSessions) {
-        final key = '$wi:${s.day}:${s.slot}:${s.location}';
-        final mark = want.any((x) => x.encode() == key)
+        final slotKey = '$wi:${s.day}:${s.slot}:${s.location}';
+        final mark = want.any((x) => x.encode() == slotKey)
             ? '🔒'
-            : available.any((x) => x.encode() == key)
+            : available.any((x) => x.encode() == slotKey)
             ? '🟢'
             : '▫️';
         // The callback carries the BUNDLE's first Saturday (not the clicked

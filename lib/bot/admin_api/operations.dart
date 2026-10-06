@@ -9,7 +9,7 @@ extension AdminApiOperations on AdminApi {
   Future<(int, Object)> _setUserAdmin(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final admin = body['admin'];
     if (admin is! bool) {
       return (400, {'ok': false, 'error': 'expected {"admin": bool}'});
@@ -62,7 +62,7 @@ extension AdminApiOperations on AdminApi {
   /// Adds (or approves) a location by name. Used by the console app in place
   /// of the chat `/addlocation`.
   Future<(int, Object)> _createLocation(String bodyText) async {
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final name = (body['name'] as String?)?.trim() ?? '';
     if (name.isEmpty) {
       return (400, {'ok': false, 'error': 'expected {"name": "..."}'});
@@ -91,7 +91,7 @@ extension AdminApiOperations on AdminApi {
     if (repo.locationById(id) == null) {
       return (404, {'ok': false, 'error': 'no such location'});
     }
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final name = body['name'] as String?;
     final aliases = (body['aliases'] as List?)?.whereType<String>().toList();
     repo.approveLocation(id, name: name, aliases: aliases);
@@ -109,7 +109,7 @@ extension AdminApiOperations on AdminApi {
   Future<(int, Object)> _setUserGlobalAdmin(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final gadmin = body['gadmin'];
     if (gadmin is! bool) {
       return (400, {'ok': false, 'error': 'expected {"gadmin": bool}'});
@@ -162,7 +162,7 @@ extension AdminApiOperations on AdminApi {
     if (user.memberTier == MemberTier.outMember) {
       return (400, {'ok': false, 'error': 'out-members have no experience control'});
     }
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final exp = (body['exp'] as String?) ?? '';
     if (exp != 'experienced' && exp != 'newbie') {
       return (
@@ -193,7 +193,7 @@ extension AdminApiOperations on AdminApi {
         {'ok': false, 'error': 'admin owns their group — demote first'},
       );
     }
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final group = (body['group'] as String?) ?? '';
     if (group.isNotEmpty && group != user.group) {
       final adminGroups = repo
