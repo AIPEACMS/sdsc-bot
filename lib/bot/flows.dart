@@ -127,8 +127,8 @@ class Flows {
     commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, state, 'resetgrid', _onResetGrid, label: 'reset-grid');
     commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
-    state.registerLabel('more-commands');
-    bot.hears('more-commands', _onMoreCommands);
+    state.registerLabel('more-cmd');
+    bot.hears('more-cmd', _onMoreCommands);
   }
 
   // ------------------------------------------------------------- /start
@@ -183,6 +183,9 @@ class Flows {
         ..writeln(outMember ? '/notify — choose prompt frequency' : '');
     }
 
+    if (isConsole || isAdmin) {
+      sb.write('\nTap more-cmd for additional commands.');
+    }
     if (isConsole) {
       sb.write('\nType /grid to switch which grid you see (console only).');
     }

@@ -96,9 +96,19 @@ class RoleKeyboard {
   static const List<GridButton> consoleButtons = [];
 
   static const GridButton moreCommandsButton = GridButton(
-    'more-commands',
+    'more-cmd',
     null,
     RoleColor.console,
+  );
+  static const GridButton moreAdminCommandsButton = GridButton(
+    'more-cmd',
+    null,
+    RoleColor.admin,
+  );
+  static const GridButton moreGlobalAdminCommandsButton = GridButton(
+    'more-cmd',
+    null,
+    RoleColor.globalAdmin,
   );
 
   /// Kept as a named alias for callers that used the old composed preview.
@@ -133,7 +143,13 @@ class RoleKeyboard {
         role == 'console-gadmin' ||
         role == 'admin' ||
         role == 'gadmin';
-    return showMore ? [moreCommandsButton, ...buttons] : buttons;
+    if (!showMore) return buttons;
+    final more = switch (role) {
+      'gadmin' || 'console-gadmin' => moreGlobalAdminCommandsButton,
+      'admin' => moreAdminCommandsButton,
+      _ => moreCommandsButton,
+    };
+    return [more, ...buttons];
   }
 
   /// The grid a user should see by default (highest tier wins).
