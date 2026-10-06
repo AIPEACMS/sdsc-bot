@@ -17,7 +17,7 @@ part 'admin/users.dart';
 part 'admin/broadcast.dart';
 part 'admin/attendance.dart';
 
-class Admin with _Admin1, _Admin2, _Admin3, _Admin4 {
+class _AdminBase {
 
   final Bot bot;
 
@@ -31,7 +31,7 @@ class Admin with _Admin1, _Admin2, _Admin3, _Admin4 {
 
   final ScheduleRuntime scheduleRuntime;
 
-  Admin({
+  _AdminBase({
     required this.bot,
     required this.repo,
     required this.config,
@@ -40,4 +40,15 @@ class Admin with _Admin1, _Admin2, _Admin3, _Admin4 {
     ScheduleRuntime? scheduleRuntime,
   }) : scheduleRuntime =
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
+}
+
+class Admin extends _AdminBase with _Admin1, _Admin2, _Admin3, _Admin4 {
+  Admin({
+    required super.bot,
+    required super.repo,
+    required super.config,
+    required super.state,
+    required super.service,
+    super.scheduleRuntime,
+  });
 }

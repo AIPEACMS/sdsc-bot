@@ -1,16 +1,12 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi1 on AdminApi {
+mixin _AdminApi1 on _AdminApiBase {
 
   /// Wired from main.dart with the real [CycleService]. The cycle-driving
   /// endpoints (prompt/remind/allocate/ask/broadcast) require it; everything
   /// else works without it (and does in tests).
-  final CycleService? service;
-
   /// Wired from main.dart: called after a location is added/approved so the
   /// waiting global admin is told and can confirm the new session list.
-  Future<void> Function(LocationInfo location)? onLocationApproved;
-
   RollingWindow _window(DateTime now) => scheduleRuntime.window(now);
 
   /// The actual bound port (differs from [port] when 0 = ephemeral).

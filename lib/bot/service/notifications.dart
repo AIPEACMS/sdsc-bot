@@ -1,6 +1,6 @@
 part of '../service.dart';
 
-mixin _CycleService3 on CycleService {
+mixin _CycleService3 on _CycleServiceBase {
 
   /// Builds the availability inline keyboard from the window's actual
   /// sessions — the schedule template decides the days, times and locations.

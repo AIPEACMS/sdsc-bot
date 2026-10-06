@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo6 on Repo {
+mixin _Repo6 on _RepoBase {
 
   /// Per-weekend allocation flags (in settings) so a weekend is allocated
   /// exactly once even if the scheduler ticks repeatedly.

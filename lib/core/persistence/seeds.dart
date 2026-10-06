@@ -1,6 +1,6 @@
 part of '../db.dart';
 
-mixin _Database3 on Database {
+mixin _Database3 on _DatabaseBase {
 
   /// One-time migration from the legacy cycle-keyed model (sessions keyed by
   /// cycle_id + weekend_index, availability/allocations by cycle_id,

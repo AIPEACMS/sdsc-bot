@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime5 on SetTime {
+mixin _SetTime5 on _SetTimeBase {
 
 /// In-progress /settime draft for one gadmin.
 class _Draft {

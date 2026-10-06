@@ -1,6 +1,6 @@
 part of '../flows.dart';
 
-mixin _Flows3 on Flows {
+mixin _Flows3 on _FlowsBase {
 
   static NotificationPreference? _parseNotificationPreference(String raw) {
     return switch (raw.toLowerCase()) {

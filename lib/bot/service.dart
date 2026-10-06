@@ -44,7 +44,7 @@ String _displayName(User user) {
   return human.isEmpty ? _html(user.name) : '${_html(human)} ${_html(user.name)}';
 }
 
-class CycleService with _CycleService1, _CycleService2, _CycleService3 {
+class _CycleServiceBase {
 
   static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) =>
       _CycleService1.holidaysForWindow(repo, w);
@@ -83,11 +83,49 @@ class CycleService with _CycleService1, _CycleService2, _CycleService3 {
 
   final Bot bot;
 
-  CycleService({
+  _CycleServiceBase({
     required this.repo,
     required this.config,
     required this.messages,
     required this.state,
     required this.bot,
   });
+}
+
+class CycleService extends _CycleServiceBase
+    with _CycleService1, _CycleService2, _CycleService3 {
+  CycleService({
+    required super.repo,
+    required super.config,
+    required super.messages,
+    required super.state,
+    required super.bot,
+  });
+
+  static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) =>
+      _CycleService1.holidaysForWindow(repo, w);
+
+  static InlineKeyboard buildKeyboard(
+    RollingWindow w,
+    (Set<Slot>, Set<Slot>) picked, {
+    bool holiday = false,
+    List<Holiday> holidays = const [],
+    Map<String, int> allocatedCounts = const {},
+    Set<String> ownCapacityGroups = const {},
+    bool hasIndicated = false,
+    required DateTime now,
+    required List<Session> sessions,
+    required String Function(String locationKey) locationName,
+  }) => _CycleService3.buildKeyboard(
+        w,
+        picked,
+        holiday: holiday,
+        holidays: holidays,
+        allocatedCounts: allocatedCounts,
+        ownCapacityGroups: ownCapacityGroups,
+        hasIndicated: hasIndicated,
+        now: now,
+        sessions: sessions,
+        locationName: locationName,
+      );
 }

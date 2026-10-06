@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime1 on SetTime {
+mixin _SetTime1 on _SetTimeBase {
 
   /// Drafts in progress, per gadmin user id.
   final Map<int, _Draft> _drafts = {}

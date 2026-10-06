@@ -1,6 +1,6 @@
 part of '../console.dart';
 
-mixin _Console2 on Console {
+mixin _Console2 on _ConsoleBase {
 
   Future<void> _removeGlobalAdminConfirm(Context ctx) async {
     final current = repo.globalAdmin();

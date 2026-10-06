@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo4 on Repo {
+mixin _Repo4 on _RepoBase {
 
   LocationInfo? locationByKey(String key) {
     final rows = raw.select('SELECT * FROM locations WHERE key = ?', [key]);

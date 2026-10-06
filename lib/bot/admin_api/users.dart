@@ -1,6 +1,6 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi2 on AdminApi {
+mixin _AdminApi2 on _AdminApiBase {
 
 ;
 

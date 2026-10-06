@@ -1,6 +1,6 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi5 on AdminApi {
+mixin _AdminApi5 on _AdminApiBase {
 
   /// Sets one member's attendance state for a session: 'present' | 'absent'
   /// | 'unmarked' (removes the mark — recoverable).

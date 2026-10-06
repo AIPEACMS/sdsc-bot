@@ -1,6 +1,6 @@
 part of '../flows.dart';
 
-mixin _Flows1 on Flows {
+mixin _Flows1 on _FlowsBase {
 
   /// Fired after a member's availability is saved (Done or Not available).
   /// Wired in main.dart to the scheduler's dynamic-allocation trigger.

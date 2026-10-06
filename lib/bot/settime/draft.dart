@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime2 on SetTime {
+mixin _SetTime2 on _SetTimeBase {
 
   /// Entry point for the wizard: the gadmin typed one or more lines.
   Future<void> onText(Context ctx, int userId, String text) async {

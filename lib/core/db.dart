@@ -22,21 +22,24 @@ part 'persistence/schema.dart';
 part 'persistence/migrations.dart';
 part 'persistence/seeds.dart';
 
-class Database with _Database1, _Database2, _Database3 {
+class _DatabaseBase {
 
-  Database._(this._db);
+  _DatabaseBase._(this._db);
 
   final sqlite.Database _db;
 
-  /// Opens (creating if needed) the SQLite database and applies the schema.
+  static void _applySchema(sqlite.Database db, Config config) =>
+      _Database2._applySchema(db, config);
+}
+
+class Database extends _DatabaseBase with _Database1, _Database2, _Database3 {
+  Database._(sqlite.Database db) : super._(db);
+
   factory Database.open(Config config) {
     final db = sqlite.sqlite3.open(config.dbPath);
     db.execute('PRAGMA foreign_keys = ON;');
     db.execute('PRAGMA journal_mode = WAL;');
-    _applySchema(db, config);
+    _DatabaseBase._applySchema(db, config);
     return Database._(db);
   }
-
-  static void _applySchema(sqlite.Database db, Config config) =>
-      _Database2._applySchema(db, config);
 }

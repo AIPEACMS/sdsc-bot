@@ -63,7 +63,7 @@ String _slotLabel(Slot slot, RollingWindow w, Repo repo) {
   return '${Slot.dayLabel(match.day)} · $location · ${_hm(match.start)}-${_hm(match.end)}';
 }
 
-class Flows with _Flows1, _Flows2, _Flows3, _Flows4 {
+class _FlowsBase {
 
   @Deprecated('Immediate allocation is the default in v3.2.0.')
   static String nextSharpHourLabel(DateTime now) =>
@@ -83,7 +83,7 @@ class Flows with _Flows1, _Flows2, _Flows3, _Flows4 {
 
   final ScheduleRuntime scheduleRuntime;
 
-  Flows({
+  _FlowsBase({
     required this.bot,
     required this.repo,
     required this.config,
@@ -112,4 +112,20 @@ class Flows with _Flows1, _Flows2, _Flows3, _Flows4 {
 
   /// Set by main.dart: one alias typed in the console's /addalias wizard.
   Future<void> Function(Context ctx, int userId, String text)? onAddAliasText;
+}
+
+class Flows extends _FlowsBase with _Flows1, _Flows2, _Flows3, _Flows4 {
+  Flows({
+    required super.bot,
+    required super.repo,
+    required super.config,
+    required super.messages,
+    required super.state,
+    required super.service,
+    super.scheduleRuntime,
+  });
+
+  @Deprecated('Immediate allocation is the default in v3.2.0.')
+  static String nextSharpHourLabel(DateTime now) =>
+      _Flows4.nextSharpHourLabel(now);
 }

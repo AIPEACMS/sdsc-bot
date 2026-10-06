@@ -1,6 +1,6 @@
 part of '../admin.dart';
 
-mixin _Admin2 on Admin {
+mixin _Admin2 on _AdminBase {
 
   // ----------------------------------------------------------- /status
 
