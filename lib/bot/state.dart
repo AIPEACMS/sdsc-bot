@@ -53,6 +53,9 @@ class BotState {
     if (label != null) _labels.add(label);
   }
 
+  /// Registers plain-text keyboard input without declaring a slash command.
+  void registerLabel(String label) => _labels.add(label);
+
   bool isValidCommandText(String text) {
     final trimmed = text.trim();
     if (trimmed.startsWith('/')) {

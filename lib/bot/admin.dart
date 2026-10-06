@@ -38,13 +38,10 @@ class Admin {
       _guard(_addOutUser),
       label: 'add-out-user',
     );
-    commandBoth(
-      bot,
-      state,
-      'status',
-      _guard(_status),
-      label: 'all-status',
-    );
+    state.registerCommand('allstatus');
+    bot.command('allstatus', _guard(_status));
+    state.registerCommand('status');
+    bot.command('status', _guard(_status)); // Compatibility alias.
     commandBoth(
       bot,
       state,
@@ -52,13 +49,10 @@ class Admin {
       _guard(_groupStatus),
       label: 'group-status',
     );
-    commandBoth(
-      bot,
-      state,
-      'users',
-      _guard(_users),
-      label: 'all-users',
-    );
+    state.registerCommand('allusers');
+    bot.command('allusers', _guard(_users));
+    state.registerCommand('users');
+    bot.command('users', _guard(_users)); // Compatibility alias.
     commandBoth(
       bot,
       state,

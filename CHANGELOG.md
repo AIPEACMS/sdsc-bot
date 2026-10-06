@@ -5,6 +5,24 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.3.0] - 2026-10-06
+
+### Added
+
+- Added a green `more-commands` button for console, admin, and global-admin
+  grids. It shows additional slash commands not already represented by buttons,
+  with entries filtered by the user's roles and permissions.
+- Added canonical `/allstatus` and `/allusers` command names while retaining
+  `/status` and `/users` compatibility.
+
+### Changed
+
+- Admin, global-admin, and console `/start` messages no longer list commands;
+  the console retains its `/grid` guidance. The existing member, out-member,
+  and checker start messages remain role-specific.
+- The retired-member `/start` message now thanks the person and expresses hope
+  to see them in the future.
+
 ## [4.2.1] - 2026-10-06
 
 ### Fixed
