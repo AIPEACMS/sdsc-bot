@@ -281,14 +281,12 @@ extension AdminApiRouting on AdminApi {
   Map<String, Object?> _scheduleJson() => {
     ...scheduleRuntime.schedule.json,
     'timezoneOffset': config.timezoneOffsetHours,
-  }
-
-  ;
+  };
 
   Future<(int, Object)> _setActiveOutreach(String bodyText) async {
     final Map<String, dynamic> body;
     try {
-      body = this._jsonBody(bodyText);
+      body = _jsonBody(bodyText);
     } catch (_) {
       return (400, {'ok': false, 'error': 'expected a JSON object'});
     }
@@ -314,6 +312,5 @@ extension AdminApiRouting on AdminApi {
     'ok': true,
     ..._scheduleJson(),
     'schedule': _scheduleJson(),
-  }
-
+  };
 }

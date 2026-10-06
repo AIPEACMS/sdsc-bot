@@ -62,6 +62,7 @@ part 'admin_api/routing.dart';
 part 'admin_api/users.dart';
 part 'admin_api/operations.dart';
 part 'admin_api/attendance.dart';
+part 'admin_api/part_05.dart';
 
 Map<String, dynamic> _jsonBody(String text) {
   if (text.trim().isEmpty) return {};
@@ -90,8 +91,6 @@ String _tierLabel(String tier) => tier == MemberTier.outMember
     : tier == MemberTier.member
     ? 'member'
     : tier;
-part 'admin_api/part_05.dart';
-
 class _AdminApiBase {
 
   final Repo repo;
