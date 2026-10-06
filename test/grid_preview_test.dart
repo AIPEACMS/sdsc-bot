@@ -278,7 +278,7 @@ void main() {
     await sendText(1, '/start');
     final welcome = sent[sentBefore];
     expect(welcome['text'],
-        '👋 <b>@console</b>, here is what you can do:\n\nType /grid to switch which grid you see (console only).');
+        '👋 <b>@console</b>, here is what you can do:\nType /grid to switch which grid you see (console only).');
     expect(welcome['parse_mode'], 'HTML');
     expect(keyboardTexts(welcome).first, 'more-commands');
     expect(keyboardTexts(welcome), contains('hold'));
@@ -336,7 +336,7 @@ void main() {
     expect(
       sent.last['text'],
       '👋 <b>@retired</b>, here is what you can do:\n'
-      'Thank you for your commitment! Hope to see you in the future!',
+      'Thank you for your commitment! Hope to see you in the future!\n',
     );
 
     await sendText(3, '/start');
