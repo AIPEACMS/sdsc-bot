@@ -284,10 +284,24 @@ void main() {
     expect(
       await startText(1),
       '👋 <b>@console</b>, here is what you can do:\n\n'
-      '<b>Console</b>\nmore-cmd\n\n'
-      '<b>Global admin</b>\nhold\nunhold\nset-time\n\n'
-      '<b>Admin</b>\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
-      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
+      '<b>Console</b>\nmore-cmd - show additional commands\n\n'
+      '<b>Global admin</b>\n'
+      'hold - pause outgoing messages\n'
+      'unhold - resume outgoing messages\n'
+      'set-time - set activity days, times and locations\n\n'
+      '<b>Admin</b>\n'
+      'add-user - add members\n'
+      'add-out-user - add out-members\n'
+      'group-status - show your group\'s cycle state and responders\n'
+      'group-users - show your group\'s member details\n'
+      'ask - send one member an availability picker\n'
+      'mark-attend - mark attendance\n'
+      'broadcast - message all members\n\n'
+      '<b>Member</b>\n'
+      'start - show the welcome and role buttons\n'
+      're-pick - update your availability\n'
+      'set-info - update your preferred name\n'
+      'my-status - show your picks, allocation and attendance\n'
       'Tap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -308,9 +322,24 @@ void main() {
     expect(
       await startText(5),
       '👋 <b>@adminonly</b>, here is what you can do:\n\n'
-      '<b>Global admin</b>\nmore-cmd\nhold\nunhold\nset-time\n\n'
-      '<b>Admin</b>\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
-      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
+      '<b>Global admin</b>\n'
+      'more-cmd - show additional commands\n'
+      'hold - pause outgoing messages\n'
+      'unhold - resume outgoing messages\n'
+      'set-time - set activity days, times and locations\n\n'
+      '<b>Admin</b>\n'
+      'add-user - add members\n'
+      'add-out-user - add out-members\n'
+      'group-status - show your group\'s cycle state and responders\n'
+      'group-users - show your group\'s member details\n'
+      'ask - send one member an availability picker\n'
+      'mark-attend - mark attendance\n'
+      'broadcast - message all members\n\n'
+      '<b>Member</b>\n'
+      'start - show the welcome and role buttons\n'
+      're-pick - update your availability\n'
+      'set-info - update your preferred name\n'
+      'my-status - show your picks, allocation and attendance\n'
       'Tap more-cmd for additional commands.',
     );
 
@@ -319,9 +348,20 @@ void main() {
     expect(
       await startText(1),
       '👋 <b>@console</b>, here is what you can do:\n\n'
-      '<b>Console</b>\nmore-cmd\n\n'
-      '<b>Admin</b>\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
-      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
+      '<b>Console</b>\nmore-cmd - show additional commands\n\n'
+      '<b>Admin</b>\n'
+      'add-user - add members\n'
+      'add-out-user - add out-members\n'
+      'group-status - show your group\'s cycle state and responders\n'
+      'group-users - show your group\'s member details\n'
+      'ask - send one member an availability picker\n'
+      'mark-attend - mark attendance\n'
+      'broadcast - message all members\n\n'
+      '<b>Member</b>\n'
+      'start - show the welcome and role buttons\n'
+      're-pick - update your availability\n'
+      'set-info - update your preferred name\n'
+      'my-status - show your picks, allocation and attendance\n'
       'Tap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -331,7 +371,7 @@ void main() {
     expect(
       await startText(1),
       '👋 <b>Console</b>, here is what you can do:\n\n'
-      '<b>Console</b>\nmore-cmd\n'
+      '<b>Console</b>\nmore-cmd - show additional commands\n'
       'Tap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -340,8 +380,20 @@ void main() {
     expect(
       await startText(2),
       '👋 <b>@admin</b>, here is what you can do:\n\n'
-      '<b>Admin</b>\nmore-cmd\nadd-user\nadd-out-user\ngroup-status\ngroup-users\nask\nmark-attend\nbroadcast\n\n'
-      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
+      '<b>Admin</b>\n'
+      'more-cmd - show additional commands\n'
+      'add-user - add members\n'
+      'add-out-user - add out-members\n'
+      'group-status - show your group\'s cycle state and responders\n'
+      'group-users - show your group\'s member details\n'
+      'ask - send one member an availability picker\n'
+      'mark-attend - mark attendance\n'
+      'broadcast - message all members\n\n'
+      '<b>Member</b>\n'
+      'start - show the welcome and role buttons\n'
+      're-pick - update your availability\n'
+      'set-info - update your preferred name\n'
+      'my-status - show your picks, allocation and attendance\n'
       'Tap more-cmd for additional commands.',
     );
 
@@ -352,7 +404,11 @@ void main() {
     expect(
       await startText(4),
       '👋 <b>@member</b>, here is what you can do:\n\n'
-      '<b>Member</b>\nstart\nre-pick\nset-info\nmy-status\n'
+      '<b>Member</b>\n'
+      'start - show the welcome and role buttons\n'
+      're-pick - update your availability\n'
+      'set-info - update your preferred name\n'
+      'my-status - show your picks, allocation and attendance\n'
       're-pick — update your availability\n'
       'set-info — update your preferred name\n'
       'my-status — your picks, allocation and attendance',
@@ -370,7 +426,12 @@ void main() {
     expect(
       await startText(7),
       '👋 <b>@outmember</b>, here is what you can do:\n\n'
-      '<b>Out-member</b>\nstart\nre-pick\nset-info\nmy-status\nnotify\n'
+      '<b>Out-member</b>\n'
+      'start - show the welcome and role buttons\n'
+      're-pick - update your availability\n'
+      'set-info - update your preferred name\n'
+      'my-status - show your picks and allocation\n'
+      'notify - choose prompt frequency\n'
       're-pick — update your availability\n'
       'set-info — update your preferred name\n'
       'my-status — your picks and allocation\n'

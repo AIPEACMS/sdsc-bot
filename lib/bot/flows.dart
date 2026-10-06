@@ -176,7 +176,13 @@ class Flows {
     for (final section in visibleSections) {
       sb.write('\n\n<b>${_html(section.title)}</b>');
       for (final button in section.buttons) {
-        sb.write('\n${_html(button.label)}');
+        sb.write(
+          '\n${_html(button.label)} - '
+          '${_html(RoleKeyboard.descriptionFor(
+            button,
+            outMember: section.title == 'Out-member',
+          ))}',
+        );
       }
     }
 
