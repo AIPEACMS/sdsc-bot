@@ -137,6 +137,7 @@ void main() {
       state: state,
       service: service,
     );
+    flows.onAddUserText = admin.onAddUserText;
     holdGate = HoldGate(false);
     console = Console(
       bot: bot,
