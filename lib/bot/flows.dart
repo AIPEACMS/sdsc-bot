@@ -117,13 +117,10 @@ class Flows {
     commandBoth(bot, state, 'repick', _onRepick, label: 're-pick');
     commandBoth(bot, state, 'setinfo', _onSetInfo, label: 'set-info');
     commandBoth(bot, state, 'mystatus', _onMyStatus, label: 'my-status');
-    commandBoth(
-      bot,
-      state,
-      'check-status',
-      _onCheckStatus,
-      label: 'check-status',
-    );
+    state.registerCommand('checkstatus');
+    bot.command('checkstatus', _onCheckStatusCommand);
+    state.registerLabel('check-status');
+    bot.hears('check-status', _onCheckStatus);
     commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
     commandBoth(bot, state, 'resetgrid', _onResetGrid, label: 'reset-grid');
     commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
@@ -159,8 +156,8 @@ class Flows {
     // check-status keyboard instead of presenting the generic role sections.
     if (checker && !isConsole) {
       await ctx.reply(
-        '👋 <b>${_html(name)}</b>, you are a checker.\n\n'
-        '/check-status — the current week\'s allocation',
+          '👋 <b>${_html(name)}</b>, you are a checker.\n\n'
+          'check-status - show the current week\'s allocation',
         parseMode: ParseMode.html,
         replyMarkup: RoleKeyboard.build('check'),
       );
@@ -670,9 +667,17 @@ class Flows {
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
 
-  // ---------------------------------------------------- /check-status
+  // ---------------------------------------------------- /checkstatus
 
-  /// The `check` tier's only command: print the current weekend's allocation.
+  Future<void> _onCheckStatusCommand(Context ctx) async {
+    if (!config.isConsole(ctx.from?.id ?? 0)) {
+      await ctx.reply('Only the console can use /checkstatus.');
+      return;
+    }
+    await _onCheckStatus(ctx);
+  }
+
+  /// The `check` tier's only button action: print the current weekend's allocation.
   /// The console is allowed too (it may preview the check grid via /grid and
   /// must be able to actually test the output).
   Future<void> _onCheckStatus(Context ctx) async {
@@ -742,7 +747,7 @@ class Flows {
   /// Set by main.dart: applies the typed date of the /setdate wizard.
   Future<void> Function(Context ctx, int userId, String text)? onSetDateText;
 
-  /// Set by main.dart: applies the pasted YAML of the /sync-calendar wizard.
+  /// Set by main.dart: applies the pasted YAML of the /synccalendar wizard.
   Future<void> Function(Context ctx, int userId, String text)?
   onSyncCalendarText;
 

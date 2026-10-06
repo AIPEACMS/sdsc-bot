@@ -224,7 +224,7 @@ void main() {
 
   test('check grid is a single button', () {
     expect(RoleKeyboard.checkButtons, hasLength(1));
-    expect(RoleKeyboard.checkButtons.single.command, '/check-status');
+    expect(RoleKeyboard.checkButtons.single.command, '/checkstatus');
   });
 
   test('built keyboard is persistent, resized, and buttons are styled', () {
@@ -428,7 +428,7 @@ void main() {
       '/addadmin',
       '/addcheck',
       '/demote',
-      '/sync-calendar',
+      '/synccalendar',
       ...admin.map((entry) => entry.command),
     ]);
     expect(gadmin.map((entry) => entry.command), isNot(contains('/hold')));
@@ -441,7 +441,7 @@ void main() {
       tier: null,
     );
     expect(consoleOnly.map((entry) => entry.command), [
-      '/check-status',
+      '/checkstatus',
       '/start',
       '/grid',
       '/resetgrid',
@@ -573,7 +573,7 @@ void main() {
     );
     expect(consoleOnly.map((section) => section.title), ['Console']);
     expect(consoleOnly.single.commands.map((entry) => entry.command), [
-      '/check-status',
+      '/checkstatus',
       '/start',
       '/grid',
       '/resetgrid',
@@ -616,7 +616,7 @@ void main() {
       '/addadmin',
       '/addcheck',
       '/demote',
-      '/sync-calendar',
+      '/synccalendar',
       '/allstatus',
       '/allusers',
       '/prompt',
@@ -633,7 +633,7 @@ void main() {
     );
     expect(consoleAdmin.map((section) => section.title), ['Console', 'Admin']);
     expect(consoleAdmin.first.commands.map((entry) => entry.command), [
-      '/check-status',
+      '/checkstatus',
       '/grid',
       '/resetgrid',
       '/setdate',

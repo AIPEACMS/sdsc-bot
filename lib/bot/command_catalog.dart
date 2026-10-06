@@ -39,10 +39,10 @@ class CommandCatalog {
     CommandHelp('/addadmin', 'promote a registered user', usage: '@handle'),
     CommandHelp('/addcheck', 'add a checker', usage: '@handle'),
     CommandHelp('/demote', 'demote an admin', usage: '@handle'),
-    CommandHelp('/sync-calendar', 'push the calendar YAML'),
+    CommandHelp('/synccalendar', 'push the calendar YAML'),
   ];
   static const List<CommandHelp> _console = [
-    CommandHelp('/check-status', 'show the current week\'s allocation'),
+    CommandHelp('/checkstatus', 'test the checker\'s check-status'),
     CommandHelp('/start', 'show the welcome and role buttons'),
     CommandHelp('/grid', 'preview role grids'),
     CommandHelp('/resetgrid', 'return to your console grid'),

@@ -441,7 +441,7 @@ void main() {
     expect(
       await startText(3),
       '👋 <b>@checker</b>, you are a checker.\n\n'
-      '/check-status — the current week\'s allocation',
+      'check-status - show the current week\'s allocation',
     );
     expect(keyboardTexts(sent.last), ['check-status']);
 
@@ -605,19 +605,19 @@ void main() {
     expect(sent.last['text'], contains('Only the console can reset'));
   });
 
-  test('console can run /check-status (previewing the check grid)', () async {
-    await sendText(1, '/check-status');
+  test('console can run /checkstatus (previewing the check grid)', () async {
+    await sendText(1, '/checkstatus');
     expect(sent.last['text'], isNot(contains('Only checkers')));
     expect(sent.last['text'], contains('This week\'s allocation'));
     expect(sent.last['text'], contains('@admin'));
   });
 
-  test('a plain member is still rejected from /check-status', () async {
+  test('a plain member is rejected from /checkstatus', () async {
     repo.upsertUser(
       User(id: 4, name: '@member', experience: Experience.newbie, group: '1'),
     );
-    await sendText(4, '/check-status');
-    expect(sent.last['text'], contains('Only checkers can view'));
+    await sendText(4, '/checkstatus');
+    expect(sent.last['text'], contains('Only the console can use /checkstatus'));
   });
 
   test('/status appends the allocation table for both weekends', () async {
@@ -684,7 +684,7 @@ void main() {
     expect(text.indexOf('<b>Global admin</b>'), lessThan(text.indexOf('<b>Admin</b>')));
     expect(text, contains('/addcheck @handle - add a checker'));
     expect(text, contains('/allstatus - show cycle state and responders'));
-    expect(text, contains('/check-status - show the current week\'s allocation'));
+    expect(text, contains('/checkstatus - test the checker\'s check-status'));
     expect(text, isNot(contains('/hold')));
     expect(text, isNot(contains('/start -')));
     expect(text, isNot(contains('/repick')));

@@ -99,7 +99,7 @@ class RoleKeyboard {
   /// The `check` tier's single button: they are not members and only report
   /// on the current week's allocation.
   static const List<GridButton> checkButtons = [
-    GridButton('check-status', '/check-status', RoleColor.member),
+    GridButton('check-status', '/checkstatus', RoleColor.member),
   ];
 
   /// The `old` tier has no buttons at all — they are no longer members.
