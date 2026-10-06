@@ -49,9 +49,7 @@ class _SetTimeBase {
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 }
 
-class SetTime
-    extends _SetTimeBase
-    with _SetTime1, _SetTime2, _SetTime3, _SetTime4, _SetTime5 {
+class SetTime extends _SetTimeBase {
   SetTime({
     required super.bot,
     required super.repo,

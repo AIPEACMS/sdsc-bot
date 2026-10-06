@@ -9,7 +9,7 @@ extension AdminApiAttendance on AdminApi {
   /// directly as that tier — the console's "Add check" uses this instead of
   /// adding a member and converting afterwards.
   Future<(int, Object)> _addUser(String bodyText) async {
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final handle =
         (body['handle'] as String?)?.trim().replaceFirst('@', '') ?? '';
     final tier = (body['tier'] as String?) ?? MemberTier.member;
@@ -24,7 +24,7 @@ extension AdminApiAttendance on AdminApi {
         {'ok': false, 'error': 'tier must be "member", "out-member" or "check"'},
       );
     }
-    final preference = this._notificationFromBody(body);
+    final preference = _notificationFromBody(body);
     if ((body.containsKey('notificationPreference') ||
             body.containsKey('preference') ||
             body.containsKey('notify')) &&
@@ -55,7 +55,7 @@ extension AdminApiAttendance on AdminApi {
           200,
           {
             'ok': true,
-            'message': '@$handle is already a ${this._tierLabel(tier)}.',
+            'message': '@$handle is already a ${_tierLabel(tier)}.',
           },
         );
       }
@@ -65,7 +65,7 @@ extension AdminApiAttendance on AdminApi {
       if (preference != null) repo.setNotificationPreference(existing.id, preference);
       return (
         200,
-        {'ok': true, 'message': '@$handle converted to ${this._tierLabel(tier)}.'},
+        {'ok': true, 'message': '@$handle converted to ${_tierLabel(tier)}.'},
       );
     }
     if (pending != null) {
@@ -82,8 +82,8 @@ extension AdminApiAttendance on AdminApi {
           'ok': true,
           'warning': true,
           'message': '@$handle is not registered; pending role '
-              '${this._tierLabel(pending.effectiveTier)} was replaced with '
-              '${this._tierLabel(tier)}.',
+              '${_tierLabel(pending.effectiveTier)} was replaced with '
+              '${_tierLabel(tier)}.',
         },
       );
     }
@@ -163,7 +163,7 @@ extension AdminApiAttendance on AdminApi {
     if (service == null) {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final id = (body['userId'] as num?)?.toInt();
     if (id == null) {
       return (400, {'ok': false, 'error': 'expected {"userId": <id>}'});
@@ -215,7 +215,7 @@ extension AdminApiAttendance on AdminApi {
     if (service == null) {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final text = (body['text'] as String?)?.trim() ?? '';
     if (text.isEmpty) {
       return (400, {'ok': false, 'error': 'expected {"text": "..."}'});

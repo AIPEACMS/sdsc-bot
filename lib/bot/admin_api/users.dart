@@ -2,12 +2,10 @@ part of '../admin_api.dart';
 
 extension AdminApiUsers on AdminApi {
 
-;
-
   Future<(int, Object)> _setSchedule(String bodyText) async {
     final Map<String, dynamic> body;
     try {
-      body = this._jsonBody(bodyText);
+      body = _jsonBody(bodyText);
     } catch (_) {
       return (400, {'ok': false, 'error': 'expected a JSON object'});
     }
@@ -159,7 +157,7 @@ extension AdminApiUsers on AdminApi {
       'group': u.group,
       'preferredName': u.preferredName,
       'experience': u.experience.name,
-      'notificationPreference': this._notificationValue(u.notificationPreference),
+      'notificationPreference': _notificationValue(u.notificationPreference),
       'lastPromptState': u.lastPromptState.name,
       'ocbcStreak': u.ocbcStreak,
       'attendance': attendance,
@@ -169,7 +167,7 @@ extension AdminApiUsers on AdminApi {
   Future<(int, Object)> _setTier(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    final body = this._jsonBody(bodyText);
+    final body = _jsonBody(bodyText);
     final tier = (body['tier'] as String?) ?? '';
     if (![
       MemberTier.admin,
@@ -186,7 +184,7 @@ extension AdminApiUsers on AdminApi {
         'error': 'out-members cannot be promoted to admin',
       });
     }
-    final preference = this._notificationFromBody(body);
+    final preference = _notificationFromBody(body);
     if ((body.containsKey('notificationPreference') ||
             body.containsKey('preference') ||
             body.containsKey('notify')) &&
@@ -210,7 +208,7 @@ extension AdminApiUsers on AdminApi {
         'ok': true,
         'user': updated.name,
         'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
-        'notificationPreference': this._notificationValue(
+        'notificationPreference': _notificationValue(
           updated.notificationPreference,
         ),
       },
@@ -223,8 +221,8 @@ extension AdminApiUsers on AdminApi {
   ) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    final body = this._jsonBody(bodyText);
-    final preference = this._notificationFromBody(body);
+    final body = _jsonBody(bodyText);
+    final preference = _notificationFromBody(body);
     if (preference == null) {
       return (
         400,
@@ -241,7 +239,7 @@ extension AdminApiUsers on AdminApi {
       200,
       {
         'ok': true,
-        'notificationPreference': this._notificationValue(
+        'notificationPreference': _notificationValue(
           updated.notificationPreference,
         ),
       },
@@ -255,7 +253,7 @@ extension AdminApiUsers on AdminApi {
       200,
       {
         'ok': true,
-        'notificationPreference': this._notificationValue(
+        'notificationPreference': _notificationValue(
           user.notificationPreference,
         ),
         'lastPromptState': user.lastPromptState.name,
