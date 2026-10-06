@@ -206,9 +206,9 @@ class Flows {
           '(they can then use /start)',
         )
         ..writeln('add-out-user @handle [@handle ...] - add out-members')
-        ..writeln('/status - cycle state and responders')
+        ..writeln('all-status (/status) - cycle state and responders')
         ..writeln('group-status — your group\'s cycle state and responders')
-        ..writeln('/users - registered members')
+        ..writeln('all-users (/users) - registered members')
         ..writeln('group-users — your group\'s member details')
         ..writeln('/prompt — send availability prompts now')
         ..writeln('/remind — remind non-responders now')

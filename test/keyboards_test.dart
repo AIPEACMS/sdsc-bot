@@ -54,6 +54,14 @@ void main() {
     );
     expect(
       RoleKeyboard.globalAdminButtons.map((button) => button.command),
+      isNot(contains('/status')),
+    );
+    expect(
+      RoleKeyboard.globalAdminButtons.map((button) => button.command),
+      isNot(contains('/users')),
+    );
+    expect(
+      RoleKeyboard.globalAdminButtons.map((button) => button.command),
       containsAll(RoleKeyboard.adminButtons.map((button) => button.command)),
     );
   });

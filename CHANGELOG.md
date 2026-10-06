@@ -5,6 +5,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.2.1] - 2026-10-06
+
+### Fixed
+
+- Restored the `all-status` and `all-users` text commands and listed them in
+  `/start`, while keeping their buttons off the admin and global-admin grids.
+
 ## [4.2.0] - 2026-10-06
 
 ### Added
