@@ -9,6 +9,14 @@ import 'db.dart';
 import 'models.dart';
 import 'week.dart';
 
+part 'persistence/repo/users.dart';
+part 'persistence/repo/settings.dart';
+part 'persistence/repo/locations.dart';
+part 'persistence/repo/sessions.dart';
+part 'persistence/repo/availability.dart';
+part 'persistence/repo/attendance.dart';
+part 'persistence/repo/holidays.dart';
+
 /// A registered Ed25519 public key that the desktop console app uses to sign
 /// admin API requests. The value is the base64 of the raw 32-byte key.
 class ConsoleKey {
@@ -31,14 +39,6 @@ enum GlobalAdminResult {
 
 /// Data access layer over SQLite. All dates are stored as ISO-8601 strings in
 /// the bot's local timezone (UTC+8).
-
-part 'persistence/repo/users.dart';
-part 'persistence/repo/settings.dart';
-part 'persistence/repo/locations.dart';
-part 'persistence/repo/sessions.dart';
-part 'persistence/repo/availability.dart';
-part 'persistence/repo/attendance.dart';
-part 'persistence/repo/holidays.dart';
 
 class _RepoBase {
 

@@ -320,7 +320,7 @@ END;
     db.execute("UPDATE users SET group_id = '2' WHERE group_id = 'B'");
     // Rolling-model migration: databases created before the weekend-keyed
     // sessions/availability/allocations/attendance must be rebuilt.
-    _migrateWeekendModel(db);
+    DatabaseSeeds._migrateWeekendModel(db);
     // Dynamic locations (added in v3): seed the two built-in ones once, with
     // their common aliases. A console can add more later (with aliases).
     for (final (key, name, aliases) in [

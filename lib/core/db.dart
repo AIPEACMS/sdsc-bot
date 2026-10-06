@@ -6,6 +6,10 @@ import 'config.dart';
 import 'models.dart';
 import 'week.dart';
 
+part 'persistence/schema.dart';
+part 'persistence/migrations.dart';
+part 'persistence/seeds.dart';
+
 const defaultActiveOutreachRouteKeys = [
   'prompt',
   'reminder',
@@ -17,10 +21,6 @@ const defaultActiveOutreachRouteKeys = [
   'ask',
   'broadcast',
 ];
-
-part 'persistence/schema.dart';
-part 'persistence/migrations.dart';
-part 'persistence/seeds.dart';
 
 class _DatabaseBase {
 
