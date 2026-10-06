@@ -273,6 +273,44 @@ void main() {
     expect(consoleOnlyButton.style?.name, 'success');
   });
 
+  test('role combinations retain their complete ordered keyboards', () {
+    List<(String, RoleColor)> buttons(String role, {bool console = false}) => [
+      for (final button in RoleKeyboard.buttonsFor(
+        role,
+        consoleIdentity: console,
+      ))
+        (button.label, button.color),
+    ];
+
+    expect(buttons('console-only'), [('more-cmd', RoleColor.console)]);
+    expect(
+      buttons('admin'),
+      [
+        ('more-cmd', RoleColor.admin),
+        ...RoleKeyboard.adminButtons.map((b) => (b.label, b.color)),
+      ],
+    );
+    expect(
+      buttons('gadmin'),
+      [
+        ('more-cmd', RoleColor.globalAdmin),
+        ...RoleKeyboard.globalAdminButtons.map((b) => (b.label, b.color)),
+      ],
+    );
+    expect(
+      buttons('member'),
+      RoleKeyboard.memberButtons.map((b) => (b.label, b.color)).toList(),
+    );
+    expect(
+      buttons('out-member'),
+      RoleKeyboard.outMemberButtons.map((b) => (b.label, b.color)).toList(),
+    );
+    expect(
+      buttons('check'),
+      RoleKeyboard.checkButtons.map((b) => (b.label, b.color)).toList(),
+    );
+  });
+
   test('console identity gets More Commands on lower-tier grids only', () {
     for (final role in ['member', 'out-member', 'check', 'old']) {
       expect(RoleKeyboard.buttonsFor(role, consoleIdentity: true).first,
@@ -387,11 +425,11 @@ void main() {
       tier: 'member',
     );
     expect(gadmin.map((entry) => entry.command), [
-      ...admin.map((entry) => entry.command),
       '/addadmin',
       '/addcheck',
       '/demote',
       '/sync-calendar',
+      ...admin.map((entry) => entry.command),
     ]);
     expect(gadmin.map((entry) => entry.command), isNot(contains('/hold')));
     expect(gadmin.map((entry) => entry.command), isNot(contains('/unhold')));
@@ -424,7 +462,157 @@ void main() {
     );
     expect(
       consoleOnly.map((entry) => entry.display),
-      contains('/addlocation <name> - approve or add a location'),
+      contains('/addlocation [name] - approve or add a location'),
     );
+  });
+
+  test('role sections preserve actual roles and presentation order', () {
+    List<String> sections({
+      bool console = false,
+      bool admin = false,
+      bool gadmin = false,
+      String? tier = 'member',
+    }) => CommandCatalog.roleSections(
+      isConsole: console,
+      isAdmin: admin,
+      isGlobalAdmin: gadmin,
+      tier: tier,
+    );
+
+    expect(sections(console: true, admin: true, gadmin: true), [
+      'Console',
+      'Global admin',
+      'Admin',
+      'Member',
+    ]);
+    expect(sections(console: true, admin: true), [
+      'Console',
+      'Admin',
+      'Member',
+    ]);
+    expect(sections(gadmin: true), ['Global admin', 'Admin', 'Member']);
+    expect(sections(admin: true), ['Admin', 'Member']);
+    expect(sections(console: true, tier: null), ['Console']);
+    expect(sections(tier: 'out-member'), ['Out-member']);
+    expect(sections(tier: 'check'), ['Checker']);
+  });
+
+  test('sectioned catalog has exact role order and additional commands', () {
+    final consoleOnly = CommandCatalog.sections(
+      isConsole: true,
+      isAdmin: false,
+      isGlobalAdmin: false,
+      tier: null,
+    );
+    expect(consoleOnly.map((section) => section.title), ['Console']);
+    expect(consoleOnly.single.commands.map((entry) => entry.command), [
+      '/check-status',
+      '/start',
+      '/grid',
+      '/resetgrid',
+      '/setdate',
+      '/resetdate',
+      '/addkey',
+      '/keys',
+      '/rmkey',
+      '/addg',
+      '/rmg',
+      '/locations',
+      '/addlocation',
+      '/addalias',
+    ]);
+
+    final admin = CommandCatalog.sections(
+      isConsole: false,
+      isAdmin: true,
+      isGlobalAdmin: false,
+      tier: 'member',
+    );
+    expect(admin.map((section) => section.title), ['Admin']);
+    expect(admin.single.commands.map((entry) => entry.command), [
+      '/allstatus',
+      '/allusers',
+      '/prompt',
+      '/remind',
+      '/setexp',
+      '/allocate',
+    ]);
+
+    final gadmin = CommandCatalog.sections(
+      isConsole: false,
+      isAdmin: false,
+      isGlobalAdmin: true,
+      tier: 'member',
+    );
+    expect(gadmin.map((section) => section.title), ['Global admin', 'Admin']);
+    expect(gadmin.expand((section) => section.commands).map((entry) => entry.command), [
+      '/addadmin',
+      '/addcheck',
+      '/demote',
+      '/sync-calendar',
+      '/allstatus',
+      '/allusers',
+      '/prompt',
+      '/remind',
+      '/setexp',
+      '/allocate',
+    ]);
+
+    final consoleAdmin = CommandCatalog.sections(
+      isConsole: true,
+      isAdmin: true,
+      isGlobalAdmin: false,
+      tier: 'member',
+    );
+    expect(consoleAdmin.map((section) => section.title), ['Console', 'Admin']);
+    expect(consoleAdmin.first.commands.map((entry) => entry.command), [
+      '/check-status',
+      '/grid',
+      '/resetgrid',
+      '/setdate',
+      '/resetdate',
+      '/addkey',
+      '/keys',
+      '/rmkey',
+      '/addg',
+      '/rmg',
+      '/locations',
+      '/addlocation',
+      '/addalias',
+    ]);
+    expect(
+      consoleAdmin.expand((section) => section.commands).map((entry) => entry.command),
+      isNot(contains('/hold')),
+    );
+
+    final consoleGlobalAdmin = CommandCatalog.sections(
+      isConsole: true,
+      isAdmin: false,
+      isGlobalAdmin: true,
+      tier: 'member',
+    );
+    expect(
+      consoleGlobalAdmin.map((section) => section.title),
+      ['Console', 'Global admin', 'Admin'],
+    );
+    expect(
+      consoleGlobalAdmin.first.commands.map((entry) => entry.command),
+      isNot(contains('/start')),
+    );
+
+    for (final section in [
+      ...consoleOnly,
+      ...admin,
+      ...gadmin,
+      ...consoleAdmin,
+      ...consoleGlobalAdmin,
+    ]) {
+      for (final entry in section.commands) {
+        expect(entry.usage, isNot(contains('<')));
+        expect(entry.usage, isNot(contains('>')));
+        expect(entry.command, isNot('/status'));
+        expect(entry.command, isNot('/users'));
+      }
+    }
   });
 }
