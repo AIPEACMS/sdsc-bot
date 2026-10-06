@@ -38,8 +38,13 @@ class Admin {
       _guard(_addOutUser),
       label: 'add-out-user',
     );
-    state.registerCommand('status');
-    bot.command('status', _guard(_status));
+    commandBoth(
+      bot,
+      state,
+      'status',
+      _guard(_status),
+      label: 'all-status',
+    );
     commandBoth(
       bot,
       state,
@@ -47,8 +52,13 @@ class Admin {
       _guard(_groupStatus),
       label: 'group-status',
     );
-    state.registerCommand('users');
-    bot.command('users', _guard(_users));
+    commandBoth(
+      bot,
+      state,
+      'users',
+      _guard(_users),
+      label: 'all-users',
+    );
     commandBoth(
       bot,
       state,

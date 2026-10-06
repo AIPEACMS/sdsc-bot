@@ -283,6 +283,8 @@ void main() {
       expect(welcome['text'], contains('/addlocation'));
       expect(welcome['text'], contains('/addalias'));
       expect(welcome['parse_mode'], 'HTML');
+      expect(keyboardTexts(welcome), isNot(contains('all-status')));
+      expect(keyboardTexts(welcome), isNot(contains('all-users')));
     },
   );
 
@@ -301,10 +303,8 @@ void main() {
     expect(text, contains('add-out-user @handle [@handle ...] - add out-members'));
     expect(text.split('add-out-user').length - 1, 1);
     expect(text, isNot(contains('/addoutuser')));
-    expect(text, contains('/status -'));
-    expect(text, contains('/users -'));
-    expect(text, isNot(contains('all-status')));
-    expect(text, isNot(contains('all-users')));
+    expect(text, contains('all-status (/status) - cycle state and responders'));
+    expect(text, contains('all-users (/users) - registered members'));
     expect(text, contains('/addadmin @handle'));
     expect(text, contains('/settime'));
     expect(text, isNot(contains('next sharp hour')));
@@ -481,16 +481,21 @@ void main() {
     expect(text, contains('@checker')); // sat1 allocation
   });
 
-  test('status and users remain typed commands, not grid labels', () async {
-    final before = sent.length;
+  test('all-status and all-users text aliases are not grid labels', () async {
     await sendPlainText(2, 'all-status');
+    expect(sent.last['text'], contains('All members status'));
     await sendPlainText(2, 'all-users');
-    expect(sent, hasLength(before));
+    expect(sent.last['text'], contains('All users'));
 
     await sendText(2, '/status');
     expect(sent.last['text'], contains('All members status'));
     await sendText(2, '/users');
     expect(sent.last['text'], contains('All users'));
+
+    await sendText(2, '/grid');
+    final adminButtons = keyboardTexts(sent.last);
+    expect(adminButtons, isNot(contains('all-status')));
+    expect(adminButtons, isNot(contains('all-users')));
   });
 
   test('/prompt excludes current and previous bundle respondents', () async {
