@@ -2,6 +2,7 @@ import 'package:televerse/televerse.dart';
 import 'package:televerse/telegram.dart' hide Location, User;
 
 import '../core/models.dart';
+import '../core/domain/capacity.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
 import '../core/messages.dart';
@@ -13,580 +14,41 @@ import 'state.dart';
 /// High-level operations that drive the rolling schedule: prompting,
 /// reminding, allocating each weekend and delivering allocation messages.
 /// Used by both the scheduler and the admin commands.
-class CycleService {
-  final Repo repo;
-  final Config config;
-  final Messages messages;
-  final BotState state;
-  final Bot bot;
 
-  CycleService({
-    required this.repo,
-    required this.config,
-    required this.messages,
-    required this.state,
-    required this.bot,
-  });
+part 'service/prompts.dart';
+part 'service/allocation.dart';
+part 'service/notifications.dart';
 
-  /// Picks the right prompt for [user] for [window]: holiday variant first,
-  /// then the "you did not attend" variant for lapsed members. Returns null
-  /// when the member opted out of the holiday.
-  String? promptFor(User user, RollingWindow w) {
-    final holiday = repo.holidayOn(w.sat0) ?? repo.holidayOn(w.sat1);
-    if (holiday != null) {
-      if (repo.hasHolidayOptout(user.id, holiday.weekStart)) return null;
-      if (holiday.kind == HolidayKind.middle) {
-        return messages.msg5A(user.group);
-      }
-      final season = holiday.kind == HolidayKind.winter ? 'winter' : 'summer';
-      return messages.msg5B(user.group, season: season);
-    }
-    // The "we noticed you have not attended the past 2 weeks" variant only
-    // makes sense when the member could actually have attended: they joined
-    // more than 2 weeks ago, and the semester containing the sessions has
-    // been running for at least 2 weeks.
-    final joinedRecently =
-        user.registeredAt == null ||
-        Config.nowUtc().difference(user.registeredAt!.toUtc()) <
-            const Duration(days: 14);
-    final year = repo.latestCalendarYear();
-    final sem = year?.semesterAt(w.sat0);
-    final semesterMature =
-        sem?.firstStart != null &&
-        w.sat0.difference(sem!.firstStart!) >= const Duration(days: 14);
-    if (!joinedRecently &&
-        semesterMature &&
-        !repo.hasAttendedInPastDays(user.id, 14)) {
-      return messages.msg1A(user.group);
-    }
-    return messages.msg1(user.group);
-  }
+String _dayShort(DateTime d) =>
+    '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
 
-  /// The holiday a member has opted out of for this availability window.
-  Holiday? optedOutHolidayFor(User user, RollingWindow w) {
-    final holiday = repo.holidayOn(w.sat0) ?? repo.holidayOn(w.sat1);
-    if (holiday != null && repo.hasHolidayOptout(user.id, holiday.weekStart)) {
-      return holiday;
-    }
-    return null;
-  }
+String _fmt(DateTime d) =>
+    '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
-  /// Reminder text for [user], or null when they opted out of the holiday.
-  String? reminderFor(User user, RollingWindow w) =>
-      optedOutHolidayFor(user, w) == null ? messages.msg2(user.group) : null;
+String _satKey(DateTime sat) =>
+    '${sat.year}-${sat.month.toString().padLeft(2, '0')}-'
+    '${sat.day.toString().padLeft(2, '0')}';
 
-  /// Human-readable period for an opted-out holiday, Monday through Sunday.
-  String holidayPeriod(Holiday holiday) =>
-      '${_dayShort(holiday.weekStart)} to '
-      '${_dayShort(holiday.weekStart.add(const Duration(days: 6)))}';
+int? _capacityFor(Session session, List<Session> sessions) {
+  final same = sessions.where((other) => capacityKey(other) == capacityKey(session));
+  final limited = same.map((item) => item.maxPeople).whereType<int>().toList();
+  if (limited.isEmpty) return null;
+  return limited.reduce((a, b) => a < b ? a : b);
+}
 
-  /// Sends the availability picker for [window] to every prompt target.
-  Future<void> sendPrompts(RollingWindow w) async {
-    var failures = 0;
-    final today = config.toLocal(Config.nowUtc());
-    for (final user in repo.promptTargets(w.sat0)) {
-      if (repo.isQuiet(user.id, w.sat0)) {
-        if (user.notificationPreference == NotificationPreference.everyOther) {
-          repo.setLastPromptState(user.id, LastPromptState.none);
-        }
-        continue;
-      }
-      if (!_shouldPrompt(user)) {
-        if (user.notificationPreference == NotificationPreference.everyOther &&
-            !repo.messageSentOnDay(user.id, 'prompt', today)) {
-          repo.setLastPromptState(user.id, LastPromptState.none);
-        }
-        continue;
-      }
-      try {
-        // Never send the same prompt to the same user twice in one day.
-        if (repo.messageSentOnDay(user.id, 'prompt', today)) continue;
-        final text = promptFor(user, w);
-        if (text == null) continue; // opted out of this holiday
-        await showAvailability(user, w, text);
-        repo.markMessageSent(user.id, 'prompt', today);
-        repo.setLastPromptState(user.id, LastPromptState.prompted);
-      } catch (_) {
-        failures++; // member may have blocked the bot
-      }
-    }
-    if (failures > 0) LogRing.log('prompt: $failures members unreachable');
-  }
+String _html(String text) =>
+    text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
 
-  /// Reminds the bundle's non-responders (and not the quiet).
-  Future<void> sendReminders(RollingWindow w) async {
-    var failures = 0;
-    final today = config.toLocal(Config.nowUtc());
-    for (final user in repo.reminderTargets(w.sat0)) {
-      if (!_shouldRemind(user)) continue;
-      try {
-        if (repo.messageSentOnDay(user.id, 'reminder', today)) continue;
-        final text = reminderFor(user, w);
-        if (text == null) continue;
-        await showAvailability(user, w, text);
-        repo.markMessageSent(user.id, 'reminder', today);
-      } catch (_) {
-        failures++;
-      }
-    }
-    if (failures > 0) LogRing.log('remind: $failures members unreachable');
-  }
+String _displayName(User user) {
+  final human = user.preferredName;
+  return human.isEmpty ? _html(user.name) : '${_html(human)} ${_html(user.name)}';
+}
 
-  /// Every-other preference uses the durable prompt state as a two-cycle
-  /// toggle. A prompt or response occupies one cycle; the next skipped cycle
-  /// clears it so the following weekly prompt is delivered.
-  bool _shouldPrompt(User user) => switch (user.notificationPreference) {
-    NotificationPreference.weekly => true,
-    NotificationPreference.never => false,
-    NotificationPreference.everyOther =>
-      user.lastPromptState != LastPromptState.prompted &&
-          user.lastPromptState != LastPromptState.responded,
-  };
+class CycleService with _CycleService1, _CycleService2, _CycleService3 {
 
-  bool _shouldRemind(User user) => switch (user.notificationPreference) {
-    NotificationPreference.weekly => true,
-    NotificationPreference.never => false,
-    NotificationPreference.everyOther =>
-      user.lastPromptState == LastPromptState.prompted ||
-          user.lastPromptState == LastPromptState.responded,
-  };
+  static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) =>
+      _CycleService1.holidaysForWindow(repo, w);
 
-  /// Whether this window's weekends fall on a holiday week.
-  static bool isHolidayWindow(Repo repo, RollingWindow w) =>
-      repo.holidayOn(w.sat0) != null || repo.holidayOn(w.sat1) != null;
-
-  static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) {
-    final result = <Holiday>[];
-    for (final sat in [w.sat0, w.sat1]) {
-      final holiday = repo.holidayOn(sat);
-      if (holiday != null &&
-          !result.any((old) => old.kind == holiday.kind)) {
-        result.add(holiday);
-      }
-    }
-    return result;
-  }
-
-  static String holidayName(HolidayKind kind) => switch (kind) {
-        HolidayKind.middle => 'recess week',
-        HolidayKind.winter => 'winter holiday',
-        HolidayKind.summer => 'summer holiday',
-      };
-
-  /// Allocates both weekends of [window] as one bundle. Every booked pick is
-  /// honored, but a member receives at most one backup pick across both dates.
-  /// Already-selected backups are retained in chronological order so an older
-  /// per-weekend run is reconciled down to one backup without moving it.
-  Future<void> allocateBundle(RollingWindow window) async {
-    final weekends = [window.sat0, window.sat1];
-    for (final sat in weekends) {
-      repo.ensureSessionsForWeekend(
-        sat,
-        repo.scheduleForWeekend(sat),
-        tzOffsetHours: config.timezoneOffsetHours,
-      );
-    }
-    final sessions = [
-      for (final sat in weekends) ...repo.sessionsForWeekend(sat),
-    ];
-    // Only active users can be allocated; check/old users have no availability
-    // and stale availability rows must not make them candidates.
-    final activeUsers = repo.activeUsers();
-    final activeIds = {for (final u in activeUsers) u.id};
-    final availability = [
-      for (final sat in weekends) ...repo.availabilityForWeekend(sat),
-    ].where((a) => activeIds.contains(a.userId)).toList();
-    final users = {for (final u in activeUsers) u.id: u};
-
-    final existing = [
-      for (final sat in weekends) ...repo.allocationsForWeekend(sat),
-    ]..sort((a, b) => a.$2.start.compareTo(b.$2.start));
-    final locked = <(int, int)>[];
-    final lockedBackupUserIds = <int>{};
-    for (final (user, session) in existing) {
-      final row = availability
-          .where(
-            (a) =>
-                a.userId == user.id && a.weekendStart == session.weekendStart,
-          )
-          .firstOrNull;
-      final isBackup =
-          row?.slots.any((slot) => _matches(session, slot)) ?? false;
-      if (!isBackup || lockedBackupUserIds.add(user.id)) {
-        locked.add((user.id, session.id));
-      }
-    }
-
-    final result = const Allocator().run(
-      sessions: sessions,
-      availability: availability,
-      users: users,
-      locked: locked,
-      lockedBackupUserIds: lockedBackupUserIds,
-    );
-
-    final sessionsById = {for (final s in sessions) s.id: s};
-    for (final sat in weekends) {
-      final weekendResult = result.where((entry) {
-        final session = sessionsById[entry.$2];
-        return session?.weekendStart == sat;
-      }).toList();
-      repo.replaceAllocationsForWeekend(sat, weekendResult);
-      repo.markWeekendAllocated(sat);
-    }
-
-    // Before the weekend's Friday deadline the member can still re-pick;
-    // after it they must message the contact instead.
-    final now = config.toLocal(Config.nowUtc());
-    // Notify only the newly allocated — locked members were notified when
-    // they were allocated.
-    var failures = 0;
-    for (final (userId, sessionId) in result) {
-      if (locked.any((l) => l.$1 == userId && l.$2 == sessionId)) continue;
-      final session = sessionsById[sessionId];
-      final user = users[userId];
-      if (session == null || user == null) continue;
-      final deadline = window.deadlineFor(session.weekendStart);
-      final deadlinePassed = !now.isBefore(deadline);
-      final label = sessionLabel(session);
-      final time = '${_fmt(session.start)} to ${_fmt(session.end)}';
-      try {
-        await bot.api.sendMessage(
-          ChatID(userId),
-          messages.msg4(
-            user.group,
-            label,
-            time,
-            deadlinePassed: deadlinePassed,
-            deadlineLabel: 'Friday ${_fmt12h(deadline)}',
-          ),
-          parseMode: ParseMode.html,
-        );
-      } on HeldException {
-        // held: drop
-      } catch (_) {
-        failures++;
-      }
-    }
-    if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
-  }
-
-  static bool _matches(Session session, Slot slot) =>
-      session.day == slot.day &&
-      session.slot == slot.slot &&
-      session.location == slot.location;
-
-  /// 12h "H:MM AM/PM" for human-facing deadlines (e.g. "6:00 PM").
-  String _fmt12h(DateTime dt) {
-    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $ampm';
-  }
-
-  /// Marks attendance and updates the OCBC streak: a present OCBC session
-  /// extends the run, a present PR session resets it. The streak counts
-  /// consecutive sessions attended, so the allocator bans the 3rd in a row.
-  void markAttendance(int userId, int sessionId, {required bool attended}) {
-    final user = repo.findUser(userId);
-    if (user == null || user.memberTier == MemberTier.outMember) return;
-    repo.setAttendanceState(userId, sessionId, attended: attended);
-    final session = repo.sessionById(sessionId);
-    if (session == null) return;
-    final streak = session.location == Locations.ocbc ? user.ocbcStreak + 1 : 0;
-    repo.setOcbcStreak(userId, streak);
-  }
-
-  /// Sunday/Monday attendance-marking reminders: for every allocated member
-  /// of [sat]'s weekend with no attendance mark yet, remind the member's
-  /// group admin. The console is notified via the log ring on the second day.
-  Future<void> remindAttendanceMarking(DateTime sat, DateTime day) async {
-    final sessions = repo.sessionsForWeekend(sat);
-    var unmarkedTotal = 0;
-    final byAdmin = <int, List<String>>{};
-    for (final s in sessions) {
-      final allocations = repo
-          .allocationsForWeekend(sat)
-          .where((a) => a.$2.id == s.id);
-      final marked = repo
-          .attendanceForSession(s.id)
-          .map((a) => a.userId)
-          .toSet();
-      for (final (user, _) in allocations) {
-        if (user.memberTier == MemberTier.outMember) continue;
-        if (marked.contains(user.id)) continue;
-        unmarkedTotal++;
-        final admin = repo.groupAdmin(user.group);
-        if (admin == null) continue; // no group → nobody responsible
-        byAdmin
-            .putIfAbsent(admin.id, () => [])
-            .add('${user.name} — ${sessionLabel(s)}');
-      }
-    }
-    if (byAdmin.isEmpty) return;
-
-    for (final entry in byAdmin.entries) {
-      if (repo.messageSentOnDay(entry.key, 'attmark', day)) continue;
-      final list = entry.value.take(6).join('\n');
-      final more = entry.value.length > 6
-          ? '\n… and ${entry.value.length - 6} more'
-          : '';
-      try {
-        await bot.api.sendMessage(
-          ChatID(entry.key),
-          '⏰ <b>Mark attendance</b> — still unmarked:\n$list$more\n\n'
-          'Mark it in the console or with /confirm.',
-          parseMode: ParseMode.html,
-        );
-        repo.markMessageSent(entry.key, 'attmark', day);
-      } catch (_) {
-        // admin unreachable; the console banner still surfaces it
-      }
-    }
-    LogRing.log(
-      'attmark: $unmarkedTotal unmarked members on '
-      '${_dayShort(sat)} — console: please chase the admins',
-    );
-  }
-
-  /// Monday: for every active member who has not attended for 4+ consecutive
-  /// weeks, remind their group admin to reach out personally. Repeats each
-  /// Monday while the streak holds; any attendance resets it.
-  Future<void> remindAbsentMembers(DateTime monday) async {
-    final latestSat = monday.subtract(const Duration(days: 2));
-    final byAdmin = <int, List<String>>{};
-    var absentTotal = 0;
-    for (final user in repo.activeUsers()) {
-      if (user.memberTier == MemberTier.outMember) continue;
-      final streak = repo.consecutiveAbsentWeeks(user.id, latestSat);
-      if (streak < 4) continue;
-      final admin = repo.groupAdmin(user.group);
-      if (admin == null) continue; // no group → nobody responsible
-      absentTotal++;
-      byAdmin
-          .putIfAbsent(admin.id, () => [])
-          .add('${user.name} — $streak weeks');
-    }
-    if (byAdmin.isEmpty) return;
-
-    for (final entry in byAdmin.entries) {
-      if (repo.messageSentOnDay(entry.key, 'absent', monday)) continue;
-      final list = entry.value.take(6).join('\n');
-      final more = entry.value.length > 6
-          ? '\n… and ${entry.value.length - 6} more'
-          : '';
-      try {
-        await bot.api.sendMessage(
-          ChatID(entry.key),
-          messages.msgAbsent(list, more: more),
-          parseMode: ParseMode.html,
-        );
-        repo.markMessageSent(entry.key, 'absent', monday);
-      } catch (_) {
-        // admin unreachable; the next Monday retries
-      }
-    }
-    LogRing.log(
-      'absent: $absentTotal members absent 4+ weeks on '
-      '${_dayShort(monday)} — console: please chase the admins',
-    );
-  }
-
-  /// The full allocation list for one weekend — the `check` tier's status
-  /// report, reused by the on-demand button and the Friday-evening push.
-  /// [title] overrides the heading (e.g. per-weekend headings in /status).
-  String checkListText(DateTime sat, {String? title, Set<int>? userIds}) {
-    final sb = StringBuffer()
-      ..writeln(title ?? '📋 <b>This week\'s allocation</b>');
-    final allocations = repo.allocationsForWeekend(sat);
-    if (allocations.isEmpty) {
-      sb.writeln('\nNo allocation published yet for ${_dayShort(sat)}.');
-      return sb.toString();
-    }
-
-    final bySession = <int, List<String>>{};
-    for (final (u, s) in allocations) {
-      if (userIds != null && !userIds.contains(u.id)) continue;
-      bySession.putIfAbsent(s.id, () => []).add(_displayName(u));
-    }
-
-    final sessions = repo.sessionsForWeekend(sat)
-      ..sort((a, b) => a.start.compareTo(b.start));
-
-    sb.writeln();
-    for (final s in sessions) {
-      final names = bySession[s.id];
-      sb.writeln('• ${sessionLabel(s)}');
-      sb.writeln(
-        '   ${names == null || names.isEmpty ? '—' : names.join(', ')}',
-      );
-    }
-    return sb.toString();
-  }
-
-  /// Friday evening: push the current weekend's full allocation to every
-  /// `check`-tier user — a final confirmation list the backend sends
-  /// proactively (not a response to their status button).
-  Future<void> sendCheckList(DateTime sat) async {
-    final text = checkListText(sat);
-    final today = config.toLocal(Config.nowUtc());
-    var failures = 0;
-    for (final user in repo.allUsers()) {
-      if (user.memberTier != MemberTier.check) continue;
-      try {
-        if (repo.messageSentOnDay(user.id, 'checklist', today)) continue;
-        await bot.api.sendMessage(
-          ChatID(user.id),
-          text,
-          parseMode: ParseMode.html,
-        );
-        repo.markMessageSent(user.id, 'checklist', today);
-      } catch (_) {
-        failures++;
-      }
-    }
-    if (failures > 0) LogRing.log('checklist: $failures sends failed');
-  }
-
-  /// Sends (or edits an existing) availability keyboard message to [user].
-  Future<void> showAvailability(User user, RollingWindow w, String text) async {
-    // The window's sessions must exist before we can render them.
-    for (final sat in [w.sat0, w.sat1]) {
-      repo.ensureSessionsForWeekend(
-        sat,
-        repo.scheduleForWeekend(sat),
-        tzOffsetHours: config.timezoneOffsetHours,
-      );
-    }
-    final picked = state.picksFor(user.id);
-    final allocatedCounts = <String, int>{};
-    final ownCapacityGroups = <String>{};
-    for (final sat in [w.sat0, w.sat1]) {
-      for (final (allocatedUser, session) in repo.allocationsForWeekend(sat)) {
-        final key = _capacityKey(session);
-        allocatedCounts[key] = (allocatedCounts[key] ?? 0) + 1;
-        if (allocatedUser.id == user.id) ownCapacityGroups.add(key);
-      }
-    }
-    final keyboard = buildKeyboard(
-      w,
-      picked,
-      now: config.toLocal(Config.nowUtc()),
-      holidays: holidaysForWindow(repo, w),
-      allocatedCounts: allocatedCounts,
-      ownCapacityGroups: ownCapacityGroups,
-      hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
-      sessions: [
-        ...repo.sessionsForWeekend(w.sat0),
-        ...repo.sessionsForWeekend(w.sat1),
-      ],
-      locationName: repo.locationName,
-    );
-
-    final pickerText = '$text\n\n${_hint()}';
-    final existing = state.availabilityMessages[user.id];
-    if (existing != null) {
-      try {
-        await bot.api.editMessageText(
-          ChatID(existing.$1),
-          existing.$2,
-          pickerText,
-          parseMode: ParseMode.html,
-          replyMarkup: keyboard,
-        );
-        LogRing.log(
-          'availability ${user.id}: picker edited: '
-          '${_logText(pickerText)}',
-        );
-        return;
-      } on HeldException {
-        LogRing.log('availability ${user.id}: picker edit dropped (held)');
-        return; // held: block & drop, treated as delivered
-      } catch (error) {
-        LogRing.log('availability ${user.id}: picker edit failed: $error');
-        state.availabilityMessages.remove(user.id);
-      }
-    }
-
-    try {
-      final msg = await bot.api.sendMessage(
-        ChatID(user.id),
-        pickerText,
-        parseMode: ParseMode.html,
-        replyMarkup: keyboard,
-      );
-      state.availabilityMessages[user.id] = (user.id, msg.messageId);
-      state.trackInteractiveMessage(user.id, user.id, msg.messageId);
-      LogRing.log(
-        'availability ${user.id}: picker sent: '
-        '${_logText(pickerText)}',
-      );
-    } on HeldException {
-      // held: block & drop, treated as delivered so the prompt/reminder
-      // flags still advance and nothing is replayed on unhold.
-      LogRing.log('availability ${user.id}: picker send dropped (held)');
-    } catch (error) {
-      LogRing.log('availability ${user.id}: picker send failed: $error');
-      rethrow;
-    }
-  }
-
-  static String _logText(String text) {
-    final singleLine = text.replaceAll(RegExp(r'\s+'), ' ');
-    return singleLine.length <= 160
-        ? singleLine
-        : '${singleLine.substring(0, 160)}…';
-  }
-
-  /// A human label for a session: location, day and time, e.g.
-  /// "Pasir Ris · Saturday 09:00-13:00 (21 Sep)".
-  String sessionLabel(Session s) {
-    final loc = repo.locationName(s.location);
-    final day = Slot.dayName(s.day);
-    return '$loc · $day ${_fmt(s.start)}-${_fmt(s.end)} (${_day(s.start)})';
-  }
-
-  static String _day(DateTime d) {
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${d.day} ${months[d.month - 1]}';
-  }
-
-  static String _dayShort(DateTime d) =>
-      '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
-
-  static String _fmt(DateTime d) =>
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
-
-  /// The single mechanical explanation shown under every picker (prompt,
-  /// reminder and repick all pass through [showAvailability]). The prompt
-  /// texts themselves stay free of mechanics to avoid duplication.
-  String _hint() =>
-      'Tap a session <b>once</b> = backup 🟢 (you can attend '
-      'if needed), or <b>twice</b> = booked 🔒. You\'ll get <b>every</b> 🔒 '
-      'you book (one per time slot), plus <b>one</b> of your 🟢 backups. '
-      'Tap again to unselect.';
-
-  /// Builds the availability inline keyboard from the window's actual
-  /// sessions — the schedule template decides the days, times and locations.
-  /// Weekends whose deadline has passed are not offered (locked). Each session
-  /// toggles off ▫️ → offered 🟢 → booked 🔒 → off. Plus Done and Not
-  /// available; on a holiday window a "skip me this holiday" opt-out button
-  /// is appended. A Cancel button (abort the in-progress repick, keeping the
-  /// saved answer) appears at the very bottom only when the member has
-  /// already responded to this bundle.
   static InlineKeyboard buildKeyboard(
     RollingWindow w,
     (Set<Slot>, Set<Slot>) picked, {
@@ -598,95 +60,34 @@ class CycleService {
     required DateTime now,
     required List<Session> sessions,
     required String Function(String locationKey) locationName,
-  }) {
-    final (want, available) = picked;
-    var kb = InlineKeyboard();
-    for (final (wi, sat) in [(0, w.sat0), (1, w.sat1)]) {
-      final locked = w.locked(sat, now);
-      // A non-interactive header naming the date, so the picker says which
-      // weekend each session belongs to. No arbitrary week numbers — the
-      // calendar may have breaks between weeks.
-      kb = kb
-          .text(
-            'Sat ${_day(sat)}${locked ? ' (locked)' : ''}',
-            locked ? 'locked|$wi' : 'noop|$wi',
-          )
-          .row();
-      if (locked) continue;
-      final weekendSessions =
-          sessions.where((s) => s.weekendStart == sat).toList()
-            ..sort((a, b) => a.start.compareTo(b.start));
-      for (final s in weekendSessions) {
-        final key = '$wi:${s.day}:${s.slot}:${s.location}';
-        final mark = want.any((x) => x.encode() == key)
-            ? '🔒'
-            : available.any((x) => x.encode() == key)
-            ? '🟢'
-            : '▫️';
-        // The callback carries the BUNDLE's first Saturday (not the clicked
-        // weekend) so a toggle re-renders the same anchored window — the
-        // header dates and weekend indexes never shift.
-        final capacityKey = _capacityKey(s);
-        final count = allocatedCounts[capacityKey] ?? 0;
-        final capacity = _capacityFor(s, weekendSessions);
-        final full = capacity != null &&
-            count >= capacity &&
-            !ownCapacityGroups.contains(capacityKey);
-        final countLabel = capacity == null ? '' : ' [$count/$capacity]';
-        final label = '$mark ${locationName(s.location)} ${Slot.dayLabel(s.day)} '
-            '${_fmt(s.start)}-${_fmt(s.end)}$countLabel';
-        kb = kb
-            .text(
-              full ? '⛔ $label' : label,
-              full ? 'full|$key' : 'slot|${_satKey(w.sat0)}|$key',
-            )
-            .row();
-      }
-      kb = kb.row();
-    }
-    kb = kb
-        .text('✅ Done', 'done|${_satKey(w.sat0)}')
-        .row()
-        .text('❌ Not available', 'no|${_satKey(w.sat0)}');
-    final holidayRows = holidays.isEmpty && holiday ? <Holiday>[] : holidays;
-    if (holidayRows.isNotEmpty) {
-      for (final row in holidayRows) {
-        kb = kb.row().text(
-          '🔕 Skip me for the whole ${holidayName(row.kind)}',
-          'holidayout|${_satKey(w.sat0)}|${row.kind.name}',
-        );
-      }
-    }
-    if (hasIndicated) {
-      kb = kb.row().text('❌ Cancel', 'cancel|${_satKey(w.sat0)}');
-    }
-    return kb;
-  }
+  }) => _CycleService3.buildKeyboard(
+        w,
+        picked,
+        holiday: holiday,
+        holidays: holidays,
+        allocatedCounts: allocatedCounts,
+        ownCapacityGroups: ownCapacityGroups,
+        hasIndicated: hasIndicated,
+        now: now,
+        sessions: sessions,
+        locationName: locationName,
+      );
 
-  static String _satKey(DateTime sat) =>
-      '${sat.year}-${sat.month.toString().padLeft(2, '0')}-'
-      '${sat.day.toString().padLeft(2, '0')}';
+  final Repo repo;
 
-  static String _capacityKey(Session session) =>
-      session.capacityGroup ?? 'session:${session.id}';
+  final Config config;
 
-  static int? _capacityFor(Session session, List<Session> sessions) {
-    final same = sessions.where(
-      (other) => _capacityKey(other) == _capacityKey(session),
-    );
-    final limited = same.map((item) => item.maxPeople).whereType<int>().toList();
-    if (limited.isEmpty) return null;
-    return limited.reduce((a, b) => a < b ? a : b);
-  }
+  final Messages messages;
 
-  static String _displayName(User user) {
-    final human = user.preferredName;
-    if (human.isEmpty) return _html(user.name);
-    return '${_html(human)} ${_html(user.name)}';
-  }
+  final BotState state;
 
-  static String _html(String text) => text
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;');
+  final Bot bot;
+
+  CycleService({
+    required this.repo,
+    required this.config,
+    required this.messages,
+    required this.state,
+    required this.bot,
+  });
 }

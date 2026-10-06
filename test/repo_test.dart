@@ -70,6 +70,40 @@ void main() {
     expect(w.deadline0.isBefore(w.sat0), true);
   });
 
+  test('active outreach settings default on and persist independently', () {
+    expect(repo.activeOutreach(), {
+      for (final route in Repo.activeOutreachRouteKeys) route: true,
+    });
+
+    repo.setActiveOutreach('prompt', false);
+    expect(repo.activeOutreachEnabled('prompt'), isFalse);
+    expect(repo.activeOutreachEnabled('reminder'), isTrue);
+
+    db.close();
+    db = Database.open(
+      Config(
+        botToken: 'test',
+        dbPath: '${tmp.path}/test.db',
+        consoleId: 1,
+        groupAContact: 'TBD',
+        groupBContact: 'TBD',
+        ocbcCapacity: 2,
+        prCapacity: 20,
+        slotTimes: {'am': ('09:00', '12:00'), 'pm': ('13:00', '17:00')},
+        promptHour: 18,
+        reminderHour: 18,
+        deadlineHour: 18,
+        allocationHour: 9,
+        bailHour: 12,
+        timezoneOffsetHours: 8,
+      ),
+    );
+    repo = Repo(db);
+    expect(repo.activeOutreachEnabled('prompt'), isFalse);
+    expect(repo.activeOutreachEnabled('reminder'), isTrue);
+    expect(() => repo.setActiveOutreach('unknown', true), throwsArgumentError);
+  });
+
   test('repo write rejects weekend milestones and bad weekly ordering', () {
     const weekend = ScheduleTimes(
       prompt: ScheduleEvent(weekday: 'sat', time: LocalWallClock(9, 0)),

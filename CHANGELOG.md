@@ -5,7 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
-## [4.3.7] - 2026-10-06
+## [4.4.0] - 2026-10-06
+
+### Added
+
+- Added independent active-outreach controls for prompts, reminders,
+  schedule-change re-prompts, allocation notices, checker lists, attendance and
+  absence reminders, `/ask`, and broadcasts through the authenticated API and
+  desktop console Schedule panel.
 
 ### Fixed
 
