@@ -5,6 +5,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.3.7] - 2026-10-06
+
+### Fixed
+
+- Availability pickers now preserve session capacity metadata when reading
+  allocations, so allocated counts such as `1/4` are rendered correctly.
+
 ## [4.3.6] - 2026-10-06
 
 ### Fixed
