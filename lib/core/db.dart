@@ -477,12 +477,19 @@ CREATE TABLE sessions (
   location TEXT NOT NULL,
   start_at TEXT NOT NULL,
   end_at TEXT NOT NULL,
+  max_people INTEGER,
+  capacity_group TEXT,
   UNIQUE(weekend_start, day, slot, location)
 );
 ''');
     db.execute('''
-INSERT INTO sessions (id, weekend_start, day, slot, location, start_at, end_at)
-SELECT id, weekend_start, day, slot, location, start_at, end_at FROM sessions_old
+ INSERT INTO sessions (
+   id, weekend_start, day, slot, location, start_at, end_at,
+   max_people, capacity_group
+ )
+ SELECT id, weekend_start, day, slot, location, start_at, end_at,
+        max_people, capacity_group
+ FROM sessions_old
 ''');
     db.execute('DROP TABLE sessions_old');
 
