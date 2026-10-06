@@ -41,9 +41,6 @@ enum GlobalAdminResult {
 /// the bot's local timezone (UTC+8).
 
 class _RepoBase {
-
-  static const activeOutreachRouteKeys = defaultActiveOutreachRouteKeys;
-
   _RepoBase(this._db);
 
   final Database _db;
