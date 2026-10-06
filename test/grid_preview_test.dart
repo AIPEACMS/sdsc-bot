@@ -278,9 +278,11 @@ void main() {
     await sendText(1, '/start');
     final welcome = sent[sentBefore];
     expect(welcome['text'],
-        '👋 <b>@console</b>, here is what you can do:\nType /grid to switch which grid you see (console only).');
+        '👋 <b>@console</b>, here is what you can do:\n'
+        'Tap more-cmd for additional commands.\n'
+        'Type /grid to switch which grid you see (console only).');
     expect(welcome['parse_mode'], 'HTML');
-    expect(keyboardTexts(welcome).first, 'more-commands');
+    expect(keyboardTexts(welcome).first, 'more-cmd');
     expect(keyboardTexts(welcome), contains('hold'));
   });
 
@@ -291,8 +293,12 @@ void main() {
     repo.updateAdmin(5, true);
     repo.updatePreferredName(5, 'Admin');
     await sendText(5, '/start');
-    expect(sent.last['text'], '👋 <b>@adminonly</b>, here is what you can do:');
-    expect(keyboardTexts(sent.last).first, 'more-commands');
+    expect(
+      sent.last['text'],
+      '👋 <b>@adminonly</b>, here is what you can do:\n'
+      'Tap more-cmd for additional commands.',
+    );
+    expect(keyboardTexts(sent.last).first, 'more-cmd');
 
     final before = sent.length;
     await sendText(1, '/start');
@@ -542,7 +548,7 @@ void main() {
   });
 
   test('More Commands uses actual permissions while a different grid is previewed', () async {
-    await sendPlainText(2, 'more-commands');
+    await sendPlainText(2, 'more-cmd');
     final adminCommands = sent.last['text'] as String;
     expect(adminCommands, contains('/allstatus - show cycle state and responders'));
     expect(adminCommands, contains('/allusers - list registered members'));
@@ -553,12 +559,12 @@ void main() {
     expect(adminCommands, isNot(contains('/repick')));
 
     await sendText(1, '/grid');
-    await sendPlainText(1, 'more-commands');
+    await sendPlainText(1, 'more-cmd');
     final text = sent.last['text'] as String;
     expect(text, contains('/addcheck @handle - add a checker'));
     expect(text, contains('/allstatus - show cycle state and responders'));
     expect(text, isNot(contains('/hold')));
-    expect(keyboardTexts(sent.last).first, 'more-commands');
+    expect(keyboardTexts(sent.last).first, 'more-cmd');
     expect(keyboardTexts(sent.last), contains('add-user'));
   });
 

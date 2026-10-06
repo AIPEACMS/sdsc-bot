@@ -241,13 +241,15 @@ void main() {
     }
   });
 
-  test('More Commands leads admin grids in green without reordering others', () {
-    for (final role in ['admin', 'gadmin']) {
+  test('More Commands leads admin grids with role colors', () {
+    for (final (role, color) in [
+      ('admin', RoleColor.admin),
+      ('gadmin', RoleColor.globalAdmin),
+    ]) {
       final buttons = RoleKeyboard.buttonsFor(role);
-      expect(buttons.first, RoleKeyboard.moreCommandsButton);
-      expect(buttons.first.label, 'more-commands');
+      expect(buttons.first.label, 'more-cmd');
       expect(buttons.first.command, isNull);
-      expect(buttons.first.color, RoleColor.console);
+      expect(buttons.first.color, color);
       expect(
         buttons.skip(1).map((button) => button.command),
         RoleKeyboard.gridButtons(role).map((button) => button.command),
@@ -257,17 +259,17 @@ void main() {
         for (final row in keyboard.keyboard) ...row.map((button) => button.text),
       ];
       expect(flattened, [
-        'more-commands',
+        'more-cmd',
         ...RoleKeyboard.gridButtons(role).map((button) => button.label),
       ]);
       final first = keyboard.keyboard.first.first;
-      expect(first.text, 'more-commands');
-      expect(first.style?.name, 'success');
+      expect(first.text, 'more-cmd');
+      expect(first.style?.name, color == RoleColor.admin ? 'primary' : 'danger');
     }
 
     final consoleOnlyButton =
         RoleKeyboard.build('console-only').keyboard.first.first;
-    expect(consoleOnlyButton.text, 'more-commands');
+    expect(consoleOnlyButton.text, 'more-cmd');
     expect(consoleOnlyButton.style?.name, 'success');
   });
 
@@ -276,14 +278,14 @@ void main() {
       expect(RoleKeyboard.buttonsFor(role, consoleIdentity: true).first,
           RoleKeyboard.moreCommandsButton);
       expect(RoleKeyboard.buttonsFor(role).map((button) => button.label),
-          isNot(contains('more-commands')));
+          isNot(contains('more-cmd')));
     }
-    expect(RoleKeyboard.buttonsFor('console-only').first.label, 'more-commands');
-    expect(RoleKeyboard.buttonsFor('admin').first.label, 'more-commands');
-    expect(RoleKeyboard.buttonsFor('gadmin').first.label, 'more-commands');
+    expect(RoleKeyboard.buttonsFor('console-only').first.label, 'more-cmd');
+    expect(RoleKeyboard.buttonsFor('admin').first.label, 'more-cmd');
+    expect(RoleKeyboard.buttonsFor('gadmin').first.label, 'more-cmd');
     for (final role in ['member', 'out-member', 'check', 'old']) {
       expect(RoleKeyboard.build(role, consoleIdentity: true).keyboard.first.first.text,
-          'more-commands');
+          'more-cmd');
     }
   });
 
@@ -320,7 +322,7 @@ void main() {
           .toSet();
       for (final entry in commands) {
         expect(entry.command, startsWith('/'));
-        expect(entry.command, isNot('more-commands'));
+        expect(entry.command, isNot('more-cmd'));
         expect(
           buttons,
           isNot(contains(entry.command)),

@@ -5,6 +5,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.3.1] - 2026-10-06
+
+### Changed
+
+- Renamed the additional-command button to `more-cmd`.
+- Styled `more-cmd` blue for admins and red for global admins.
+- Updated `/start` to point privileged users to the `more-cmd` button.
+
 ## [4.3.0] - 2026-10-06
 
 ### Added
