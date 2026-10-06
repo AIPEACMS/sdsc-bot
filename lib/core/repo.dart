@@ -1314,8 +1314,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
   }
 
   /// Revokes a member's allocation for one weekend (used when they repick:
-  /// they leave the allocation pool and are re-decided at the next sharp
-  /// hour).
+  /// they leave the allocation pool and are immediately re-decided).
   void removeAllocationForUser(int userId, DateTime sat) {
     raw.execute(
       'DELETE FROM allocations WHERE user_id = ? AND session_id IN '

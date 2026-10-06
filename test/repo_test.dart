@@ -203,6 +203,38 @@ void main() {
     expect(repo.isQuiet(3, sat), true);
   });
 
+  test('prompt targets exclude current responders and mark previous as quiet', () {
+    addUser(1);
+    addUser(2);
+    addUser(3);
+    final sat = DateTime(2026, 8, 15);
+    repo.setAvailability(
+      Availability(
+        weekendStart: sat,
+        userId: 2,
+        bundleStart: sat,
+        slots: const {},
+        available: false,
+        updatedAt: DateTime(2026, 8, 11),
+      ),
+    );
+    repo.setAvailability(
+      Availability(
+        weekendStart: sat.subtract(const Duration(days: 7)),
+        userId: 3,
+        bundleStart: sat.subtract(const Duration(days: 7)),
+        slots: const {},
+        available: false,
+        updatedAt: DateTime(2026, 8, 4),
+      ),
+    );
+
+    final targets = repo.promptTargets(sat);
+    expect(targets.map((user) => user.id), [1, 3]);
+    expect(repo.isQuiet(3, sat), isTrue);
+    expect(repo.reminderTargets(sat).map((user) => user.id), [1]);
+  });
+
   test('holiday lookup by week', () {
     repo.addHoliday(DateTime(2026, 8, 3), HolidayKind.winter);
     final holiday = repo.holidayOn(DateTime(2026, 8, 5));

@@ -74,9 +74,8 @@ class RoleKeyboard {
 
   static const List<GridButton> adminButtons = [
     GridButton('add-user', '/adduser', RoleColor.admin),
-    GridButton('all-status', '/status', RoleColor.admin),
+    GridButton('add-out-user', '/addoutuser', RoleColor.admin),
     GridButton('group-status', '/groupstatus', RoleColor.admin),
-    GridButton('all-users', '/users', RoleColor.admin),
     GridButton('group-users', '/groupusers', RoleColor.admin),
     GridButton('ask', '/ask', RoleColor.admin),
     GridButton('mark-attend', '/confirm', RoleColor.admin),

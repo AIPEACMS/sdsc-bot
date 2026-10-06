@@ -191,7 +191,6 @@ class Flows {
       sb
         ..writeln('\n<b>Global admin</b>')
         ..writeln('/addadmin @handle — promote a registered user')
-        ..writeln('/addoutuser @handle — add or convert an out-member')
         ..writeln('/addcheck @handle — add a checker')
         ..writeln('/demote @handle — demote an admin')
         ..writeln('/sync-calendar — push the calendar YAML')
@@ -202,11 +201,14 @@ class Flows {
     if (isAdmin) {
       sb
         ..writeln('\n<b>Admin</b>')
-        ..writeln('add-user @handle — add a member (they can then use /start)')
-        ..writeln('add-out-user @handle — add an out-member')
-        ..writeln('all-status — cycle state and responders')
+        ..writeln(
+          'add-user @handle [@handle ...] - add members '
+          '(they can then use /start)',
+        )
+        ..writeln('add-out-user @handle [@handle ...] - add out-members')
+        ..writeln('/status - cycle state and responders')
         ..writeln('group-status — your group\'s cycle state and responders')
-        ..writeln('all-users — registered members')
+        ..writeln('/users - registered members')
         ..writeln('group-users — your group\'s member details')
         ..writeln('/prompt — send availability prompts now')
         ..writeln('/remind — remind non-responders now')
@@ -221,8 +223,7 @@ class Flows {
       sb
         ..writeln('\n<b>${outMember ? 'Out-member' : 'Member'}</b>')
         ..writeln(
-          're-pick — update your availability (you are re-allocated '
-          'at the next sharp hour)',
+          're-pick — update your availability',
         )
         ..writeln(
           'set-info — update your preferred name',
@@ -1020,8 +1021,8 @@ class Flows {
         ),
       );
       // Repicking moves the member out of the allocation pool: their
-      // previous allocation is revoked and re-decided at the next sharp
-      // hour together with the rest of the current availability.
+      // previous allocation is revoked and immediately re-decided against
+      // the current availability.
       repo.removeAllocationForUser(userId, sat);
       saved++;
     }
@@ -1033,7 +1034,7 @@ class Flows {
       await ctx.reply('Both weekends are already locked — nothing was saved.');
       return;
     }
-    // Dynamic allocation: re-optimize at the next sharp hour.
+    // Re-optimize immediately after saving the updated availability.
     await onAvailabilitySaved?.call();
 
     try {

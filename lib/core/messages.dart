@@ -39,8 +39,8 @@ class Messages {
   }
 
   /// Confirmation echoing the chosen availability: [want] slots are the 🔒
-  /// bookings, [available] the 🟢 offers. [allocateAt] is the sharp hour the
-  /// allocation message goes out (e.g. "6:00 PM").
+  /// bookings, [available] the 🟢 offers. [allocateAt] is retained for older
+  /// callers; allocation timing is no longer described in this confirmation.
   String msg3(
     Iterable<Slot> want,
     Iterable<Slot> available, {
@@ -55,9 +55,7 @@ class Messages {
     final list = all.isEmpty ? '(none)' : all.join('\n');
     final alloc = immediate
         ? '\n\n<b>Allocation is immediate</b> when space is available.'
-        : allocateAt == null
-        ? ''
-        : '\n\n<b>You will get allocated at $allocateAt</b> later';
+        : '';
     return 'Thank you! Here is what you told us '
         '(🔒 booked · 🟢 backup):\n$list\n\n'
         'Availability locks on the Friday before each weekend. '

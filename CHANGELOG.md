@@ -5,6 +5,21 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.2.0] - 2026-10-06
+
+### Added
+
+- `/adduser` and `/addoutuser` accept whitespace-separated batches, both in
+  direct commands and the confirmation wizard.
+- Added the out-member control to the admin grid.
+
+### Changed
+
+- Removed `/status` and `/users` from admin grids while keeping them as typed
+  commands.
+- Removed outdated sharp-hour allocation promises from member guidance; new
+  availability is allocated immediately.
+
 ## [4.1.1] - 2026-10-04
 
 ### Fixed
