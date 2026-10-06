@@ -1,6 +1,6 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi5 on _AdminApiBase {
+extension AdminApiHelpers on AdminApi {
 
   /// Sets one member's attendance state for a session: 'present' | 'absent'
   /// | 'unmarked' (removes the mark — recoverable).
@@ -165,12 +165,12 @@ mixin _AdminApi5 on _AdminApiBase {
     return local.subtract(Duration(hours: config.timezoneOffsetHours)).toUtc();
   }
 
-  static Map<String, dynamic> _jsonBody(String text) {
+  Map<String, dynamic> _jsonBody(String text) {
     if (text.trim().isEmpty) return {};
     return jsonDecode(text) as Map<String, dynamic>;
   }
 
-  static NotificationPreference? _notificationFromBody(
+  NotificationPreference? _notificationFromBody(
     Map<String, dynamic> body,
   ) {
     final raw =
@@ -186,12 +186,12 @@ mixin _AdminApi5 on _AdminApiBase {
     };
   }
 
-  static String _notificationValue(NotificationPreference preference) =>
+  String _notificationValue(NotificationPreference preference) =>
       preference == NotificationPreference.everyOther
       ? 'every-other'
       : preference.name;
 
-  static String _tierLabel(String tier) => tier == MemberTier.outMember
+  String _tierLabel(String tier) => tier == MemberTier.outMember
       ? 'out-member'
       : tier == MemberTier.member
       ? 'member'

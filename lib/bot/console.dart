@@ -34,6 +34,9 @@ class _ConsoleBase {
   final HoldGate holdGate;
 
   SetTime? setTime;
+  final Map<int, int> _pendingGlobalAdmin = {};
+  final Map<int, int> _pendingGlobalAdminRemoval = {};
+  final Map<int, (String, List<String>)> _aliasFlow = {};
 
   _ConsoleBase({
     required this.bot,
@@ -46,7 +49,7 @@ class _ConsoleBase {
   });
 }
 
-class Console extends _ConsoleBase with _Console1, _Console2, _Console3 {
+class Console extends _ConsoleBase {
   Console({
     required super.bot,
     required super.repo,

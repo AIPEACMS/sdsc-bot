@@ -1,12 +1,8 @@
 part of '../settime.dart';
 
-mixin _SetTime1 on _SetTimeBase {
+extension SetTimeCommand on SetTime {
 
   /// Drafts in progress, per gadmin user id.
-  final Map<int, _Draft> _drafts = {}
-
-;
-
   void register() {
     commandBoth(bot, state, 'settime', _guard(_start), label: 'set-time');
     bot.use((ctx, next) async {
@@ -14,7 +10,7 @@ mixin _SetTime1 on _SetTimeBase {
       if (data == null) return next();
       final head = data.split('|').first;
       if (head == 'settime') {
-        if (_isGadmin(ctx)) await _onConfirmOrCancel(ctx);
+        if (_isGadmin(ctx)) await this._onConfirmOrCancel(ctx);
         return;
       }
       if (head == 'settime-scope' || head == 'settime-action' ||
@@ -27,7 +23,7 @@ mixin _SetTime1 on _SetTimeBase {
         return;
       }
       if (head == 'stloc') {
-        if (_isGadmin(ctx)) await _onLocationChoice(ctx);
+        if (_isGadmin(ctx)) await this._onLocationChoice(ctx);
         return;
       }
       await next();
@@ -84,7 +80,7 @@ mixin _SetTime1 on _SetTimeBase {
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
     final value = parts.length > 1 ? parts[1] : '';
     if (head == 'settime-conflict') {
-      await _resolveConflict(ctx, userId, value);
+      await this._resolveConflict(ctx, userId, value);
       return;
     }
     if (head == 'settime-scope') {
@@ -161,13 +157,13 @@ mixin _SetTime1 on _SetTimeBase {
         await ctx.editMessageText('Select at least one session to remove.');
         return;
       }
-      await _showConfirmation(ctx, userId);
+      await this._showConfirmation(ctx, userId);
       return;
     }
     final index = int.tryParse(value);
     if (index == null || index < 0 || index >= draft.beforeRows!.length) return;
     final row = draft.beforeRows![index];
-    final key = _rowKey(row);
+    final key = this._rowKey(row);
     if (draft.removeKeys.contains(key)) {
       draft.removeKeys.remove(key);
     } else {
@@ -176,7 +172,7 @@ mixin _SetTime1 on _SetTimeBase {
     draft.removeRows
       ..clear()
       ..addAll(
-        draft.beforeRows!.where((candidate) => draft.removeKeys.contains(_rowKey(candidate))),
+        draft.beforeRows!.where((candidate) => draft.removeKeys.contains(this._rowKey(candidate))),
       );
     await _showRemovePicker(ctx, userId, edit: true);
   }
@@ -188,8 +184,8 @@ mixin _SetTime1 on _SetTimeBase {
     for (final sat in [window.sat0, window.sat1]) {
       if (window.locked(sat, now)) continue;
       kb = kb.text(
-        'Week ${_date(sat)} - ${_date(sat.add(const Duration(days: 6)))}',
-        'settime-week|${_date(sat)}',
+        'Week ${this._date(sat)} - ${this._date(sat.add(const Duration(days: 6)))}',
+        'settime-week|${this._date(sat)}',
       ).row();
     }
     kb = kb.text('❌ Cancel', 'settime|no');
@@ -212,7 +208,7 @@ mixin _SetTime1 on _SetTimeBase {
     var kb = InlineKeyboard();
     for (var i = 0; i < before.length; i++) {
       final row = before[i];
-      final selected = draft.removeKeys.contains(_rowKey(row));
+      final selected = draft.removeKeys.contains(this._rowKey(row));
       final max = row.maxPeople == null ? '' : ' ${row.maxPeople}';
       kb = kb
           .text(
@@ -228,8 +224,8 @@ mixin _SetTime1 on _SetTimeBase {
         .row()
         .text('❌ Cancel', 'settime|no');
     final text = draft.scope == _SetTimeScope.temporary
-        ? 'Select sessions to remove from week ${_date(draft.targetSaturday!)} '
-            '- ${_date(draft.targetSaturday!.add(const Duration(days: 6)))}:'
+        ? 'Select sessions to remove from week ${this._date(draft.targetSaturday!)} '
+            '- ${this._date(draft.targetSaturday!.add(const Duration(days: 6)))}:'
         : 'Select recurring sessions to remove:';
     if (edit) {
       await ctx.editMessageText(text, replyMarkup: kb);

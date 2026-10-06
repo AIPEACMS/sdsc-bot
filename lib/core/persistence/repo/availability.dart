@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo5 on _RepoBase {
+extension RepoAvailability on Repo {
 
   /// Deletes and recreates [sat]'s sessions from [template]. Destructive:
   /// callers must also clear availability/allocations for the weekend (see
@@ -13,7 +13,7 @@ mixin _Repo5 on _RepoBase {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
-      tx.execute('DELETE FROM sessions WHERE weekend_start = ?', [_dayKey(sat)]);
+      tx.execute('DELETE FROM sessions WHERE weekend_start = ?', [this._dayKey(sat)]);
       tx.execute('COMMIT');
     } catch (_) {
       tx.execute('ROLLBACK');
@@ -29,9 +29,9 @@ mixin _Repo5 on _RepoBase {
     tx.execute('BEGIN IMMEDIATE');
     try {
       tx.execute('DELETE FROM allocations WHERE session_id IN '
-          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
+          '(SELECT id FROM sessions WHERE weekend_start = ?)', [this._dayKey(sat)]);
       tx.execute('DELETE FROM availability WHERE weekend_start = ?',
-          [_dayKey(sat)]);
+          [this._dayKey(sat)]);
       tx.execute('COMMIT');
     } catch (_) {
       tx.execute('ROLLBACK');
@@ -41,7 +41,7 @@ mixin _Repo5 on _RepoBase {
 
   /// The date of the template-day [day] inside [sat]'s bundled weekend
   /// (Saturday → Friday), or null for an unknown token.
-  static DateTime? _sessionDate(DateTime sat, String day) {
+  DateTime? _sessionDate(DateTime sat, String day) {
     final offset = Slot.allDays.indexOf(day);
     if (offset < 0) return null;
     return sat.add(Duration(days: offset));
@@ -70,7 +70,7 @@ WHERE s.weekend_start = ?
   )
 ORDER BY s.start_at
 ''',
-        [_dayKey(sat)],
+        [this._dayKey(sat)],
       )
       .map(Session.fromRow)
       .toList();
@@ -99,13 +99,13 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
   updated_at = excluded.updated_at
 ''',
       [
-        _dayKey(a.weekendStart),
+        this._dayKey(a.weekendStart),
         a.userId,
-        _dayKey(a.bundleStart),
+        this._dayKey(a.bundleStart),
         jsonEncode(a.slots.map((s) => s.encode()).toList()),
         jsonEncode(a.wantSlots.map((s) => s.encode()).toList()),
         a.available ? 1 : 0,
-        _fmt(a.updatedAt),
+        this._fmt(a.updatedAt),
       ],
     );
   }
@@ -113,7 +113,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
   Availability? getAvailability(DateTime weekendStart, int userId) {
     final rows = raw.select(
       'SELECT * FROM availability WHERE weekend_start = ? AND user_id = ?',
-      [_dayKey(weekendStart), userId],
+      [this._dayKey(weekendStart), userId],
     );
     if (rows.isEmpty) return null;
     final r = rows.first;
@@ -131,7 +131,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
   List<Availability> availabilityForWeekend(DateTime weekendStart) {
     final rows = raw.select(
       'SELECT * FROM availability WHERE weekend_start = ?',
-      [_dayKey(weekendStart)],
+      [this._dayKey(weekendStart)],
     );
     return rows
         .map((r) => Availability(
@@ -151,7 +151,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
     final rows = raw.select(
       'SELECT 1 FROM availability WHERE bundle_start = ? AND user_id = ? '
       'LIMIT 1',
-      [_dayKey(bundleStart), userId],
+      [this._dayKey(bundleStart), userId],
     );
     return rows.isNotEmpty;
   }
@@ -221,7 +221,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
       tx.execute(
         'DELETE FROM allocations WHERE session_id IN '
         '(SELECT id FROM sessions WHERE weekend_start = ?)',
-        [_dayKey(sat)],
+        [this._dayKey(sat)],
       );
       final stmt = tx.prepare(
         'INSERT INTO allocations (user_id, session_id) VALUES (?, ?)',
@@ -243,7 +243,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
     raw.execute(
       'DELETE FROM allocations WHERE user_id = ? AND session_id IN '
       '(SELECT id FROM sessions WHERE weekend_start = ?)',
-      [userId, _dayKey(sat)],
+      [userId, this._dayKey(sat)],
     );
   }
 
@@ -266,7 +266,7 @@ JOIN sessions s ON s.id = al.session_id
 WHERE s.weekend_start = ?
 ORDER BY s.start_at, u.name
 ''',
-      [_dayKey(sat)],
+      [this._dayKey(sat)],
     );
     return rows.map((r) {
       final user = User.fromRow(r);

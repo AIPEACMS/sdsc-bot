@@ -29,10 +29,10 @@ class _DatabaseBase {
   final sqlite.Database _db;
 
   static void _applySchema(sqlite.Database db, Config config) =>
-      _Database2._applySchema(db, config);
+      DatabaseMigrations._applySchema(db, config);
 }
 
-class Database extends _DatabaseBase with _Database1, _Database2, _Database3 {
+class Database extends _DatabaseBase {
   Database._(sqlite.Database db) : super._(db);
 
   factory Database.open(Config config) {

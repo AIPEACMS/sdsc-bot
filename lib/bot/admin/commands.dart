@@ -1,6 +1,6 @@
 part of '../admin.dart';
 
-mixin _Admin1 on _AdminBase {
+extension AdminCommands on Admin {
 
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
@@ -12,29 +12,29 @@ mixin _Admin1 on _AdminBase {
       label: 'add-out-user',
     );
     state.registerCommand('allstatus');
-    bot.command('allstatus', _guard(_status));
+    bot.command('allstatus', _guard(this._status));
     state.registerCommand('status');
-    bot.command('status', _guard(_status)); // Compatibility alias.
+    bot.command('status', _guard(this._status)); // Compatibility alias.
     commandBoth(
       bot,
       state,
       'groupstatus',
-      _guard(_groupStatus),
+      _guard(this._groupStatus),
       label: 'group-status',
     );
     state.registerCommand('allusers');
-    bot.command('allusers', _guard(_users));
+    bot.command('allusers', _guard(this._users));
     state.registerCommand('users');
-    bot.command('users', _guard(_users)); // Compatibility alias.
+    bot.command('users', _guard(this._users)); // Compatibility alias.
     commandBoth(
       bot,
       state,
       'groupusers',
-      _guard(_groupUsers),
+      _guard(this._groupUsers),
       label: 'group-users',
     );
-    commandBoth(bot, state, 'prompt', _guard(_promptConfirm), label: 'prompt');
-    commandBoth(bot, state, 'remind', _guard(_remindConfirm), label: 'remind');
+    commandBoth(bot, state, 'prompt', _guard(this._promptConfirm), label: 'prompt');
+    commandBoth(bot, state, 'remind', _guard(this._remindConfirm), label: 'remind');
     commandBoth(
       bot,
       state,
@@ -46,20 +46,20 @@ mixin _Admin1 on _AdminBase {
       }),
       label: 'allocate',
     );
-    commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
-    commandBoth(bot, state, 'confirm', _guard(_confirm), label: 'mark-attend');
+    commandBoth(bot, state, 'ask', _guard(this._ask), label: 'ask');
+    commandBoth(bot, state, 'confirm', _guard(this._confirm), label: 'mark-attend');
     commandBoth(
       bot,
       state,
       'setexp',
-      _guard((ctx) => _pickUser(ctx, 'setexp')),
+      _guard((ctx) => this._pickUser(ctx, 'setexp')),
       label: 'set-exp',
     );
     commandBoth(
       bot,
       state,
       'broadcast',
-      _guard(_broadcast),
+      _guard(this._broadcast),
       label: 'broadcast',
     );
 
@@ -81,7 +81,7 @@ mixin _Admin1 on _AdminBase {
         'admincancel',
       };
       if (mine.contains(head)) {
-        await _onAdminCallback(ctx);
+        await this._onAdminCallback(ctx);
         return;
       }
       await next();
@@ -158,7 +158,7 @@ mixin _Admin1 on _AdminBase {
     final tier = _pendingAddTier[userId] ?? MemberTier.member;
     _pendingAddTier[userId] = tier;
     _pendingAddUser[userId] = handles;
-    final list = handles.map((handle) => '• @${_html(handle)}').join('\n');
+    final list = handles.map((handle) => '• @${this._html(handle)}').join('\n');
     final batchLabel = handles.length == 1
         ? 'this ${_tierLabel(tier)}'
         : 'these ${handles.length} ${_tierLabel(tier)}s';
@@ -170,16 +170,7 @@ mixin _Admin1 on _AdminBase {
     state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
-  /// The handles awaiting confirmation per admin, from the /adduser wizard.
-  final Map<int, List<String>> _pendingAddUser = {}
-
-;
-
-  final Map<int, String> _pendingAddTier = {}
-
-;
-
-  static List<String> _parseHandles(String text) => text
+  List<String> _parseHandles(String text) => text
       .trim()
       .split(RegExp(r'\s+'))
       .where((part) => part.isNotEmpty)
@@ -241,7 +232,7 @@ mixin _Admin1 on _AdminBase {
         'automatically.';
   }
 
-  static String _tierLabel(String tier) => tier == MemberTier.outMember
+  String _tierLabel(String tier) => tier == MemberTier.outMember
       ? 'out-member'
       : tier == MemberTier.member
       ? 'member'

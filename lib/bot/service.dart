@@ -22,6 +22,9 @@ part 'service/notifications.dart';
 String _dayShort(DateTime d) =>
     '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
 
+String _day(DateTime d) =>
+    '${d.day} ${const ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][d.month - 1]}';
+
 String _fmt(DateTime d) =>
     '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 
@@ -47,7 +50,7 @@ String _displayName(User user) {
 class _CycleServiceBase {
 
   static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) =>
-      _CycleService1.holidaysForWindow(repo, w);
+      CycleServicePrompts.holidaysForWindow(repo, w);
 
   static InlineKeyboard buildKeyboard(
     RollingWindow w,
@@ -60,7 +63,7 @@ class _CycleServiceBase {
     required DateTime now,
     required List<Session> sessions,
     required String Function(String locationKey) locationName,
-  }) => _CycleService3.buildKeyboard(
+  }) => CycleServiceNotifications.buildKeyboard(
         w,
         picked,
         holiday: holiday,
@@ -92,8 +95,7 @@ class _CycleServiceBase {
   });
 }
 
-class CycleService extends _CycleServiceBase
-    with _CycleService1, _CycleService2, _CycleService3 {
+class CycleService extends _CycleServiceBase {
   CycleService({
     required super.repo,
     required super.config,
@@ -103,7 +105,7 @@ class CycleService extends _CycleServiceBase
   });
 
   static List<Holiday> holidaysForWindow(Repo repo, RollingWindow w) =>
-      _CycleService1.holidaysForWindow(repo, w);
+      CycleServicePrompts.holidaysForWindow(repo, w);
 
   static InlineKeyboard buildKeyboard(
     RollingWindow w,
@@ -116,7 +118,7 @@ class CycleService extends _CycleServiceBase
     required DateTime now,
     required List<Session> sessions,
     required String Function(String locationKey) locationName,
-  }) => _CycleService3.buildKeyboard(
+  }) => CycleServiceNotifications.buildKeyboard(
         w,
         picked,
         holiday: holiday,

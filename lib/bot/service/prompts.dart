@@ -1,6 +1,6 @@
 part of '../service.dart';
 
-mixin _CycleService1 on _CycleServiceBase {
+extension CycleServicePrompts on CycleService {
 
   /// Picks the right prompt for [user] for [window]: holiday variant first,
   /// then the "you did not attend" variant for lapsed members. Returns null
@@ -269,7 +269,7 @@ mixin _CycleService1 on _CycleServiceBase {
     if (suppressed > 0) LogRing.log('allocate: suppressed $suppressed notices (route disabled)');
   }
 
-  static bool _matches(Session session, Slot slot) =>
+  bool _matches(Session session, Slot slot) =>
       session.day == slot.day &&
       session.slot == slot.slot &&
       session.location == slot.location;

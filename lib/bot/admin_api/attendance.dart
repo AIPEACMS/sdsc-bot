@@ -1,6 +1,6 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi4 on _AdminApiBase {
+extension AdminApiAttendance on AdminApi {
 
   /// Registers (or queues) a member by @handle, mirroring the /adduser
   /// outcome: already-registered → already member; pending → already queued;
@@ -9,7 +9,7 @@ mixin _AdminApi4 on _AdminApiBase {
   /// directly as that tier — the console's "Add check" uses this instead of
   /// adding a member and converting afterwards.
   Future<(int, Object)> _addUser(String bodyText) async {
-    final body = _jsonBody(bodyText);
+    final body = this._jsonBody(bodyText);
     final handle =
         (body['handle'] as String?)?.trim().replaceFirst('@', '') ?? '';
     final tier = (body['tier'] as String?) ?? MemberTier.member;
@@ -24,7 +24,7 @@ mixin _AdminApi4 on _AdminApiBase {
         {'ok': false, 'error': 'tier must be "member", "out-member" or "check"'},
       );
     }
-    final preference = _notificationFromBody(body);
+    final preference = this._notificationFromBody(body);
     if ((body.containsKey('notificationPreference') ||
             body.containsKey('preference') ||
             body.containsKey('notify')) &&
@@ -55,7 +55,7 @@ mixin _AdminApi4 on _AdminApiBase {
           200,
           {
             'ok': true,
-            'message': '@$handle is already a ${_tierLabel(tier)}.',
+            'message': '@$handle is already a ${this._tierLabel(tier)}.',
           },
         );
       }
@@ -65,7 +65,7 @@ mixin _AdminApi4 on _AdminApiBase {
       if (preference != null) repo.setNotificationPreference(existing.id, preference);
       return (
         200,
-        {'ok': true, 'message': '@$handle converted to ${_tierLabel(tier)}.'},
+        {'ok': true, 'message': '@$handle converted to ${this._tierLabel(tier)}.'},
       );
     }
     if (pending != null) {
@@ -82,8 +82,8 @@ mixin _AdminApi4 on _AdminApiBase {
           'ok': true,
           'warning': true,
           'message': '@$handle is not registered; pending role '
-              '${_tierLabel(pending.effectiveTier)} was replaced with '
-              '${_tierLabel(tier)}.',
+              '${this._tierLabel(pending.effectiveTier)} was replaced with '
+              '${this._tierLabel(tier)}.',
         },
       );
     }
@@ -139,7 +139,7 @@ mixin _AdminApi4 on _AdminApiBase {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
     final now = config.toLocal(Config.nowUtc());
-    final w = _window(now);
+    final w = this._window(now);
     switch (op) {
       case 'prompt':
         await service.sendPrompts(w);
@@ -163,7 +163,7 @@ mixin _AdminApi4 on _AdminApiBase {
     if (service == null) {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
-    final body = _jsonBody(bodyText);
+    final body = this._jsonBody(bodyText);
     final id = (body['userId'] as num?)?.toInt();
     if (id == null) {
       return (400, {'ok': false, 'error': 'expected {"userId": <id>}'});
@@ -181,7 +181,7 @@ mixin _AdminApi4 on _AdminApiBase {
       );
     }
     final now = config.toLocal(Config.nowUtc());
-    final w = _window(now);
+    final w = this._window(now);
     final holiday = service.optedOutHolidayFor(user, w);
     if (holiday != null) {
       return (
@@ -215,7 +215,7 @@ mixin _AdminApi4 on _AdminApiBase {
     if (service == null) {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
-    final body = _jsonBody(bodyText);
+    final body = this._jsonBody(bodyText);
     final text = (body['text'] as String?)?.trim() ?? '';
     if (text.isEmpty) {
       return (400, {'ok': false, 'error': 'expected {"text": "..."}'});
@@ -251,7 +251,7 @@ mixin _AdminApi4 on _AdminApiBase {
   /// attendance states, for the console's attendance timetable.
   Map<String, Object?> _attendanceBody() {
     final now = config.toLocal(Config.nowUtc());
-    final w = _window(now);
+    final w = this._window(now);
     final sessions = repo.windowSessions(w);
     final bySession = <int, List<User>>{};
     for (final sat in w.weekends) {
@@ -269,7 +269,7 @@ mixin _AdminApi4 on _AdminApiBase {
         for (final s in sessions)
           {
             'id': s.id,
-            'label': _sessionLabel(s),
+            'label': this._sessionLabel(s),
             'location': s.location,
             'weekendStart': s.weekendStart.toIso8601String(),
             'day': s.day,

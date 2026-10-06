@@ -49,8 +49,7 @@ class _RepoBase {
   final Database _db;
 }
 
-class Repo extends _RepoBase
-    with _Repo1, _Repo2, _Repo3, _Repo4, _Repo5, _Repo6, _Repo7 {
+class Repo extends _RepoBase {
   static const activeOutreachRouteKeys = defaultActiveOutreachRouteKeys;
 
   Repo(Database db) : super(db);

@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime2 on _SetTimeBase {
+extension SetTimeDraft on SetTime {
 
   /// Entry point for the wizard: the gadmin typed one or more lines.
   Future<void> onText(Context ctx, int userId, String text) async {
@@ -40,13 +40,13 @@ mixin _SetTime2 on _SetTimeBase {
       final session = parsed as ParsedSession;
       if (draft.scope == _SetTimeScope.temporary) {
         final date = session.targetDate!;
-        final saturday = _saturdayOf(date);
+        final saturday = this._saturdayOf(date);
         if (draft.targetSaturday == null) {
           draft.targetSaturday = saturday;
         } else if (draft.targetSaturday != saturday) {
           errors.add(
             '❌ $line — this temporary change is for the week of '
-            '${_date(draft.targetSaturday!)}; start another change for a different week',
+            '${this._date(draft.targetSaturday!)}; start another change for a different week',
           );
           continue;
         }
@@ -67,7 +67,7 @@ mixin _SetTime2 on _SetTimeBase {
     }
     // Show exactly what was just added, numbered as in the final confirmation.
     for (var i = firstIndex; i <= total; i++) {
-      sb.writeln(_sessionLine(draft, draft.lines[i - 1], i));
+      sb.writeln(this._sessionLine(draft, draft.lines[i - 1], i));
     }
     if (errors.isNotEmpty) {
       if (added > 0) sb.writeln();
@@ -99,7 +99,7 @@ mixin _SetTime2 on _SetTimeBase {
       await _askLocation(ctx, userId, unresolved.first);
       return;
     }
-    await _showConfirmation(ctx, userId);
+    await this._showConfirmation(ctx, userId);
   }
 
   /// "Is `<token>` a new location?" with the approved locations as buttons and
@@ -115,7 +115,7 @@ mixin _SetTime2 on _SetTimeBase {
     }
     kb = kb.text('❌ Cancel', 'settime|no');
     await ctx.reply(
-      'I don\'t recognise the location <b>${_html(token)}</b>.\n\n'
+      'I don\'t recognise the location <b>${this._html(token)}</b>.\n\n'
       'Is it one of these, or a new location?',
       parseMode: ParseMode.html,
       replyMarkup: kb,
@@ -154,7 +154,7 @@ mixin _SetTime2 on _SetTimeBase {
     }
     draft.resolved[token] = loc.key;
     await ctx.editMessageText(
-      '✅ <b>${_html(token)}</b> → ${_html(loc.name)}.',
+      '✅ <b>${this._html(token)}</b> → ${this._html(loc.name)}.',
       parseMode: ParseMode.html,
     );
     await _continueDraft(ctx, userId);
@@ -185,8 +185,8 @@ mixin _SetTime2 on _SetTimeBase {
       await bot.api.sendMessage(
         ChatID(config.consoleId),
         '🆕 <b>New location requested</b>\n\n'
-        'The global admin asked to add <b>${_html(loc.name)}</b>.\n'
-        'Approve it with <code>/addlocation ${_html(loc.name)}</code> '
+        'The global admin asked to add <b>${this._html(loc.name)}</b>.\n'
+        'Approve it with <code>/addlocation ${this._html(loc.name)}</code> '
         '(optionally /addalias afterwards), or from the console app.',
         parseMode: ParseMode.html,
       );
@@ -195,7 +195,7 @@ mixin _SetTime2 on _SetTimeBase {
     }
 
     await ctx.reply(
-      '🕓 Thank you. I have asked the console to add <b>${_html(loc.name)}</b>. '
+      '🕓 Thank you. I have asked the console to add <b>${this._html(loc.name)}</b>. '
       'Please wait a moment — I will continue here once it is approved.',
       parseMode: ParseMode.html,
     );
@@ -210,7 +210,7 @@ mixin _SetTime2 on _SetTimeBase {
       final draft = entry.value;
       var touched = false;
       for (final e in draft.requestedNames.entries.toList()) {
-        if (_norm(e.value) == _norm(loc.name)) {
+        if (this._norm(e.value) == this._norm(loc.name)) {
           draft.resolved[e.key] = loc.key;
           draft.requestedNames.remove(e.key);
           touched = true;
@@ -231,7 +231,7 @@ mixin _SetTime2 on _SetTimeBase {
         : Pickers.confirm('settime');
     await bot.api.sendMessage(
       ChatID(userId),
-      '✅ <b>The new location is added.</b>\n\n${_confirmationText(draft)}',
+      '✅ <b>The new location is added.</b>\n\n${this._confirmationText(draft)}',
       parseMode: ParseMode.html,
       replyMarkup: kb,
     );
@@ -245,7 +245,7 @@ mixin _SetTime2 on _SetTimeBase {
       await _askLocation(ctx, userId, unresolved.first);
       return;
     }
-    await _showConfirmation(ctx, userId);
+    await this._showConfirmation(ctx, userId);
   }
 
 }

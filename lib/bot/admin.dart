@@ -4,6 +4,7 @@ import 'package:televerse/telegram.dart' hide Location, User;
 import '../core/models.dart';
 import '../core/repo.dart';
 import '../core/config.dart';
+import '../core/log.dart';
 import 'command_both.dart';
 import 'pickers.dart';
 import 'service.dart';
@@ -31,6 +32,10 @@ class _AdminBase {
 
   final ScheduleRuntime scheduleRuntime;
 
+  final Map<int, List<String>> _pendingAddUser = {};
+  final Map<int, String> _pendingAddTier = {};
+  final Map<int, String> _pendingBroadcast = {};
+
   _AdminBase({
     required this.bot,
     required this.repo,
@@ -42,7 +47,7 @@ class _AdminBase {
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 }
 
-class Admin extends _AdminBase with _Admin1, _Admin2, _Admin3, _Admin4 {
+class Admin extends _AdminBase {
   Admin({
     required super.bot,
     required super.repo,

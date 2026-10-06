@@ -1,13 +1,13 @@
 part of '../admin_api.dart';
 
-mixin _AdminApi2 on _AdminApiBase {
+extension AdminApiUsers on AdminApi {
 
 ;
 
   Future<(int, Object)> _setSchedule(String bodyText) async {
     final Map<String, dynamic> body;
     try {
-      body = _jsonBody(bodyText);
+      body = this._jsonBody(bodyText);
     } catch (_) {
       return (400, {'ok': false, 'error': 'expected a JSON object'});
     }
@@ -106,13 +106,13 @@ mixin _AdminApi2 on _AdminApiBase {
     return (200, {
       'ok': true,
       ..._scheduleJson(),
-      'schedule': _scheduleJson(),
+      'schedule': this._scheduleJson(),
     });
   }
 
   /// The user's full set of groups, most significant first. The console and
   /// global-admin identities are independent and can both be present.
-  static List<String> _groupsOf(User u, {required bool isConsole}) {
+  List<String> _groupsOf(User u, {required bool isConsole}) {
     final groups = <String>[];
     if (isConsole) groups.add(MemberTier.console);
     if (u.isGlobalAdmin) groups.add(MemberTier.globalAdmin);
@@ -159,7 +159,7 @@ mixin _AdminApi2 on _AdminApiBase {
       'group': u.group,
       'preferredName': u.preferredName,
       'experience': u.experience.name,
-      'notificationPreference': _notificationValue(u.notificationPreference),
+      'notificationPreference': this._notificationValue(u.notificationPreference),
       'lastPromptState': u.lastPromptState.name,
       'ocbcStreak': u.ocbcStreak,
       'attendance': attendance,
@@ -169,7 +169,7 @@ mixin _AdminApi2 on _AdminApiBase {
   Future<(int, Object)> _setTier(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    final body = _jsonBody(bodyText);
+    final body = this._jsonBody(bodyText);
     final tier = (body['tier'] as String?) ?? '';
     if (![
       MemberTier.admin,
@@ -186,7 +186,7 @@ mixin _AdminApi2 on _AdminApiBase {
         'error': 'out-members cannot be promoted to admin',
       });
     }
-    final preference = _notificationFromBody(body);
+    final preference = this._notificationFromBody(body);
     if ((body.containsKey('notificationPreference') ||
             body.containsKey('preference') ||
             body.containsKey('notify')) &&
@@ -210,7 +210,7 @@ mixin _AdminApi2 on _AdminApiBase {
         'ok': true,
         'user': updated.name,
         'tier': MemberTier.of(updated, isConsole: config.isConsole(id)),
-        'notificationPreference': _notificationValue(
+        'notificationPreference': this._notificationValue(
           updated.notificationPreference,
         ),
       },
@@ -223,8 +223,8 @@ mixin _AdminApi2 on _AdminApiBase {
   ) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
-    final body = _jsonBody(bodyText);
-    final preference = _notificationFromBody(body);
+    final body = this._jsonBody(bodyText);
+    final preference = this._notificationFromBody(body);
     if (preference == null) {
       return (
         400,
@@ -241,7 +241,7 @@ mixin _AdminApi2 on _AdminApiBase {
       200,
       {
         'ok': true,
-        'notificationPreference': _notificationValue(
+        'notificationPreference': this._notificationValue(
           updated.notificationPreference,
         ),
       },
@@ -255,7 +255,7 @@ mixin _AdminApi2 on _AdminApiBase {
       200,
       {
         'ok': true,
-        'notificationPreference': _notificationValue(
+        'notificationPreference': this._notificationValue(
           user.notificationPreference,
         ),
         'lastPromptState': user.lastPromptState.name,

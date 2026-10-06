@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo2 on _RepoBase {
+extension RepoSettings on Repo {
 
   /// Promotes a registered user to the singleton global-admin role. A member
   /// gets a group only when they do not already have one; an existing normal

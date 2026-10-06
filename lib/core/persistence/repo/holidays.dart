@@ -1,6 +1,6 @@
 part of '../../repo.dart';
 
-mixin _Repo7 on _RepoBase {
+extension RepoHolidays on Repo {
 
   /// Maps calendar week types to bot holiday kinds.
   ///
@@ -29,15 +29,15 @@ mixin _Repo7 on _RepoBase {
     return null;
   }
 
-  static String _fmt(DateTime d) =>
+  String _fmt(DateTime d) =>
       DateTime(d.year, d.month, d.day, d.hour, d.minute).toIso8601String();
 
-  static String _dayKey(DateTime d) =>
+  String _dayKey(DateTime d) =>
       '${d.year.toString().padLeft(4, '0')}-'
       '${d.month.toString().padLeft(2, '0')}-'
       '${d.day.toString().padLeft(2, '0')}';
 
-  static DateTime _parseTime(DateTime day, String hhmm) {
+  DateTime _parseTime(DateTime day, String hhmm) {
     final parts = hhmm.split(':');
     return DateTime(
       day.year,
@@ -48,13 +48,13 @@ mixin _Repo7 on _RepoBase {
     );
   }
 
-  static String _notificationPreferenceValue(
+  String _notificationPreferenceValue(
     NotificationPreference preference,
   ) => preference == NotificationPreference.everyOther
       ? 'every-other'
       : preference.name;
 
-  static NotificationPreference _notificationPreferenceFromValue(String? value) =>
+  NotificationPreference _notificationPreferenceFromValue(String? value) =>
       switch (value) {
         'every-other' || 'every_other' || 'everyOther' =>
           NotificationPreference.everyOther,
@@ -64,11 +64,11 @@ mixin _Repo7 on _RepoBase {
 
 ;
 
-  static String _storedTier(String tier) => MemberTier.isStored(tier)
+  String _storedTier(String tier) => MemberTier.isStored(tier)
       ? tier
       : MemberTier.member;
 
-  static String _pendingHandle(String handle) =>
+  String _pendingHandle(String handle) =>
       handle.replaceFirst('@', '').toLowerCase();
 
 }

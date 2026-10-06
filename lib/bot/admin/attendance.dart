@@ -1,6 +1,6 @@
 part of '../admin.dart';
 
-mixin _Admin4 on _AdminBase {
+extension AdminAttendance on Admin {
 
   Future<void> _doBroadcast(Context ctx, String text) async {
     if (!repo.activeOutreachEnabled('broadcast')) {
@@ -30,31 +30,31 @@ mixin _Admin4 on _AdminBase {
   // ------------------------------------------------------- admin callbacks
 
   Future<void> _onAdminCallback(Context ctx) async {
-    if (!_isAdmin(ctx)) return;
+    if (!this._isAdmin(ctx)) return;
     final data = ctx.callbackQuery?.data ?? '';
     final parts = data.split('|');
     switch (parts[0]) {
       case 'att_sess':
         final id = int.tryParse(parts.length > 1 ? parts[1] : '');
-        if (id != null) await _sessionPicker(ctx, id);
+        if (id != null) await this._sessionPicker(ctx, id);
       case 'att_toggle':
         final sid = int.tryParse(parts[1]);
         final uid = int.tryParse(parts[2]);
         if (sid != null && uid != null) {
-          await _toggleAttendance(ctx, sid, uid);
+          await this._toggleAttendance(ctx, sid, uid);
         }
       case 'setexp':
         final uid = int.tryParse(parts[2]);
-        if (uid != null) await _applySet(ctx, parts[0], parts[1], uid);
+        if (uid != null) await this._applySet(ctx, parts[0], parts[1], uid);
       case 'setval':
         final kind = parts.length > 1 ? parts[1] : '';
         final value = parts.length > 2 ? parts[2] : '';
         if (kind == 'setexp') {
           await ctx.answerCallbackQuery();
-          await _pickUserFor(ctx, kind, value);
+          await this._pickUserFor(ctx, kind, value);
         }
       case 'mpick':
-        await _onMemberPick(ctx, parts);
+         await this._onMemberPick(ctx, parts);
       case 'bcast':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
@@ -63,7 +63,7 @@ mixin _Admin4 on _AdminBase {
         );
         if (yes) {
           final text = _pendingBroadcast.remove(ctx.from!.id);
-          if (text != null) await _doBroadcast(ctx, text);
+          if (text != null) await this._doBroadcast(ctx, text);
         } else {
           _pendingBroadcast.remove(ctx.from!.id);
         }
@@ -81,7 +81,7 @@ mixin _Admin4 on _AdminBase {
         final tier = _pendingAddTier.remove(ctx.from!.id) ?? MemberTier.member;
         if (handles == null) return;
         await ctx.editMessageText(
-          handles.map((handle) => _addOutcome(handle, tier: tier)).join('\n'),
+          handles.map((handle) => this._addOutcome(handle, tier: tier)).join('\n'),
         );
       case 'prompt':
         final yes = parts.length > 1 && parts[1] == 'yes';
@@ -89,14 +89,14 @@ mixin _Admin4 on _AdminBase {
         await ctx.editMessageText(
           yes ? 'Sending prompts…' : 'Cancelled — nothing was sent.',
         );
-        if (yes) await service.sendPrompts(_window());
+        if (yes) await service.sendPrompts(this._window());
       case 'remind':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
         await ctx.editMessageText(
           yes ? 'Sending reminders…' : 'Cancelled — nothing was sent.',
         );
-        if (yes) await service.sendReminders(_window());
+        if (yes) await service.sendReminders(this._window());
       case 'admincancel':
         await ctx.answerCallbackQuery();
         state.pendingArg.remove(ctx.from!.id);
@@ -106,11 +106,6 @@ mixin _Admin4 on _AdminBase {
         await ctx.editMessageText('Cancelled.');
     }
   }
-
-  /// The broadcast message awaiting confirmation, per admin.
-  final Map<int, String> _pendingBroadcast = {}
-
-;
 
   Future<void> _onMemberPick(Context ctx, List<String> parts) async {
     await ctx.answerCallbackQuery();
@@ -136,13 +131,13 @@ mixin _Admin4 on _AdminBase {
         );
         return;
       }
-      final memberId = int.tryParse(target);
-      if (memberId != null) await _askPick(ctx, memberId);
+       final memberId = int.tryParse(target);
+       if (memberId != null) await this._askPick(ctx, memberId);
       return;
     }
   }
 
-  static String _day(DateTime d) {
+  String _day(DateTime d) {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     const months = [
       'Jan',

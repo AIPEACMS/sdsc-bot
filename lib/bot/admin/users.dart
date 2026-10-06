@@ -1,11 +1,11 @@
 part of '../admin.dart';
 
-mixin _Admin2 on _AdminBase {
+extension AdminUsers on Admin {
 
   // ----------------------------------------------------------- /status
 
   Future<void> _status(Context ctx, {String? group}) async {
-    final w = _window();
+    final w = this._window();
     final users = repo
         .activeUsers()
         .where((user) => group == null || user.group == group)
@@ -28,12 +28,12 @@ mixin _Admin2 on _AdminBase {
       ..writeln(
         '📊 <b>${group == null ? 'All members' : 'Group $group'} status</b>',
       )
-      ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"')
+      ..writeln('Bundle: "${this._day(w.sat0)}, ${this._day(w.sat1)}"')
       ..writeln(
-        'Prompt: ${_day(w.promptDay)}  |  '
-        'Reminder: ${_day(w.reminderDay)}  |  '
-        'Lock W1: ${_day(w.deadline0)}  |  '
-        'Lock W2: ${_day(w.deadline1)}',
+        'Prompt: ${this._day(w.promptDay)}  |  '
+        'Reminder: ${this._day(w.reminderDay)}  |  '
+        'Lock W1: ${this._day(w.deadline0)}  |  '
+        'Lock W2: ${this._day(w.deadline1)}',
       )
       ..writeln('Registered members: ${users.length}')
       ..writeln('Responded: $responders/${users.length}');
@@ -69,7 +69,7 @@ mixin _Admin2 on _AdminBase {
     sb.write(
       service.checkListText(
         w.sat0,
-        title: '📋 <b>Allocation · ${_day(w.sat0)}</b>',
+        title: '📋 <b>Allocation · ${this._day(w.sat0)}</b>',
         userIds: group == null ? null : activeIds,
       ),
     );
@@ -77,7 +77,7 @@ mixin _Admin2 on _AdminBase {
     sb.write(
       service.checkListText(
         w.sat1,
-        title: '📋 <b>Allocation · ${_day(w.sat1)}</b>',
+        title: '📋 <b>Allocation · ${this._day(w.sat1)}</b>',
         userIds: group == null ? null : activeIds,
       ),
     );
@@ -85,7 +85,7 @@ mixin _Admin2 on _AdminBase {
   }
 
   Future<void> _groupStatus(Context ctx) async {
-    final group = _adminGroup(ctx);
+    final group = this._adminGroup(ctx);
     if (group.isEmpty) {
       await ctx.reply('You are not assigned to a group.');
       return;
@@ -140,7 +140,7 @@ mixin _Admin2 on _AdminBase {
     return user.memberTier;
   }
 
-  static String _notificationLabel(NotificationPreference preference) =>
+  String _notificationLabel(NotificationPreference preference) =>
       switch (preference) {
         NotificationPreference.weekly => 'weekly',
         NotificationPreference.everyOther => 'every other week',
@@ -155,7 +155,7 @@ mixin _Admin2 on _AdminBase {
   }
 
   Future<void> _groupUsers(Context ctx) async {
-    final group = _adminGroup(ctx);
+    final group = this._adminGroup(ctx);
     if (group.isEmpty) {
       await ctx.reply('You are not assigned to a group.');
       return;
@@ -163,13 +163,13 @@ mixin _Admin2 on _AdminBase {
     await _users(ctx, group: group);
   }
 
-  static String _displayName(User user) {
+  String _displayName(User user) {
     final human = user.preferredName;
     if (human.isEmpty) return _html(user.name);
     return '${_html(human)} ${_html(user.name)}';
   }
 
-  static String _html(String text) => text
+  String _html(String text) => text
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
@@ -248,7 +248,7 @@ mixin _Admin2 on _AdminBase {
       return ('Ask delivery is disabled. No availability picker was sent.', false);
     }
     final now = config.toLocal(Config.nowUtc());
-    final w = _window();
+    final w = this._window();
     final holiday = service.optedOutHolidayFor(user, w);
     if (holiday != null) {
       return (
@@ -278,7 +278,7 @@ mixin _Admin2 on _AdminBase {
   /// finished) can still be marked.
   DateTime _currentWeekendSat() {
     final now = config.toLocal(Config.nowUtc());
-    final w = _windowFor(now);
+    final w = this._windowFor(now);
     return now.isBefore(w.sat0)
         ? w.sat0.subtract(const Duration(days: 7))
         : w.sat0;

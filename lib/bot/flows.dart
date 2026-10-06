@@ -67,7 +67,7 @@ class _FlowsBase {
 
   @Deprecated('Immediate allocation is the default in v3.2.0.')
   static String nextSharpHourLabel(DateTime now) =>
-      _Flows4.nextSharpHourLabel(now);
+      FlowsPresentation.nextSharpHourLabel(now);
 
   final Bot bot;
 
@@ -83,6 +83,10 @@ class _FlowsBase {
 
   final ScheduleRuntime scheduleRuntime;
 
+  Future<void> Function()? onAvailabilitySaved;
+  Future<void> Function(Context ctx, int userId, String text)? onBroadcastText;
+  Future<void> Function(Context ctx, int userId, String text)? onAddUserText;
+
   _FlowsBase({
     required this.bot,
     required this.repo,
@@ -94,7 +98,7 @@ class _FlowsBase {
   }) : scheduleRuntime =
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 
-  static const int _profileSteps = 1;
+  final int _profileSteps = 1;
 
   /// Set by main.dart: applies the typed date of the /setdate wizard.
   Future<void> Function(Context ctx, int userId, String text)? onSetDateText;
@@ -114,7 +118,7 @@ class _FlowsBase {
   Future<void> Function(Context ctx, int userId, String text)? onAddAliasText;
 }
 
-class Flows extends _FlowsBase with _Flows1, _Flows2, _Flows3, _Flows4 {
+class Flows extends _FlowsBase {
   Flows({
     required super.bot,
     required super.repo,
@@ -127,5 +131,5 @@ class Flows extends _FlowsBase with _Flows1, _Flows2, _Flows3, _Flows4 {
 
   @Deprecated('Immediate allocation is the default in v3.2.0.')
   static String nextSharpHourLabel(DateTime now) =>
-      _Flows4.nextSharpHourLabel(now);
+      FlowsPresentation.nextSharpHourLabel(now);
 }

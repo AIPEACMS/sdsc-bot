@@ -1,6 +1,6 @@
 part of '../console.dart';
 
-mixin _Console3 on _ConsoleBase {
+extension ConsoleSchedule on Console {
 
   Future<void> _addLocation(Context ctx) async {
     if (ctx.args.isEmpty) {
@@ -88,7 +88,7 @@ mixin _Console3 on _ConsoleBase {
     );
   }
 
-  static String _norm(String s) =>
+  String _norm(String s) =>
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 
   // ------------------------------------------- /addkey /keys /rmkey

@@ -1,6 +1,6 @@
 part of '../settime.dart';
 
-mixin _SetTime4 on _SetTimeBase {
+extension SetTimePersistence on SetTime {
 
   /// Stores the template and rebuilds every open weekend, then re-prompts the
   /// members whose availability it cleared.
@@ -91,21 +91,21 @@ mixin _SetTime4 on _SetTimeBase {
     );
   }
 
-  static DateTime _saturdayOf(DateTime date) => DateTime(
+  DateTime _saturdayOf(DateTime date) => DateTime(
     date.year,
     date.month,
     date.day,
   ).subtract(Duration(days: (date.weekday + 1) % 7));
 
-  static String _date(DateTime date) =>
+  String _date(DateTime date) =>
       '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
 
-  static String _norm(String s) =>
+  String _norm(String s) =>
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 
-  static String _html(String text) => text
+  String _html(String text) => text
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
