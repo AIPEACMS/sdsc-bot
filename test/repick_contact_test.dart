@@ -218,9 +218,9 @@ void main() {
     expect(unavailable, isNot(contains('/repick')));
   });
 
-  test('available confirmation announces the sharp allocation hour', () {
+  test('confirmation no longer promises allocation at a later sharp hour', () {
     final text = messages.msg3(const [], const [], allocateAt: '6:00 PM');
-    expect(text, contains('<b>You will get allocated at 6:00 PM</b> later'));
+    expect(text, isNot(contains('allocated at 6:00 PM')));
   });
 
   test('confirmation lists booked 🔒 and offered 🟢 slots separately', () {
@@ -785,7 +785,7 @@ void main() {
 
     // alice answers the bundle (Done, nothing selected). The open weekend
     // (Sat 22 Aug) gets saved; her allocation there must be revoked so the
-    // next sharp-hour run re-decides her from scratch.
+    // immediate re-optimization re-decides her from scratch.
     await bot.handleUpdate(
       Update.fromJson({
         'update_id': 1,

@@ -296,9 +296,17 @@ void main() {
       text.indexOf('<b>Admin</b>'),
       greaterThan(text.indexOf('<b>Global admin</b>')),
     );
-    expect(text, contains('add-user @handle'));
+    expect(text, contains('add-user @handle [@handle ...] - add members'));
+    expect(text, contains('add-out-user @handle [@handle ...] - add out-members'));
+    expect(text.split('add-out-user').length - 1, 1);
+    expect(text, isNot(contains('/addoutuser')));
+    expect(text, contains('/status -'));
+    expect(text, contains('/users -'));
+    expect(text, isNot(contains('all-status')));
+    expect(text, isNot(contains('all-users')));
     expect(text, contains('/addadmin @handle'));
     expect(text, contains('/settime'));
+    expect(text, isNot(contains('next sharp hour')));
   });
 
   test(
@@ -309,13 +317,15 @@ void main() {
       expect(
         keyboardTexts(sent.last),
         containsAll([
-          'all-status',
+          'add-user',
+          'add-out-user',
           'group-status',
-          'all-users',
           'group-users',
           'broadcast',
         ]),
       );
+      expect(keyboardTexts(sent.last), isNot(contains('all-status')));
+      expect(keyboardTexts(sent.last), isNot(contains('all-users')));
       expect(keyboardTexts(sent.last), isNot(contains('prompt')));
       expect(keyboardTexts(sent.last), isNot(contains('remind')));
       expect(keyboardTexts(sent.last), isNot(contains('allocate')));
@@ -354,6 +364,67 @@ void main() {
     expect(sent.last['text'], contains('Send me the message to broadcast'));
     expect(sent.last['text'], isNot(contains('availability')));
   });
+
+  test('/adduser and /addoutuser accept multiple handles', () async {
+    await sendText(2, '/adduser @memberalpha memberbeta');
+    expect(sent.last['text'], contains('@memberalpha queued as a member'));
+    expect(sent.last['text'], contains('@memberbeta queued as a member'));
+    expect(repo.pendingTier('memberalpha'), MemberTier.member);
+    expect(repo.pendingTier('memberbeta'), MemberTier.member);
+
+    await sendText(2, '/addoutuser @outalpha outbeta');
+    expect(sent.last['text'], contains('@outalpha queued as a out-member'));
+    expect(sent.last['text'], contains('@outbeta queued as a out-member'));
+    expect(repo.pendingTier('outalpha'), MemberTier.outMember);
+    expect(repo.pendingTier('outbeta'), MemberTier.outMember);
+  });
+
+  test(
+    'add-user wizard confirms a batch once and reports each outcome',
+    () async {
+      await sendText(2, '/addoutuser');
+      expect(sent.last['text'], contains('Multiple users can be separated'));
+      expect(sent.last['text'], contains('@alice @bob'));
+
+      await sendPlainText(2, '@alice bad-handle @bob');
+      expect(sent.last['text'], contains('Add these 3 out-members?'));
+      expect(sent.last['reply_markup'], isNotNull);
+      await sendCallback(2, 'adduser|yes');
+
+      expect(edited.last['text'], contains('@alice queued as a out-member'));
+      expect(edited.last['text'], contains('bad-handle is not a valid handle'));
+      expect(edited.last['text'], contains('@bob queued as a out-member'));
+      expect(repo.pendingTier('alice'), MemberTier.outMember);
+      expect(repo.pendingTier('bob'), MemberTier.outMember);
+      expect(state.pendingArg, isEmpty);
+    },
+  );
+
+  test('add-user wizard uses singular confirmation copy for one handle', () async {
+    await sendText(2, '/adduser');
+    await sendPlainText(2, '@oneperson');
+    expect(sent.last['text'], 'Add this member?\n• @oneperson');
+    await sendCallback(2, 'adduser|no');
+
+    await sendText(2, '/addoutuser');
+    await sendPlainText(2, '@oneoutmember');
+    expect(sent.last['text'], 'Add this out-member?\n• @oneoutmember');
+    await sendCallback(2, 'adduser|no');
+  });
+
+  test(
+    'cancelled add-user batch adds nobody and clears the wizard state',
+    () async {
+      await sendText(2, '/adduser');
+      await sendPlainText(2, '@cancelalpha @cancelbeta');
+      await sendCallback(2, 'adduser|no');
+
+      expect(edited.last['text'], contains('nobody was added'));
+      expect(repo.isPendingUser('cancelalpha'), isFalse);
+      expect(repo.isPendingUser('cancelbeta'), isFalse);
+      expect(state.pendingArg, isEmpty);
+    },
+  );
 
   test('broadcast wizard cancel does not enter availability cancel flow', () async {
     await sendText(2, '/broadcast');
@@ -407,6 +478,63 @@ void main() {
     expect(text, contains('Allocation · '));
     expect(text, contains('Allen @admin')); // sat0 allocation
     expect(text, contains('@checker')); // sat1 allocation
+  });
+
+  test('status and users remain typed commands, not grid labels', () async {
+    final before = sent.length;
+    await sendPlainText(2, 'all-status');
+    await sendPlainText(2, 'all-users');
+    expect(sent, hasLength(before));
+
+    await sendText(2, '/status');
+    expect(sent.last['text'], contains('All members status'));
+    await sendText(2, '/users');
+    expect(sent.last['text'], contains('All users'));
+  });
+
+  test('/prompt excludes current and previous bundle respondents', () async {
+    Config.setDebugNow(DateTime.utc(2026, 8, 12, 4));
+    addTearDown(() => Config.setDebugNow(null));
+    repo.upsertUser(
+      User(id: 4, name: '@previous', experience: Experience.newbie, group: '1'),
+    );
+    repo.upsertUser(
+      User(id: 5, name: '@fresh', experience: Experience.newbie, group: '1'),
+    );
+    final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
+    repo.setAvailability(
+      Availability(
+        weekendStart: w.sat0,
+        userId: 2,
+        bundleStart: w.sat0,
+        slots: const {},
+        available: false,
+        updatedAt: Config.nowUtc(),
+      ),
+    );
+    final previous = w.sat0.subtract(const Duration(days: 7));
+    repo.setAvailability(
+      Availability(
+        weekendStart: previous,
+        userId: 4,
+        bundleStart: previous,
+        slots: const {},
+        available: false,
+        updatedAt: Config.nowUtc(),
+      ),
+    );
+
+    sent.clear();
+    await sendText(2, '/prompt');
+    await sendCallback(2, 'prompt|yes');
+
+    final recipients = sent
+        .where((body) => (body['text'] as String).startsWith('Hi!'))
+        .map((body) => body['chat_id'])
+        .toSet();
+    expect(recipients, contains(5));
+    expect(recipients, isNot(contains(2)));
+    expect(recipients, isNot(contains(4)));
   });
 
   test('/groupstatus and /groupusers stay in the caller group', () async {

@@ -25,6 +25,39 @@ void main() {
     expect(gadmin.difference(admin), {'/hold', '/unhold', '/settime'});
   });
 
+  test('admin grid has exact ordered commands and role colors', () {
+    expect(
+      RoleKeyboard.adminButtons
+          .map((button) => (button.label, button.command, button.color))
+          .toList(),
+      [
+        ('add-user', '/adduser', RoleColor.admin),
+        ('add-out-user', '/addoutuser', RoleColor.admin),
+        ('group-status', '/groupstatus', RoleColor.admin),
+        ('group-users', '/groupusers', RoleColor.admin),
+        ('ask', '/ask', RoleColor.admin),
+        ('mark-attend', '/confirm', RoleColor.admin),
+        ('broadcast', '/broadcast', RoleColor.admin),
+        ('start', '/start', RoleColor.member),
+        ('re-pick', '/repick', RoleColor.member),
+        ('set-info', '/setinfo', RoleColor.member),
+        ('my-status', '/mystatus', RoleColor.member),
+      ],
+    );
+    expect(
+      RoleKeyboard.adminButtons.map((button) => button.command),
+      isNot(contains('/status')),
+    );
+    expect(
+      RoleKeyboard.adminButtons.map((button) => button.command),
+      isNot(contains('/users')),
+    );
+    expect(
+      RoleKeyboard.globalAdminButtons.map((button) => button.command),
+      containsAll(RoleKeyboard.adminButtons.map((button) => button.command)),
+    );
+  });
+
   test('labels carry no leading slash', () {
     for (final b in [
       ...RoleKeyboard.memberButtons,

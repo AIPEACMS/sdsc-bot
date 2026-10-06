@@ -18,9 +18,9 @@ import '../core/schedule.dart';
 ///  - the configured checker weekday/time pushes the allocation list
 ///  - Sunday 20:00 / Monday 08:00 attendance-marking reminders to admins
 ///
-/// Allocation is dynamic: every availability indication arms a one-shot run
-/// at the next sharp hour (see [scheduleDynamicAllocation]). The old Friday
-/// batch allocation is deprecated and no longer fires.
+/// New availability indications allocate immediately. The deprecated
+/// [scheduleDynamicAllocation] sharp-hour path remains for compatibility; the
+/// old Friday batch allocation is deprecated and no longer fires.
 ///
 /// Two timers: a one-shot armed to the next milestone so things fire on the
 /// sharp scheduled hour, and a slow periodic safety net that catches up
@@ -94,14 +94,13 @@ class Scheduler {
         await service.sendReminders(w);
       }
 
-      // Allocation is dynamic: it runs at the next sharp hour after each
-      // availability indication (see scheduleDynamicAllocation). The Friday
-      // batch is deprecated and no longer fires here.
+      // New indications allocate immediately. The periodic catch-up below
+      // recovers work after restarts; the deprecated sharp-hour and Friday
+      // batch paths do not run here.
 
-      // Catch-up: the sharp-hour run armed by an indication is a one-shot
-      // timer, so a restart between the indication and the sharp hour drops
-      // it. Re-optimize the open weekends on every tick (startup + 12h
-      // safety net) so a pending allocation is never lost. Idempotent —
+      // Catch-up: a restart can interrupt an immediate allocation run.
+      // Re-optimize the open weekends on every tick (startup + 12h safety
+      // net) so a pending allocation is never lost. Idempotent —
       // already-allocated members are locked in and only newly-allocated
       // members are notified.
       await _runDynamicAllocation();

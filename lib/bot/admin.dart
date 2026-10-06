@@ -38,7 +38,8 @@ class Admin {
       _guard(_addOutUser),
       label: 'add-out-user',
     );
-    commandBoth(bot, state, 'status', _guard(_status), label: 'all-status');
+    state.registerCommand('status');
+    bot.command('status', _guard(_status));
     commandBoth(
       bot,
       state,
@@ -46,7 +47,8 @@ class Admin {
       _guard(_groupStatus),
       label: 'group-status',
     );
-    commandBoth(bot, state, 'users', _guard(_users), label: 'all-users');
+    state.registerCommand('users');
+    bot.command('users', _guard(_users));
     commandBoth(
       bot,
       state,
@@ -132,8 +134,8 @@ class Admin {
 
   // ----------------------------------------------------------- /adduser
 
-  /// /adduser with no args starts the wizard: the admin sends one handle and
-  /// confirms before anything is added. With a handle, adds it directly.
+  /// /adduser with no args starts the wizard: the admin sends handles and
+  /// confirms the batch before anything is added. Arguments add directly.
   Future<void> _addUser(Context ctx) async {
     await _addUserAs(ctx, MemberTier.member);
   }
@@ -146,46 +148,68 @@ class Admin {
     final args = ctx.args;
     if (args.isEmpty) {
       final userId = ctx.from!.id;
+      _pendingAddUser.remove(userId);
+      _pendingAddTier.remove(userId);
       state.pendingArg[userId] = PendingArg('adduser');
       _pendingAddTier[userId] = tier;
       final message = await ctx.reply(
-        '➕ Send me the handle to add as a ${tier == MemberTier.member ? 'member' : 'out-member'} '
-        '(e.g. <b>@username</b>), or tap Cancel.',
+        '➕ Send me the handle(s) to add as a ${tier == MemberTier.member ? 'member' : 'out-member'} '
+        '(e.g. <b>@username</b>). Multiple users can be separated by whitespace, '
+        'for example <b>@alice @bob</b>. Or tap Cancel.',
         parseMode: ParseMode.html,
         replyMarkup: InlineKeyboard().text('❌ Cancel', 'admincancel|0'),
       );
       state.trackInteractiveMessage(userId, userId, message.messageId);
       return;
     }
-    await ctx.reply(_addOutcome(args.first, tier: tier));
+    _pendingAddUser.remove(ctx.from!.id);
+    _pendingAddTier.remove(ctx.from!.id);
+    await ctx.reply(
+      args.map((handle) => _addOutcome(handle, tier: tier)).join('\n'),
+    );
   }
 
-  /// Entry point for the /adduser wizard: the admin typed the handle; show
-  /// the confirm dialog.
+  /// Entry point for the /adduser wizard: parse the batch and show one
+  /// confirmation before applying any additions.
   Future<void> onAddUserText(Context ctx, int userId, String text) async {
-    final handle = text.trim().replaceFirst('@', '');
-    if (handle.isEmpty || handle.contains(' ')) {
-      await ctx.reply('That is not a valid handle. Try again, or tap Cancel.');
+    final handles = _parseHandles(text);
+    if (handles.isEmpty) {
+      state.pendingArg[userId] = PendingArg('adduser');
+      await ctx.reply('No handles found. Try again, or tap Cancel.');
       return;
     }
     final tier = _pendingAddTier[userId] ?? MemberTier.member;
     _pendingAddTier[userId] = tier;
-    _pendingAddUser[userId] = handle;
+    _pendingAddUser[userId] = handles;
+    final list = handles.map((handle) => '• @${_html(handle)}').join('\n');
+    final batchLabel = handles.length == 1
+        ? 'this ${_tierLabel(tier)}'
+        : 'these ${handles.length} ${_tierLabel(tier)}s';
     final message = await ctx.reply(
-      'Add <b>@$handle</b>?',
+      'Add $batchLabel?\n$list',
       parseMode: ParseMode.html,
       replyMarkup: Pickers.confirm('adduser'),
     );
     state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
-  /// The handle awaiting confirmation per admin, from the /adduser wizard.
-  final Map<int, String> _pendingAddUser = {};
+  /// The handles awaiting confirmation per admin, from the /adduser wizard.
+  final Map<int, List<String>> _pendingAddUser = {};
   final Map<int, String> _pendingAddTier = {};
+
+  static List<String> _parseHandles(String text) => text
+      .trim()
+      .split(RegExp(r'\s+'))
+      .where((part) => part.isNotEmpty)
+      .map((part) => part.startsWith('@') ? part.substring(1) : part)
+      .toList();
 
   /// Registers (or queues) @handle and returns the outcome message.
   String _addOutcome(String rawHandle, {required String tier}) {
-    final handle = rawHandle.replaceFirst('@', '');
+    final handle = rawHandle.trim().replaceFirst('@', '');
+    if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(handle)) {
+      return '$rawHandle is not a valid handle.';
+    }
     final userId = repo.userIdByUsername(handle);
     final existing = userId == null ? null : repo.findUser(userId);
     final pending = repo.pendingRole(handle);
@@ -847,14 +871,18 @@ class Admin {
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
         if (!yes) {
+          _pendingAddUser.remove(ctx.from!.id);
           _pendingAddTier.remove(ctx.from!.id);
+          state.pendingArg.remove(ctx.from!.id);
           await ctx.editMessageText('Cancelled — nobody was added.');
           return;
         }
-        final handle = _pendingAddUser.remove(ctx.from!.id);
-        if (handle == null) return;
+        final handles = _pendingAddUser.remove(ctx.from!.id);
         final tier = _pendingAddTier.remove(ctx.from!.id) ?? MemberTier.member;
-        await ctx.editMessageText(_addOutcome(handle, tier: tier));
+        if (handles == null) return;
+        await ctx.editMessageText(
+          handles.map((handle) => _addOutcome(handle, tier: tier)).join('\n'),
+        );
       case 'prompt':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
