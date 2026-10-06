@@ -70,7 +70,7 @@ class Console {
     commandBoth(
       bot,
       state,
-      'sync-calendar',
+      'synccalendar',
       _globalAdminGuard(_syncCalendar),
       label: 'sync-calendar',
     );
@@ -455,7 +455,7 @@ class Console {
     await ctx.reply('✅ @$handle is now a regular member.');
   }
 
-  // ------------------------------------------------------ /sync-calendar
+  // ------------------------------------------------------ /synccalendar
 
   /// Manual trigger for the calendar sync. The cron script pushes YAML via
   /// IPC; this lets the console do the same by typing/pasting the YAML.
@@ -478,7 +478,7 @@ class Console {
     await _applyCalendarYaml(ctx, args.join(' '));
   }
 
-  /// Entry point for the sync-calendar wizard: the console pasted the YAML.
+  /// Entry point for the synccalendar wizard: the console pasted the YAML.
   Future<void> onSyncCalendarText(Context ctx, int userId, String text) async {
     await _applyCalendarYaml(ctx, text.trim());
   }

@@ -5,6 +5,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.3.6] - 2026-10-06
+
+### Fixed
+
+- Replaced invalid hyphenated slash commands with `/checkstatus` and
+  `/synccalendar`.
+- Kept `check-status` as a checker button only; `/checkstatus` is the
+  console-only testing command and is described in `more-cmd`.
+
 ## [4.3.5] - 2026-10-06
 
 ### Fixed

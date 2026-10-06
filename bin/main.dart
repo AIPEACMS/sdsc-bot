@@ -149,7 +149,7 @@ Future<void> main() async {
   // The /broadcast wizard asks the admin to type the message; the text lands
   // in Flows' text middleware, which hands it back to Admin for confirmation.
   // The /adduser wizard hands the typed handle back for confirmation, and the
-  // /setdate and /sync-calendar wizards hand the typed input to Console.
+  // /setdate and /synccalendar wizards hand the typed input to Console.
   flows.onBroadcastText = admin.onBroadcastText;
   flows.onAddUserText = admin.onAddUserText;
   flows.onSetDateText = console.onSetDateText;

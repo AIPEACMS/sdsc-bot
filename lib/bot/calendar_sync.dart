@@ -22,7 +22,7 @@ class CalendarSyncResult {
 }
 
 /// Parses an NTU academic-calendar YAML and applies it to the bot's holiday
-/// table. Shared by the IPC endpoint and the console /sync-calendar command.
+/// table. Shared by the IPC endpoint and the console /synccalendar command.
 class CalendarSync {
   final Repo repo;
   final Config config;
