@@ -68,11 +68,12 @@ extension ConsoleUsers on Console {
     if (!validation.succeeded) {
       _pendingUserRemoval.remove(userId);
       state.cancelInputFlow(userId);
-      state.clearInteractiveMessages(userId);
+      await _dismissRemovalMessages(userId);
       await ctx.reply(_userRemovalFailureMessage(validation));
       return;
     }
 
+    await _dismissRemovalMessages(userId);
     // Store the complete payload before sending the confirmation prompt.
     _pendingUserRemoval[userId] = validation.removedHandles;
     final list = validation.removedHandles
@@ -103,9 +104,11 @@ extension ConsoleUsers on Console {
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
     final action = parts.length > 1 ? parts[1] : '';
     if (payload == null) {
-      state.clearInteractiveMessages(userId);
+      await _dismissRemovalMessages(userId);
       await ctx.editMessageText(
-        'This removal request is no longer valid.',
+        action == 'no'
+            ? 'Cancelled — nothing changed.'
+            : 'This removal request is no longer valid.',
         replyMarkup: null,
       );
       return;
@@ -136,6 +139,20 @@ extension ConsoleUsers on Console {
       parseMode: ParseMode.html,
       replyMarkup: null,
     );
+  }
+
+  Future<void> _dismissRemovalMessages(int userId) async {
+    for (final (chatId, messageId) in state.takeInteractiveMessages(userId)) {
+      try {
+        await bot.api.editMessageReplyMarkup(
+          ChatID(chatId),
+          messageId,
+          replyMarkup: null,
+        );
+      } catch (error) {
+        LogRing.log('removeuser: failed to dismiss message $messageId: $error');
+      }
+    }
   }
 
   Future<void> _removeGlobalAdminConfirm(Context ctx) async {

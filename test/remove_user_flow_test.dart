@@ -88,6 +88,18 @@ void main() {
             'text': body['text'],
           },
         });
+      } else if (path.endsWith('/editMessageReplyMarkup')) {
+        final body = jsonDecode(await utf8.decoder.bind(req).join());
+        edited.add((body as Map).cast<String, dynamic>());
+        await _json(req, {
+          'ok': true,
+          'result': {
+            'message_id': body['message_id'],
+            'date': 1,
+            'chat': {'id': body['chat_id'] ?? 1, 'type': 'private'},
+            'text': 'confirmation',
+          },
+        });
       } else if (path.endsWith('/answerCallbackQuery')) {
         await _json(req, {'ok': true, 'result': true});
       } else {
@@ -216,6 +228,7 @@ void main() {
     expect(repo.isPendingUser('never_started'), false);
     expect(edited.last['text'], contains('Removed'));
     expect(edited.last['reply_markup'], isNull);
+    expect(edited.any((body) => body['message_id'] == 1), isTrue);
   });
 
   test(
