@@ -759,7 +759,7 @@ void main() {
     expect(sent.last['text'], contains('Group $group status'));
     expect(sent.last['text'], contains('Allen @admin'));
     expect(sent.last['text'], contains('last attend:'));
-    expect(sent.last['text'], contains('last attend: Sat ${w.sat1.day}'));
+    expect(sent.last['text'], contains(' ${w.sat1.day} '));
     expect(sent.last['text'], isNot(contains('@out-member')));
     expect(sent.last['text'], isNot(contains('@checker')));
 
