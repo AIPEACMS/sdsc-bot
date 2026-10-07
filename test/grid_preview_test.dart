@@ -798,6 +798,7 @@ void main() {
     sent.clear();
 
     await sendText(8, 'hello', username: 'newout');
+    await Future<void>.delayed(const Duration(milliseconds: 100));
 
     expect(sent, hasLength(1));
     expect(sent.single['text'], contains('<b>Member-o</b>'));
