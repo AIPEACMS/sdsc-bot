@@ -10,7 +10,9 @@ class PendingRole {
     required this.tier,
     NotificationPreference? notificationPreference,
   }) : notificationPreference = notificationPreference ??
-           defaultNotificationPreference(tier);
+           (tier == MemberTier.outMember
+               ? NotificationPreference.never
+               : NotificationPreference.weekly);
 
   String get effectiveTier => isAdmin ? MemberTier.admin : tier;
 }
