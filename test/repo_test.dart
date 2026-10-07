@@ -434,6 +434,99 @@ void main() {
     );
   });
 
+  test('registered handle lookup falls back to users.name', () {
+    repo.upsertUser(
+      const User(
+        id: 31,
+        name: '@former',
+        experience: Experience.newbie,
+        group: '',
+        memberTier: MemberTier.old,
+      ),
+    );
+    repo.addPendingUser('former', isAdmin: false);
+    expect(repo.findUserByHandle('@former')?.id, 31);
+    expect(repo.setMember(31), isTrue);
+    expect(repo.findUser(31)!.memberTier, MemberTier.member);
+    expect(repo.setOutMember(31), isTrue);
+    expect(repo.findUser(31)!.memberTier, MemberTier.outMember);
+    expect(repo.isPendingUser('former'), true);
+  });
+
+  test('user removal validates the complete batch before mutating', () {
+    repo.upsertSeenUser(10, 'alice');
+    repo.upsertSeenUser(11, 'checker');
+    repo.upsertUser(
+      User(id: 10, name: '@alice', experience: Experience.newbie, group: '4'),
+    );
+    repo.upsertUser(
+      User(
+        id: 11,
+        name: '@checker',
+        experience: Experience.newbie,
+        group: '',
+        memberTier: MemberTier.check,
+      ),
+    );
+    repo.addPendingUser('never_started', isAdmin: false);
+
+    final invalid = repo.removeUsers(['@alice', '@missing']);
+    expect(invalid.failure, UserRemovalFailure.notFound);
+    expect(repo.findUser(10)!.memberTier, MemberTier.member);
+    expect(repo.findUser(10)!.group, '4');
+    expect(repo.isPendingUser('never_started'), true);
+
+    final removed = repo.removeUsers(['@alice', '@checker', '@never_started']);
+    expect(removed.succeeded, true);
+    expect(removed.removedHandles, ['alice', 'checker', 'never_started']);
+    expect(repo.findUser(10)!.memberTier, MemberTier.old);
+    expect(repo.findUser(10)!.group, isEmpty);
+    expect(repo.findUser(11)!.memberTier, MemberTier.old);
+    expect(repo.isPendingUser('never_started'), false);
+  });
+
+  test('user removal protects registered and pending admins', () {
+    repo.upsertSeenUser(20, 'admin');
+    repo.upsertUser(
+      User(
+        id: 20,
+        name: '@admin',
+        experience: Experience.newbie,
+        group: '1',
+        isAdmin: true,
+      ),
+    );
+    final registered = repo.removeUsers(['@admin']);
+    expect(registered.failure, UserRemovalFailure.protectedAdmin);
+    expect(repo.findUser(20)!.isAdmin, true);
+
+    repo.addPendingUser('pending_admin', isAdmin: true);
+    final pending = repo.removeUsers(['@pending_admin']);
+    expect(pending.failure, UserRemovalFailure.protectedAdmin);
+    expect(repo.pendingIsAdmin('pending_admin'), true);
+    expect(repo.demotePendingAdmin('@pending_admin'), true);
+    expect(repo.pendingIsAdmin('pending_admin'), false);
+    expect(repo.removeUsers(['@pending_admin']).succeeded, true);
+  });
+
+  test('old users are not removable and can be restored by tier', () {
+    repo.upsertUser(
+      const User(
+        id: 30,
+        name: '@former',
+        experience: Experience.newbie,
+        group: '',
+        memberTier: MemberTier.old,
+      ),
+    );
+    repo.addPendingUser('former', isAdmin: false);
+    final result = repo.removeUsers(['@former']);
+    expect(result.failure, UserRemovalFailure.notFound);
+    expect(repo.isPendingUser('former'), true);
+    expect(repo.setOutMember(30), isTrue);
+    expect(repo.findUser(30)!.memberTier, MemberTier.outMember);
+  });
+
   test('user role and notification fields round-trip through SQL', () {
     final registered = DateTime(2026, 8, 12, 10, 30);
     repo.upsertUser(

@@ -36,6 +36,8 @@ extension ConsoleRegistration on Console {
       _globalAdminGuard(this._demote),
       label: 'demote',
     );
+    state.registerCommand('removeuser');
+    bot.command('removeuser', _globalAdminGuard(this._removeUser));
     commandBoth(
       bot,
       state,
@@ -109,6 +111,14 @@ extension ConsoleRegistration on Console {
         if (_isConsole(ctx)) await this._onGlobalAdminCallback(ctx, head);
         return;
       }
+      if (head == 'removeuser') {
+        if (_isGlobalAdmin(ctx)) {
+          await this._onRemoveUserCallback(ctx);
+        } else {
+          await ctx.answerCallbackQuery();
+        }
+        return;
+      }
       await next();
     });
   }
@@ -161,8 +171,8 @@ extension ConsoleRegistration on Console {
       return;
     }
 
-    final userId = repo.userIdByUsername(handle);
-    final existing = userId == null ? null : repo.findUser(userId);
+    final existing = repo.findUserByHandle(handle);
+    final userId = existing?.id ?? repo.userIdByUsername(handle);
     if (existing != null) {
       repo.removePendingUser(handle);
       if (existing.memberTier == MemberTier.check && !existing.isAdmin) {
@@ -216,8 +226,7 @@ extension ConsoleRegistration on Console {
       return;
     }
     final handle = args.first.replaceFirst('@', '');
-    final userId = repo.userIdByUsername(handle);
-    final existing = userId == null ? null : repo.findUser(userId);
+    final existing = repo.findUserByHandle(handle);
     if (existing == null) {
       final previous = repo.replacePendingUser(
         handle,

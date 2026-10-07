@@ -15,7 +15,11 @@ extension FlowsRegistration on Flows {
         this._recordSeen(ctx, userId);
 
         if (state.isValidCommandText(text)) {
+          final pending = state.pendingArg.remove(userId);
           await this._dismissInteractiveMessages(userId);
+          if (pending != null) {
+            onPendingInputCleared?.call(userId, pending.command);
+          }
           await next();
           return;
         }
@@ -23,7 +27,10 @@ extension FlowsRegistration on Flows {
         // A user mid-wizard (e.g. "type the message to broadcast"): their
         // next text is the argument. Consume it here and stop the chain.
         final pending = state.pendingArg[userId];
-        if (pending != null && !pending.isExpired) {
+        if (pending != null && pending.isExpired) {
+          state.pendingArg.remove(userId);
+          onPendingInputCleared?.call(userId, pending.command);
+        } else if (pending != null) {
           state.pendingArg.remove(userId);
           await this._consumePendingArg(ctx, userId, pending.command, text);
           return;

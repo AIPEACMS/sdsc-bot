@@ -36,6 +36,7 @@ class _ConsoleBase {
   SetTime? setTime;
   final Map<int, int> _pendingGlobalAdmin = {};
   final Map<int, int> _pendingGlobalAdminRemoval = {};
+  final Map<int, List<String>> _pendingUserRemoval = {};
   final Map<int, (String, List<String>)> _aliasFlow = {};
 
   _ConsoleBase({

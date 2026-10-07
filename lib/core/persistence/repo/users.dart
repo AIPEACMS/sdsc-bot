@@ -252,6 +252,101 @@ extension RepoUsers on Repo {
     }
   }
 
+  /// Validates a removal batch without changing any rows.
+  UserRemovalResult validateUserRemoval(List<String> handles) =>
+      _userRemoval(handles, mutate: false);
+
+  /// Archives registered removable users and deletes pending users as one
+  /// transaction. Registered rows always win over pending rows for a handle.
+  UserRemovalResult removeUsers(List<String> handles) =>
+      _userRemoval(handles, mutate: true);
+
+  UserRemovalResult _userRemoval(List<String> handles, {required bool mutate}) {
+    final normalized = <String>[];
+    final seen = <String>{};
+    for (final rawHandle in handles) {
+      final trimmed = rawHandle.trim();
+      final handle = (trimmed.startsWith('@')
+              ? trimmed.substring(1)
+              : trimmed)
+          .toLowerCase();
+      if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(handle)) {
+        return UserRemovalResult.failure(UserRemovalFailure.notFound, handle);
+      }
+      if (seen.add(handle)) normalized.add(handle);
+    }
+    if (normalized.isEmpty) {
+      return const UserRemovalResult.failure(UserRemovalFailure.notFound, '');
+    }
+
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      final registered = <int, User>{};
+      final pending = <String, PendingRole>{};
+      String? notFound;
+      String? protectedAdmin;
+      for (final handle in normalized) {
+        final user = findUserByHandle(handle);
+        if (user != null) {
+          // A registered row is authoritative, including an archived row.
+          if (user.isAdmin || user.isGlobalAdmin) {
+            protectedAdmin ??= handle;
+          } else if (user.memberTier == MemberTier.old ||
+              ![
+                MemberTier.check,
+                MemberTier.member,
+                MemberTier.outMember,
+              ].contains(user.memberTier)) {
+            notFound ??= handle;
+          } else {
+            registered[user.id] = user;
+          }
+          continue;
+        }
+
+        final role = pendingRole(handle);
+        if (role == null) {
+          notFound ??= handle;
+        } else if (role.isAdmin) {
+          protectedAdmin ??= handle;
+        } else {
+          pending[handle] = role;
+        }
+      }
+      if (notFound != null) {
+        tx.execute('ROLLBACK');
+        return UserRemovalResult.failure(UserRemovalFailure.notFound, notFound);
+      }
+      if (protectedAdmin != null) {
+        tx.execute('ROLLBACK');
+        return UserRemovalResult.failure(
+          UserRemovalFailure.protectedAdmin,
+          protectedAdmin,
+        );
+      }
+      if (!mutate) {
+        tx.execute('ROLLBACK');
+        return UserRemovalResult.success(normalized);
+      }
+
+      for (final user in registered.values) {
+        tx.execute(
+          'UPDATE users SET member_tier = ?, group_id = \'\' WHERE id = ?',
+          [MemberTier.old, user.id],
+        );
+      }
+      for (final handle in pending.keys) {
+        tx.execute('DELETE FROM pending_users WHERE username = ?', [handle]);
+      }
+      tx.execute('COMMIT');
+      return UserRemovalResult.success(normalized);
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
   User? globalAdmin() {
     final rows = raw.select(
       'SELECT * FROM users WHERE is_global_admin = 1 LIMIT 1',

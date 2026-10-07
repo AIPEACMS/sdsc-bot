@@ -122,6 +122,8 @@ extension FlowsCallbacks on Flows {
         await onBroadcastText?.call(ctx, userId, text);
       case 'adduser':
         await onAddUserText?.call(ctx, userId, text);
+      case 'removeuser':
+        await onRemoveUserText?.call(ctx, userId, text);
       case 'setdate':
         await onSetDateText?.call(ctx, userId, text);
       case 'synccalendar':

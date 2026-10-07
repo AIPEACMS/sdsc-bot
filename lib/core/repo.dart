@@ -37,6 +37,24 @@ enum GlobalAdminResult {
   outMember,
 }
 
+enum UserRemovalFailure { none, notFound, protectedAdmin }
+
+/// The result of an all-or-nothing handle removal operation.
+class UserRemovalResult {
+  final UserRemovalFailure failure;
+  final String? failedHandle;
+  final List<String> removedHandles;
+
+  const UserRemovalResult.success(this.removedHandles)
+      : failure = UserRemovalFailure.none,
+        failedHandle = null;
+
+  const UserRemovalResult.failure(this.failure, this.failedHandle)
+      : removedHandles = const [];
+
+  bool get succeeded => failure == UserRemovalFailure.none;
+}
+
 /// Data access layer over SQLite. All dates are stored as ISO-8601 strings in
 /// the bot's local timezone (UTC+8).
 

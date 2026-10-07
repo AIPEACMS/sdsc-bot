@@ -183,8 +183,8 @@ extension AdminCommands on Admin {
     if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(handle)) {
       return '$rawHandle is not a valid handle.';
     }
-    final userId = repo.userIdByUsername(handle);
-    final existing = userId == null ? null : repo.findUser(userId);
+    final existing = repo.findUserByHandle(handle);
+    final userId = existing?.id ?? repo.userIdByUsername(handle);
     final pending = repo.pendingRole(handle);
     if (existing != null) {
       // A registered user is authoritative: stale pending rows are removed and
