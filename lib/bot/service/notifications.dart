@@ -44,6 +44,7 @@ extension CycleServiceNotifications on CycleService {
             ..sort((a, b) => a.start.compareTo(b.start));
       for (final s in weekendSessions) {
         final slotKey = '$wi:${s.day}:${s.slot}:${s.location}';
+        final callbackSlot = Slot(wi, s.day, s.slot, s.location).encode();
         final mark = want.any((x) => x.encode() == slotKey)
             ? '🔒'
             : available.any((x) => x.encode() == slotKey)
@@ -64,7 +65,9 @@ extension CycleServiceNotifications on CycleService {
         kb = kb
             .text(
               full ? '⛔ $label' : label,
-              full ? 'full|$key' : 'slot|${_satKey(w.sat0)}|${s.encode()}',
+              full
+                  ? 'full|$key'
+                  : 'slot|${_satKey(w.sat0)}|$callbackSlot',
             )
             .row();
       }
