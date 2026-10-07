@@ -280,9 +280,7 @@ extension FlowsRegistration on Flows {
       );
       state.trackInteractiveMessage(userId, userId, message.messageId);
     } else {
-      state.profileStep.remove(userId);
-      state.profileCancel.remove(userId);
-      state.clearInteractiveMessages(userId);
+      await _dismissInteractiveMessages(userId);
       await ctx.reply('✅ Profile saved.');
     }
   }
