@@ -426,7 +426,7 @@ void main() {
     expect(
       await startText(7),
       '👋 <b>@outmember</b>, here is what you can do:\n\n'
-      '<b>Out-member</b>\n'
+       '<b>Member-o</b>\n'
       'start - show the welcome and role buttons\n'
       're-pick - update your availability\n'
       'set-info - update your preferred name\n'
