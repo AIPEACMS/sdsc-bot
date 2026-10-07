@@ -64,7 +64,7 @@ extension CycleServiceNotifications on CycleService {
         kb = kb
             .text(
               full ? '⛔ $label' : label,
-              full ? 'full|$key' : 'slot|${_satKey(w.sat0)}|$key',
+              full ? 'full|$key' : 'slot|${_satKey(w.sat0)}|${s.encode()}',
             )
             .row();
       }
