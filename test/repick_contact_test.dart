@@ -538,6 +538,20 @@ void main() {
       final startFuture = bot.start();
       await Future<void>.delayed(const Duration(milliseconds: 300));
 
+      final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
+      final picker = CycleServiceNotifications.buildKeyboard(
+        w,
+        (const {}, const {}),
+        now: DateTime(2026, 8, 17),
+        sessions: defaultSessions(w.sat0),
+        locationName: (k) => k,
+      );
+      final selectable = picker.inlineKeyboard
+          .expand((row) => row)
+          .firstWhere((button) => button.callbackData.startsWith('slot|'));
+      final callbackParts = selectable.callbackData.split('|');
+      expect(Slot.parse(callbackParts[2])?.encode(), callbackParts[2]);
+
       // Toggle a week-2 slot (weekend index 1 of the bundle starting
       // 2026-08-15). The re-rendered keyboard must stay anchored to that
       // bundle: only the open weekend (Sat 22 Aug) shows a header — never a
@@ -555,7 +569,7 @@ void main() {
               'chat': {'id': 42, 'type': 'private'},
               'text': 'Your availability (tap to toggle):',
             },
-            'data': 'slot|2026-08-15|1:sat:am:ocbc',
+            'data': selectable.callbackData,
           },
         }),
       );
