@@ -38,6 +38,19 @@ extension AdminUsers on Admin {
       ..writeln('Registered members: ${users.length}')
       ..writeln('Responded: $responders/${users.length}');
 
+    final attendanceUsers =
+        users.where((user) => user.memberTier != MemberTier.outMember).toList();
+    if (attendanceUsers.isNotEmpty) {
+      sb.writeln('\n<b>Last attendance</b>');
+      for (final user in attendanceUsers) {
+        final last = repo.lastAttendedWeekend(user.id);
+        sb.writeln(
+          '• ${_displayName(user)} — last attend: '
+          '${last == null ? 'never' : _day(last)}',
+        );
+      }
+    }
+
     // Everyone registered is accounted for: the members who still need to
     // answer, plus the ones the quiet rule skips because they answered a
     // recent bundle (they were not prompted this cycle).

@@ -179,6 +179,15 @@ void main() {
         memberTier: MemberTier.check,
       ),
     );
+    repo.upsertUser(
+      User(
+        id: 4,
+        name: '@out-member',
+        experience: Experience.newbie,
+        group: '1',
+        memberTier: MemberTier.outMember,
+      ),
+    );
 
     // Allocate the current bundle so the tables have content.
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
@@ -196,6 +205,8 @@ void main() {
     final s1 = repo.sessionsForWeekend(w.sat1);
     repo.replaceAllocationsForWeekend(w.sat0, [(2, s0[0].id)]);
     repo.replaceAllocationsForWeekend(w.sat1, [(3, s1[0].id)]);
+    repo.setAttendanceState(2, s0[0].id, attended: true);
+    repo.setAttendanceState(2, s1[0].id, attended: true);
 
     final startFuture = bot.start();
     await Future<void>.delayed(const Duration(milliseconds: 300));
@@ -746,6 +757,9 @@ void main() {
     await sendText(2, '/groupstatus');
     expect(sent.last['text'], contains('Group $group status'));
     expect(sent.last['text'], contains('Allen @admin'));
+    expect(sent.last['text'], contains('last attend:'));
+    expect(sent.last['text'], contains('Sat 22 Aug'));
+    expect(sent.last['text'], isNot(contains('@out-member')));
     expect(sent.last['text'], isNot(contains('@checker')));
 
     await sendText(2, '/groupusers');
