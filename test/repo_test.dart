@@ -368,6 +368,28 @@ void main() {
     expect(repo.pendingTier('dave'), MemberTier.check);
   });
 
+  test('new out-members default to never notifications', () {
+    final user = User(
+      id: 8,
+      name: '@out',
+      experience: Experience.newbie,
+      group: '',
+      memberTier: MemberTier.outMember,
+    );
+    expect(user.notificationPreference, NotificationPreference.never);
+
+    repo.upsertUser(user);
+    expect(repo.setMember(8), isTrue);
+    expect(repo.setOutMember(8), isTrue);
+    expect(repo.findUser(8)!.notificationPreference,
+        NotificationPreference.never);
+
+    repo.addPendingUser('queued-out', isAdmin: false,
+        tier: MemberTier.outMember);
+    expect(repo.pendingRole('queued-out')!.notificationPreference,
+        NotificationPreference.never);
+  });
+
   test('replacing a pending role overwrites both role components', () {
     expect(
       repo.addPendingUser('dave', isAdmin: true, tier: MemberTier.check),
@@ -456,6 +478,8 @@ void main() {
     expect(repo.setOutMember(1), isTrue);
     expect(repo.findUser(1)!.memberTier, MemberTier.outMember);
     expect(repo.findUser(1)!.group, isEmpty);
+    expect(repo.findUser(1)!.notificationPreference,
+        NotificationPreference.never);
     expect(repo.findUser(2)!.group, '3');
     expect(repo.setMember(1), isTrue);
     expect(repo.findUser(1)!.memberTier, MemberTier.member);

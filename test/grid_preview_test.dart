@@ -789,6 +789,21 @@ void main() {
     expect(keyboardTexts(sent.single), contains('check-status'));
   });
 
+  test('a queued out-member receives the Member-o welcome', () async {
+    repo.addPendingUser(
+      'newout',
+      isAdmin: false,
+      tier: MemberTier.outMember,
+    );
+    sent.clear();
+
+    await sendText(8, 'hello', username: 'newout');
+
+    expect(sent, hasLength(1));
+    expect(sent.single['text'], contains('<b>Member-o</b>'));
+    expect(sent.single['text'], isNot(contains('out-member')));
+  });
+
   test(
     '/ask changes wording at the reminder time and respects holiday opt-out',
     () async {
