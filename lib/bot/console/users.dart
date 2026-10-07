@@ -104,13 +104,19 @@ extension ConsoleUsers on Console {
     final action = parts.length > 1 ? parts[1] : '';
     if (payload == null) {
       state.clearInteractiveMessages(userId);
-      await ctx.editMessageText('This removal request is no longer valid.');
+      await ctx.editMessageText(
+        'This removal request is no longer valid.',
+        replyMarkup: null,
+      );
       return;
     }
     if (action != 'yes') {
       _pendingUserRemoval.remove(userId);
       state.clearInteractiveMessages(userId);
-      await ctx.editMessageText('Cancelled — nothing changed.');
+      await ctx.editMessageText(
+        'Cancelled — nothing changed.',
+        replyMarkup: null,
+      );
       return;
     }
 
@@ -119,12 +125,16 @@ extension ConsoleUsers on Console {
     state.clearInteractiveMessages(userId);
     final result = repo.removeUsers(payload);
     if (!result.succeeded) {
-      await ctx.editMessageText(_userRemovalFailureMessage(result));
+      await ctx.editMessageText(
+        _userRemovalFailureMessage(result),
+        replyMarkup: null,
+      );
       return;
     }
     await ctx.editMessageText(
       '✅ Removed ${result.removedHandles.map((h) => '@${_html(h)}').join(', ')}.',
       parseMode: ParseMode.html,
+      replyMarkup: null,
     );
   }
 
