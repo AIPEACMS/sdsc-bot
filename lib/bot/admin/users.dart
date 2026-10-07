@@ -43,7 +43,7 @@ extension AdminUsers on Admin {
     if (attendanceUsers.isNotEmpty) {
       sb.writeln('\n<b>Last attendance</b>');
       for (final user in attendanceUsers) {
-        final last = repo.lastAttendedWeekend(user.id);
+        final last = repo.lastAttendedDate(user.id);
         sb.writeln(
           '• ${_displayName(user)} — last attend: '
           '${last == null ? 'never' : _day(last)}',

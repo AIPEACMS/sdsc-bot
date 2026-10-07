@@ -67,10 +67,10 @@ WHERE user_id = ? AND attended = 1 AND confirmed_at >= ?
     return (rows.first['c'] as int) > 0;
   }
 
-  DateTime? lastAttendedWeekend(int userId) {
+  DateTime? lastAttendedDate(int userId) {
     final rows = raw.select(
       '''
-SELECT MAX(s.weekend_start) AS last_attended
+SELECT MAX(s.start_at) AS last_attended
 FROM attendance a
 JOIN sessions s ON s.id = a.session_id
 WHERE a.user_id = ? AND a.attended = 1
