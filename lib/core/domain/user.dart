@@ -60,7 +60,9 @@ class User {
     NotificationPreference? notificationPreference,
     this.lastPromptState = LastPromptState.none,
   }) : notificationPreference = notificationPreference ??
-           defaultNotificationPreference(memberTier),
+           (memberTier == MemberTier.outMember
+               ? NotificationPreference.never
+               : NotificationPreference.weekly),
        _fullName = fullName,
        _matricNo = matricNo,
        _schoolEmail = schoolEmail;
