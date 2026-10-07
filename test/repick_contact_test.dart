@@ -360,7 +360,12 @@ void main() {
       });
 
       repo.upsertUser(
-        User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+        User(
+          id: 42,
+          name: '@alice',
+          experience: Experience.newbie,
+          group: '1',
+        ),
       );
 
       final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
@@ -816,6 +821,7 @@ void main() {
     'setinfo walks the 3-step profile wizard and saves the profile',
     () async {
       final sent = <Map<String, dynamic>>[];
+      final editedMarkups = <Map<String, dynamic>>[];
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((req) async {
         final path = req.uri.path;
@@ -843,6 +849,10 @@ void main() {
               'text': body['text'],
             },
           });
+        } else if (path.endsWith('/editMessageReplyMarkup')) {
+          final body = jsonDecode(await utf8.decoder.bind(req).join());
+          editedMarkups.add(body as Map<String, dynamic>);
+          await _json(req, {'ok': true, 'result': true});
         } else if (path.endsWith('/answerCallbackQuery') ||
             path.endsWith('/editMessageText')) {
           await _json(req, {'ok': true, 'result': true});
@@ -852,7 +862,13 @@ void main() {
       });
 
       repo.upsertUser(
-        User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
+        User(
+          id: 42,
+          name: '@alice',
+          experience: Experience.newbie,
+          group: '1',
+          preferredName: 'Alice',
+        ),
       );
 
       final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
@@ -909,8 +925,12 @@ void main() {
         sent.any((s) => (s['text'] as String).contains('preferred name')),
         isTrue,
       );
+      expect(sent.single['reply_markup'], isNotNull);
 
       await cmd(2, 'Ali');
+
+      expect(editedMarkups, hasLength(1));
+      expect(editedMarkups.single['reply_markup'], isNull);
 
       await bot.stop();
       await startFuture;
