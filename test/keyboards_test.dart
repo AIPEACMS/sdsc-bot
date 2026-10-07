@@ -35,12 +35,12 @@ void main() {
         ('add-user', '/adduser', RoleColor.admin),
         ('add-out-user', '/addoutuser', RoleColor.admin),
         ('group-status', '/groupstatus', RoleColor.admin),
-        ('group-users', '/groupusers', RoleColor.admin),
+        ('all-status', '/allstatus', RoleColor.admin),
         ('ask', '/ask', RoleColor.admin),
         ('mark-attend', '/confirm', RoleColor.admin),
         ('broadcast', '/broadcast', RoleColor.admin),
         ('start', '/start', RoleColor.member),
-        ('re-pick', '/repick', RoleColor.member),
+        ('(re)pick', '/repick', RoleColor.member),
         ('set-info', '/setinfo', RoleColor.member),
         ('my-status', '/mystatus', RoleColor.member),
       ],
@@ -411,8 +411,8 @@ void main() {
       isGlobalAdmin: false,
     );
     expect(admin.map((entry) => entry.display), [
-      '/allstatus - show cycle state and responders',
       '/allusers - list registered members',
+      '/groupuser - show your group\'s member details',
       '/prompt - send availability prompts now',
       '/remind - remind non-responders now',
       '/setexp - change a member\'s experience',
@@ -522,9 +522,9 @@ void main() {
       [
         'more-cmd',
         'hold', 'unhold', 'set-time',
-        'add-user', 'add-out-user', 'group-status', 'group-users',
+        'add-user', 'add-out-user', 'group-status', 'all-status',
         'ask', 'mark-attend', 'broadcast',
-        'start', 're-pick', 'set-info', 'my-status',
+        'start', '(re)pick', 'set-info', 'my-status',
       ],
     );
     expect(
@@ -597,8 +597,8 @@ void main() {
     );
     expect(admin.map((section) => section.title), ['Admin']);
     expect(admin.single.commands.map((entry) => entry.command), [
-      '/allstatus',
       '/allusers',
+      '/groupuser',
       '/prompt',
       '/remind',
       '/setexp',
@@ -617,8 +617,8 @@ void main() {
       '/addcheck',
       '/demote',
       '/synccalendar',
-      '/allstatus',
       '/allusers',
+      '/groupuser',
       '/prompt',
       '/remind',
       '/setexp',

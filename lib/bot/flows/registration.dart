@@ -79,7 +79,7 @@ extension FlowsRegistration on Flows {
     // Register commands after the bookkeeping middleware. This lets a valid
     // command cancel a pending text flow before its handler runs.
     commandBoth(bot, state, 'start', _onStart, label: 'start');
-    commandBoth(bot, state, 'repick', this._onRepick, label: 're-pick');
+    commandBoth(bot, state, 'repick', this._onRepick, label: '(re)pick');
     commandBoth(bot, state, 'setinfo', _onSetInfo, label: 'set-info');
     commandBoth(bot, state, 'mystatus', this._onMyStatus, label: 'my-status');
     state.registerCommand('checkstatus');
