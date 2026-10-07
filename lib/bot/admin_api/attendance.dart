@@ -32,8 +32,8 @@ extension AdminApiAttendance on AdminApi {
       return (400, {'ok': false, 'error': 'bad notification preference'});
     }
     final isCheck = tier == MemberTier.check;
-    final userId = repo.userIdByUsername(handle);
-    final existing = userId == null ? null : repo.findUser(userId);
+    final existing = repo.findUserByHandle(handle);
+    final userId = existing?.id ?? repo.userIdByUsername(handle);
     final pending = repo.pendingRole(handle);
     if (existing != null) {
       repo.removePendingUser(handle);

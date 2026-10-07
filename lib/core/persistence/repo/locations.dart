@@ -79,6 +79,22 @@ ON CONFLICT(id) DO UPDATE SET username = excluded.username
     return rows.isEmpty ? null : rows.first['id'] as int;
   }
 
+  /// Resolves a registered handle from either Telegram observations or the
+  /// registered row itself. Registered rows take precedence over pending rows.
+  User? findUserByHandle(String handle) {
+    final seenId = userIdByUsername(handle);
+    if (seenId != null) {
+      final seenUser = findUser(seenId);
+      if (seenUser != null) return seenUser;
+    }
+    final normalized = handle.replaceFirst('@', '').toLowerCase();
+    final rows = raw.select(
+      'SELECT * FROM users WHERE lower(name) IN (?, ?) LIMIT 1',
+      ['@$normalized', normalized],
+    );
+    return rows.isEmpty ? null : User.fromRow(rows.first);
+  }
+
   /// Users the bot has seen in messages but who are not registered yet —
   /// the candidates for the /adduser and /addadmin pickers.
   List<User> unregisteredSeen() {
@@ -191,6 +207,18 @@ ON CONFLICT(username) DO UPDATE SET
       [this._pendingHandle(handle)],
     );
     return rows.isNotEmpty && (rows.first['is_admin'] as int) == 1;
+  }
+
+  /// Removes only the pending admin flag, preserving the queued tier.
+  bool demotePendingAdmin(String handle) {
+    final normalized = this._pendingHandle(handle);
+    final role = pendingRole(normalized);
+    if (role == null || !role.isAdmin) return false;
+    raw.execute(
+      'UPDATE pending_users SET is_admin = 0 WHERE username = ?',
+      [normalized],
+    );
+    return true;
   }
 
   /// The tier a pending user was queued with ('member' by default).

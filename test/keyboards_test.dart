@@ -428,6 +428,7 @@ void main() {
       '/addadmin',
       '/addcheck',
       '/demote',
+      '/removeuser',
       '/synccalendar',
       ...admin.map((entry) => entry.command),
     ]);
@@ -616,6 +617,7 @@ void main() {
       '/addadmin',
       '/addcheck',
       '/demote',
+      '/removeuser',
       '/synccalendar',
       '/allusers',
       '/groupuser',

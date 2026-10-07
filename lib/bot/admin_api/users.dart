@@ -2,6 +2,49 @@ part of '../admin_api.dart';
 
 extension AdminApiUsers on AdminApi {
 
+  Future<(int, Object)> _removeUsers(String bodyText) async {
+    final Map<String, dynamic> body;
+    try {
+      body = _jsonBody(bodyText);
+    } catch (_) {
+      return (400, {'ok': false, 'error': 'expected a JSON object'});
+    }
+    final rawHandles = body['handles'];
+    if (rawHandles is! List || rawHandles.isEmpty ||
+        rawHandles.any((handle) => handle is! String)) {
+      return (
+        400,
+        {'ok': false, 'error': 'expected {"handles": ["@a", "@b"]}'},
+      );
+    }
+    final result = repo.removeUsers(rawHandles.cast<String>());
+    if (result.failure == UserRemovalFailure.notFound) {
+      return (
+        404,
+        {'ok': false, 'error': '@${result.failedHandle} is not found'},
+      );
+    }
+    if (result.failure == UserRemovalFailure.protectedAdmin) {
+      return (
+        409,
+        {
+          'ok': false,
+          'error': '@${result.failedHandle} is an admin; demote them first',
+        },
+      );
+    }
+    LogRing.log(
+      'admin API: removed ${result.removedHandles.map((handle) => '@$handle').join(', ')}',
+    );
+    return (
+      200,
+      {
+        'ok': true,
+        'removed': result.removedHandles.map((handle) => '@$handle').toList(),
+      },
+    );
+  }
+
   Future<(int, Object)> _setSchedule(String bodyText) async {
     final Map<String, dynamic> body;
     try {

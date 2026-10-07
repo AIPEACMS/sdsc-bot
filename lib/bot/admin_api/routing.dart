@@ -138,6 +138,9 @@ extension AdminApiRouting on AdminApi {
         if (method == 'GET' && segs.length == 2) {
           return (200, {'ok': true, 'users': _usersJson()});
         }
+        if (method == 'POST' && segs.length == 3 && segs[2] == 'remove') {
+          return this._removeUsers(bodyText);
+        }
         if (method == 'POST' && segs.length == 2) {
           return this._addUser(bodyText);
         }

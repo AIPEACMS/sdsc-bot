@@ -40,6 +40,8 @@ class _FlowsBase {
   Future<void> Function()? onAvailabilitySaved;
   Future<void> Function(Context ctx, int userId, String text)? onBroadcastText;
   Future<void> Function(Context ctx, int userId, String text)? onAddUserText;
+  Future<void> Function(Context ctx, int userId, String text)? onRemoveUserText;
+  void Function(int userId, String command)? onPendingInputCleared;
 
   _FlowsBase({
     required this.bot,

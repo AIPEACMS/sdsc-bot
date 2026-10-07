@@ -39,6 +39,11 @@ class CommandCatalog {
     CommandHelp('/addadmin', 'promote a registered user', usage: '@handle'),
     CommandHelp('/addcheck', 'add a checker', usage: '@handle'),
     CommandHelp('/demote', 'demote an admin', usage: '@handle'),
+    CommandHelp(
+      '/removeuser',
+      'remove active users or pending registrations',
+      usage: '[@handle ...]',
+    ),
     CommandHelp('/synccalendar', 'push the calendar YAML'),
   ];
   static const List<CommandHelp> _console = [

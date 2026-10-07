@@ -152,6 +152,10 @@ Future<void> main() async {
   // /setdate and /synccalendar wizards hand the typed input to Console.
   flows.onBroadcastText = admin.onBroadcastText;
   flows.onAddUserText = admin.onAddUserText;
+  flows.onRemoveUserText = console.onRemoveUserText;
+  flows.onPendingInputCleared = (userId, command) {
+    if (command == 'removeuser') console.onRemoveUserInputCleared(userId);
+  };
   flows.onSetDateText = console.onSetDateText;
   flows.onSyncCalendarText = console.onSyncCalendarText;
   flows.onSetTimeText = setTime.onText;

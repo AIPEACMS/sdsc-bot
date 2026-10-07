@@ -37,6 +37,7 @@ import '../core/schedule.dart';
 ///   POST  /api/schedule                 -> partial event time/weekday update
 ///   GET   /api/users                    -> every user with tier + groups + attendance
 ///   POST  /api/users                    -> { "handle": "@name" } (register-or-queue)
+///   POST  /api/users/remove             -> { "handles": ["@a", "@b"] }
 ///   POST  /api/users/{id}/tier          -> { "tier": "admin|check|member|out-member|old" }
 ///   POST  /api/users/{id}/notification  -> { "preference": "weekly|every-other|never" }
 ///   POST  /api/users/{id}/admin         -> { "admin": true|false } (keeps member tier)
