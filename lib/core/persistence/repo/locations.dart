@@ -121,10 +121,11 @@ ORDER BY s.username
       {
         required bool isAdmin,
         String tier = MemberTier.member,
-        NotificationPreference notificationPreference =
-            NotificationPreference.weekly,
+        NotificationPreference? notificationPreference,
       }) {
     final normalized = this._pendingHandle(handle);
+    final effectivePreference = notificationPreference ??
+        defaultNotificationPreference(tier);
     final previous = pendingRole(normalized);
     raw.execute(
       '''
@@ -140,7 +141,7 @@ ON CONFLICT(username) DO UPDATE SET
         normalized,
         isAdmin ? 1 : 0,
         tier,
-        this._notificationPreferenceValue(notificationPreference),
+        this._notificationPreferenceValue(effectivePreference),
       ],
     );
     return previous;
@@ -167,8 +168,7 @@ ON CONFLICT(username) DO UPDATE SET
           {
             required bool isAdmin,
             String tier = MemberTier.member,
-            NotificationPreference notificationPreference =
-                NotificationPreference.weekly,
+            NotificationPreference? notificationPreference,
           }) =>
       addPendingUser(
         handle,

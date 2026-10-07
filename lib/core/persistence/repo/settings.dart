@@ -120,6 +120,13 @@ extension RepoSettings on Repo {
         [stored, user.isAdmin ? 1 : 0, id],
       );
     }
+    if (tier == MemberTier.outMember &&
+        user.memberTier != MemberTier.outMember) {
+      raw.execute(
+        'UPDATE users SET notification_preference = ? WHERE id = ?',
+        [_notificationPreferenceValue(NotificationPreference.never), id],
+      );
+    }
     return true;
   }
 

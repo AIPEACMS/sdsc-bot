@@ -1066,6 +1066,27 @@ void main() {
     expect(bad, 400);
   });
 
+  test('POST /api/users defaults out-members to never notifications', () async {
+    final (queuedStatus, _) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@quiet', 'tier': 'out-member'},
+    );
+    expect(queuedStatus, 200);
+    expect(repo.pendingRole('quiet')!.notificationPreference,
+        NotificationPreference.never);
+
+    repo.upsertSeenUser(404, 'seenquiet');
+    final (addedStatus, _) = await call(
+      'POST',
+      '/api/users',
+      body: {'handle': '@seenquiet', 'tier': 'out-member'},
+    );
+    expect(addedStatus, 200);
+    expect(repo.findUser(404)!.notificationPreference,
+        NotificationPreference.never);
+  });
+
   test('POST /api/users adds a user directly as check tier', () async {
     // A seen user is registered immediately as a checker.
     repo.upsertSeenUser(303, 'carol');

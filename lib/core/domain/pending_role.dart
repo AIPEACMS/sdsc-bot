@@ -8,8 +8,9 @@ class PendingRole {
   const PendingRole({
     required this.isAdmin,
     required this.tier,
-    this.notificationPreference = NotificationPreference.weekly,
-  });
+    NotificationPreference? notificationPreference,
+  }) : notificationPreference = notificationPreference ??
+           defaultNotificationPreference(tier);
 
   String get effectiveTier => isAdmin ? MemberTier.admin : tier;
 }

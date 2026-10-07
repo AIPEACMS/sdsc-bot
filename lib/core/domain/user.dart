@@ -57,9 +57,11 @@ class User {
     String matricNo = '',
     String schoolEmail = '',
     this.memberTier = MemberTier.member,
-    this.notificationPreference = NotificationPreference.weekly,
+    NotificationPreference? notificationPreference,
     this.lastPromptState = LastPromptState.none,
-  }) : _fullName = fullName,
+  }) : notificationPreference = notificationPreference ??
+           defaultNotificationPreference(memberTier),
+       _fullName = fullName,
        _matricNo = matricNo,
        _schoolEmail = schoolEmail;
 
@@ -137,7 +139,9 @@ class User {
       'every-other' || 'every_other' || 'everyOther' =>
         NotificationPreference.everyOther,
       'never' => NotificationPreference.never,
-      _ => NotificationPreference.weekly,
+      _ => defaultNotificationPreference(
+          (row['member_tier'] as String?) ?? MemberTier.member,
+        ),
     };
   }
 

@@ -213,7 +213,8 @@ extension FlowsPresentation on Flows {
     final isAdmin = pendingRole?.isAdmin ?? false;
     final tier = pendingRole?.tier ?? MemberTier.member;
     final notificationPreference =
-        pendingRole?.notificationPreference ?? NotificationPreference.weekly;
+        pendingRole?.notificationPreference ??
+        defaultNotificationPreference(tier);
 
     final existing = repo.findUser(userId);
     if (existing?.memberTier == MemberTier.outMember && isAdmin) {
@@ -254,7 +255,7 @@ extension FlowsPresentation on Flows {
           : isCheck
           ? 'Welcome! You have been added as a <b>checker</b>. Send /start to see your commands.'
           : isOutMember
-          ? 'Welcome! You have been added as an <b>out-member</b>. Send /start to see your commands.'
+          ? 'Welcome! You have been added as a <b>Member-o</b>. Send /start to see your commands.'
           : 'Welcome! You have been added. Send /start to see your commands.',
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(

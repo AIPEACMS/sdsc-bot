@@ -74,7 +74,7 @@ extension AdminApiAttendance on AdminApi {
         isAdmin: false,
         tier: tier,
         notificationPreference:
-            preference ?? NotificationPreference.weekly,
+            preference ?? defaultNotificationPreference(tier),
       );
       return (
         200,
@@ -113,7 +113,7 @@ extension AdminApiAttendance on AdminApi {
       handle,
       isAdmin: false,
       tier: tier,
-      notificationPreference: preference ?? NotificationPreference.weekly,
+      notificationPreference: preference ?? defaultNotificationPreference(tier),
     );
     return (
       200,
