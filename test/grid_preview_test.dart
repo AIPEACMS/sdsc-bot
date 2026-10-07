@@ -304,13 +304,13 @@ void main() {
       'add-user - add members\n'
       'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
-      'group-users - show your group\'s member details\n'
+      'all-status - show cycle state and responders\n'
       'ask - send one member an availability picker\n'
       'mark-attend - mark attendance\n'
       'broadcast - message all members\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
-      're-pick - update your availability\n'
+      '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
       '\nTap more-cmd for additional commands.\n'
@@ -342,13 +342,13 @@ void main() {
       'add-user - add members\n'
       'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
-      'group-users - show your group\'s member details\n'
+      'all-status - show cycle state and responders\n'
       'ask - send one member an availability picker\n'
       'mark-attend - mark attendance\n'
       'broadcast - message all members\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
-      're-pick - update your availability\n'
+      '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
       '\nTap more-cmd for additional commands.',
@@ -364,13 +364,13 @@ void main() {
       'add-user - add members\n'
       'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
-      'group-users - show your group\'s member details\n'
+      'all-status - show cycle state and responders\n'
       'ask - send one member an availability picker\n'
       'mark-attend - mark attendance\n'
       'broadcast - message all members\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
-      're-pick - update your availability\n'
+      '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
       '\nTap more-cmd for additional commands.\n'
@@ -396,13 +396,13 @@ void main() {
       'add-user - add members\n'
       'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
-      'group-users - show your group\'s member details\n'
+      'all-status - show cycle state and responders\n'
       'ask - send one member an availability picker\n'
       'mark-attend - mark attendance\n'
       'broadcast - message all members\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
-      're-pick - update your availability\n'
+      '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
       '\nTap more-cmd for additional commands.',
@@ -417,7 +417,7 @@ void main() {
       '👋 <b>@member</b>, here is what you can do:\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
-      're-pick - update your availability\n'
+      '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
       're-pick — update your availability\n'
@@ -439,7 +439,7 @@ void main() {
       '👋 <b>@outmember</b>, here is what you can do:\n\n'
        '<b>Member-o</b>\n'
       'start - show the welcome and role buttons\n'
-      're-pick - update your availability\n'
+      '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks and allocation\n'
       'notify - choose prompt frequency\n'
@@ -483,11 +483,11 @@ void main() {
           'add-user',
           'add-out-user',
           'group-status',
-          'group-users',
+          'all-status',
           'broadcast',
         ]),
       );
-      expect(keyboardTexts(sent.last), isNot(contains('all-status')));
+      expect(keyboardTexts(sent.last), contains('all-status'));
       expect(keyboardTexts(sent.last), isNot(contains('all-users')));
       expect(keyboardTexts(sent.last), isNot(contains('prompt')));
       expect(keyboardTexts(sent.last), isNot(contains('remind')));
@@ -499,7 +499,7 @@ void main() {
 
       await sendText(1, '/grid');
       expect(sent.last['text'], contains('Preview: member grid'));
-      expect(keyboardTexts(sent.last), contains('re-pick'));
+      expect(keyboardTexts(sent.last), contains('(re)pick'));
 
       await sendText(1, '/grid');
       expect(sent.last['text'], contains('Preview: out-member grid'));
@@ -507,7 +507,7 @@ void main() {
     },
   );
 
-  test('all-users and group-users show gadmin above admin', () async {
+  test('all-users and group-user show gadmin above admin', () async {
     await sendText(1, '/users');
     var text = sent.last['text'] as String;
     expect(text, contains('@console</b>\n   (gadmin,'));
@@ -515,7 +515,7 @@ void main() {
     expect(text.indexOf('@console'), lessThan(text.indexOf('@admin')));
 
     repo.setGroup(2, repo.findUser(1)!.group);
-    await sendText(2, '/groupusers');
+    await sendText(2, '/groupuser');
     text = sent.last['text'] as String;
     expect(text, contains('@console</b>\n   (gadmin,'));
     expect(text, isNot(contains('console + gadmin')));
@@ -644,8 +644,9 @@ void main() {
   });
 
   test('plain-text hyphenated aliases are gone; canonical commands and aliases work', () async {
-    final before = sent.length;
     await sendPlainText(2, 'all-status');
+    expect(sent.last['text'], contains('All members status'));
+    final before = sent.length;
     await sendPlainText(2, 'all-users');
     expect(sent, hasLength(before));
 
@@ -661,7 +662,7 @@ void main() {
 
     await sendText(2, '/grid');
     final adminButtons = keyboardTexts(sent.last);
-    expect(adminButtons, isNot(contains('all-status')));
+    expect(adminButtons, contains('all-status'));
     expect(adminButtons, isNot(contains('all-users')));
   });
 
@@ -671,8 +672,8 @@ void main() {
     expect(
       adminCommands,
       '<b>Admin</b>\n'
-      '/allstatus - show cycle state and responders\n'
       '/allusers - list registered members\n'
+      '/groupuser - show your group\'s member details\n'
       '/prompt - send availability prompts now\n'
       '/remind - remind non-responders now\n'
       '/setexp - change a member\'s experience\n'
@@ -680,6 +681,7 @@ void main() {
     );
     expect(adminCommands, isNot(contains('<b>Member</b>')));
     expect(adminCommands, isNot(contains('/groupstatus')));
+    expect(adminCommands, contains('/groupuser - show your group\'s member details'));
     expect(adminCommands, isNot(contains('/groupusers')));
     expect(adminCommands, isNot(contains('/ask')));
     expect(adminCommands, isNot(contains('/broadcast')));
@@ -694,7 +696,8 @@ void main() {
     expect(text.indexOf('<b>Console</b>'), lessThan(text.indexOf('<b>Global admin</b>')));
     expect(text.indexOf('<b>Global admin</b>'), lessThan(text.indexOf('<b>Admin</b>')));
     expect(text, contains('/addcheck @handle - add a checker'));
-    expect(text, contains('/allstatus - show cycle state and responders'));
+    expect(text, contains('/groupuser - show your group\'s member details'));
+    expect(text, isNot(contains('/allstatus')));
     expect(text, contains('/checkstatus - test the checker\'s check-status'));
     expect(text, isNot(contains('/hold')));
     expect(text, isNot(contains('/start -')));
@@ -750,7 +753,7 @@ void main() {
     expect(recipients, isNot(contains(4)));
   });
 
-  test('/groupstatus and /groupusers stay in the caller group', () async {
+  test('/groupstatus and /groupuser stay in the caller group', () async {
     repo.updatePreferredName(2, 'Allen');
     final group = repo.findUser(2)!.group;
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
@@ -763,10 +766,14 @@ void main() {
     expect(sent.last['text'], isNot(contains('@out-member')));
     expect(sent.last['text'], isNot(contains('@checker')));
 
-    await sendText(2, '/groupusers');
+    await sendText(2, '/groupuser');
     final text = sent.last['text'] as String;
     expect(text, contains('Group $group users'));
     expect(text, isNot(contains('@checker')));
+
+    final before = sent.length;
+    await sendText(2, '/groupusers');
+    expect(sent, hasLength(before));
   });
 
   test('/unhold immediately reopens the held bot', () async {

@@ -28,8 +28,8 @@ class CommandCatalog {
   CommandCatalog._();
 
   static const List<CommandHelp> _admin = [
-    CommandHelp('/allstatus', 'show cycle state and responders'),
     CommandHelp('/allusers', 'list registered members'),
+    CommandHelp('/groupuser', 'show your group\'s member details'),
     CommandHelp('/prompt', 'send availability prompts now'),
     CommandHelp('/remind', 'remind non-responders now'),
     CommandHelp('/setexp', 'change a member\'s experience'),

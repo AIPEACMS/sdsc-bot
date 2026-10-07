@@ -5,6 +5,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.5.1] - 2026-10-07
+
+### Fixed
+
+- Replaced the admin group-users button with all-status, moved `/groupuser` to
+  More Commands, and renamed the repick button to `(re)pick`.
+
 ## [4.5.0] - 2026-10-07
 
 ### Added

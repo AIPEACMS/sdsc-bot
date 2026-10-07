@@ -11,8 +11,13 @@ extension AdminCommands on Admin {
       _guard(_addOutUser),
       label: 'add-out-user',
     );
-    state.registerCommand('allstatus');
-    bot.command('allstatus', _guard(this._status));
+    commandBoth(
+      bot,
+      state,
+      'allstatus',
+      _guard(this._status),
+      label: 'all-status',
+    );
     state.registerCommand('status');
     bot.command('status', _guard(this._status)); // Compatibility alias.
     commandBoth(
@@ -26,13 +31,8 @@ extension AdminCommands on Admin {
     bot.command('allusers', _guard(this._users));
     state.registerCommand('users');
     bot.command('users', _guard(this._users)); // Compatibility alias.
-    commandBoth(
-      bot,
-      state,
-      'groupusers',
-      _guard(this._groupUsers),
-      label: 'group-users',
-    );
+    state.registerCommand('groupuser');
+    bot.command('groupuser', _guard(this._groupUsers));
     commandBoth(bot, state, 'prompt', _guard(this._promptConfirm), label: 'prompt');
     commandBoth(bot, state, 'remind', _guard(this._remindConfirm), label: 'remind');
     commandBoth(

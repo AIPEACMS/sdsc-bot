@@ -66,13 +66,13 @@ class RoleKeyboard {
     'set-time' => 'set activity days, times and locations',
     'add-user' => 'add members',
     'add-out-user' => 'add out-members',
+    'all-status' => 'show cycle state and responders',
     'group-status' => 'show your group\'s cycle state and responders',
-    'group-users' => 'show your group\'s member details',
     'ask' => 'send one member an availability picker',
     'mark-attend' => 'mark attendance',
     'broadcast' => 'message all members',
     'start' => 'show the welcome and role buttons',
-    're-pick' => 'update your availability',
+    '(re)pick' => 'update your availability',
     'set-info' => 'update your preferred name',
     'my-status' => outMember
         ? 'show your picks and allocation'
@@ -84,7 +84,7 @@ class RoleKeyboard {
 
   static const List<GridButton> memberButtons = [
     GridButton('start', '/start', RoleColor.member),
-    GridButton('re-pick', '/repick', RoleColor.member),
+    GridButton('(re)pick', '/repick', RoleColor.member),
     GridButton('set-info', '/setinfo', RoleColor.member),
     GridButton('my-status', '/mystatus', RoleColor.member),
   ];
@@ -109,7 +109,7 @@ class RoleKeyboard {
     GridButton('add-user', '/adduser', RoleColor.admin),
     GridButton('add-out-user', '/addoutuser', RoleColor.admin),
     GridButton('group-status', '/groupstatus', RoleColor.admin),
-    GridButton('group-users', '/groupusers', RoleColor.admin),
+    GridButton('all-status', '/allstatus', RoleColor.admin),
     GridButton('ask', '/ask', RoleColor.admin),
     GridButton('mark-attend', '/confirm', RoleColor.admin),
     GridButton('broadcast', '/broadcast', RoleColor.admin),
