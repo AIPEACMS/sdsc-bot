@@ -136,7 +136,12 @@ extension FlowsRegistration on Flows {
       tier: user?.memberTier,
     );
     for (final section in visibleSections) {
-      sb.write('\n\n<b>${this._html(section.title)}</b>');
+      final title = user?.memberTier == MemberTier.outMember &&
+              !isConsole &&
+              section.title == 'Out-member'
+          ? 'Member-o'
+          : section.title;
+      sb.write('\n\n<b>${this._html(title)}</b>');
       for (final button in section.buttons) {
         sb.write(
           '\n${this._html(button.label)} - '
