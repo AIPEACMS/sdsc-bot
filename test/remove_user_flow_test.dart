@@ -215,6 +215,7 @@ void main() {
     expect(repo.findUser(2)!.group, isEmpty);
     expect(repo.isPendingUser('never_started'), false);
     expect(edited.last['text'], contains('Removed'));
+    expect(edited.last['reply_markup'], isNull);
   });
 
   test(
