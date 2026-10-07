@@ -67,6 +67,20 @@ WHERE user_id = ? AND attended = 1 AND confirmed_at >= ?
     return (rows.first['c'] as int) > 0;
   }
 
+  DateTime? lastAttendedWeekend(int userId) {
+    final rows = raw.select(
+      '''
+SELECT MAX(s.weekend_start) AS last_attended
+FROM attendance a
+JOIN sessions s ON s.id = a.session_id
+WHERE a.user_id = ? AND a.attended = 1
+''',
+      [userId],
+    );
+    final value = rows.first['last_attended'] as String?;
+    return value == null ? null : DateTime.parse(value);
+  }
+
   /// The number of consecutive session weekends up to [latestSat] in which
   /// [userId] had no positive attendance, counting backward from [latestSat].
   /// An attended weekend resets the streak; holiday weeks neither count nor
