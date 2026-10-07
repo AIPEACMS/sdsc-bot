@@ -753,12 +753,13 @@ void main() {
   test('/groupstatus and /groupusers stay in the caller group', () async {
     repo.updatePreferredName(2, 'Allen');
     final group = repo.findUser(2)!.group;
+    final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
 
     await sendText(2, '/groupstatus');
     expect(sent.last['text'], contains('Group $group status'));
     expect(sent.last['text'], contains('Allen @admin'));
     expect(sent.last['text'], contains('last attend:'));
-    expect(sent.last['text'], contains('Sat 22 Aug'));
+    expect(sent.last['text'], contains('last attend: Sat ${w.sat1.day}'));
     expect(sent.last['text'], isNot(contains('@out-member')));
     expect(sent.last['text'], isNot(contains('@checker')));
 
