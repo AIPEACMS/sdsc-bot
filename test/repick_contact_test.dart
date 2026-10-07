@@ -548,8 +548,11 @@ void main() {
       );
       final selectable = picker.inlineKeyboard
           .expand((row) => row)
-          .firstWhere((button) => button.callbackData.startsWith('slot|'));
-      final callbackParts = selectable.callbackData.split('|');
+          .firstWhere(
+            (button) => button.callbackData?.startsWith('slot|') ?? false,
+          );
+      final callbackData = selectable.callbackData!;
+      final callbackParts = callbackData.split('|');
       expect(Slot.parse(callbackParts[2])?.encode(), callbackParts[2]);
 
       // Toggle a week-2 slot (weekend index 1 of the bundle starting
@@ -569,7 +572,7 @@ void main() {
               'chat': {'id': 42, 'type': 'private'},
               'text': 'Your availability (tap to toggle):',
             },
-            'data': selectable.callbackData,
+            'data': callbackData,
           },
         }),
       );
