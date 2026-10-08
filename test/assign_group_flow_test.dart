@@ -167,7 +167,7 @@ void main() {
     );
 
     botStart = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 100));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
     addTearDown(() async {
       await bot.stop();
       await botStart;
