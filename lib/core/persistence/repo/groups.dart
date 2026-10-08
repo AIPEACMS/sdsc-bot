@@ -73,18 +73,38 @@ extension RepoGroups on Repo {
             .toList()
           ..sort((a, b) => a.id.compareTo(b.id));
     final members = <int, GroupAssignmentMember>{};
+    final groupCounts = <String, int>{
+      for (final leader in orderedLeaders) leaderTargets[leader.id]!: 0,
+    };
+    for (final user in users) {
+      if (user.memberTier == MemberTier.member &&
+          !user.isAdmin &&
+          !user.isGlobalAdmin &&
+          groupCounts.containsKey(user.group)) {
+        groupCounts[user.group] = groupCounts[user.group]! + 1;
+      }
+    }
     if (orderedLeaders.isNotEmpty) {
       for (var i = 0; i < candidates.length; i++) {
-        final leader = orderedLeaders[i % orderedLeaders.length];
+        final leader = orderedLeaders.reduce((a, b) {
+          final aGroup = targetLeaders[a.id]!;
+          final bGroup = targetLeaders[b.id]!;
+          final countComparison =
+              groupCounts[aGroup]!.compareTo(groupCounts[bGroup]!);
+          if (countComparison != 0) return countComparison < 0 ? a : b;
+          return _groupNumber(aGroup) <= _groupNumber(bGroup) ? a : b;
+        });
+        final targetGroup = targetLeaders[leader.id]!;
         members[candidates[i].id] = GroupAssignmentMember(
           id: candidates[i].id,
           handle: _handleFor(candidates[i]),
           expectedGroup: candidates[i].group,
-          targetGroup: targetLeaders[leader.id]!,
+          targetGroup: targetGroup,
           expectedTier: candidates[i].memberTier,
           expectedAdmin: candidates[i].isAdmin,
           expectedGlobalAdmin: candidates[i].isGlobalAdmin,
         );
+        groupCounts[targetGroup] = groupCounts[targetGroup]! + 1;
       }
     }
     return GroupAssignmentPreview(

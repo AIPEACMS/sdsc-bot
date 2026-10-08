@@ -5,6 +5,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.7.3] - 2026-10-08
+
+### Fixed
+
+- Auto group assignment now counts existing regular members and fills the
+  smallest group first instead of round-robining only new members.
+
 ## [4.7.2] - 2026-10-08
 
 ### Fixed
