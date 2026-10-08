@@ -5,6 +5,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.7.1] - 2026-10-08
+
+### Fixed
+
+- `/setexp` now lists only members whose experience differs from the selected
+  target.
+
 ## [4.7.0] - 2026-10-08
 
 ### Added

@@ -177,7 +177,13 @@ extension AdminBroadcast on Admin {
   Future<void> _pickUserFor(Context ctx, String kind, String value) async {
     final users = repo
         .activeUsers()
-        .where((u) => u.memberTier != MemberTier.outMember)
+        .where(
+          (u) =>
+              u.memberTier != MemberTier.outMember &&
+              (value == 'experienced'
+                  ? u.experience != Experience.experienced
+                  : u.experience != Experience.newbie),
+        )
         .toList();
     if (users.isEmpty) {
       await ctx.reply('No registered users yet.');
