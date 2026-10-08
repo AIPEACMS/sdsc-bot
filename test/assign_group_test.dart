@@ -89,6 +89,22 @@ void main() {
     expect(repo.findUser(5)!.group, isEmpty);
   });
 
+  test('auto preview fills the smallest existing group first', () {
+    add(1, 'leader1', group: '1', admin: true);
+    add(2, 'leader2', group: '2', admin: true);
+    add(3, 'existing1', group: '1');
+    add(4, 'existing2', group: '1');
+    add(5, 'alice');
+    add(6, 'bob');
+
+    final preview = repo.previewAutoAssignGroups();
+
+    expect(preview.members[5]!.targetGroup, '2');
+    expect(preview.members[6]!.targetGroup, '1');
+    expect(repo.findUser(5)!.group, isEmpty);
+    expect(repo.findUser(6)!.group, isEmpty);
+  });
+
   test('expired previews are rejected without mutation', () {
     add(1, 'leader', group: '1', admin: true);
     add(2, 'alice');
