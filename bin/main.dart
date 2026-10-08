@@ -155,12 +155,16 @@ Future<void> main() async {
   flows.onRemoveUserText = console.onRemoveUserText;
   flows.onPendingInputCleared = (userId, command) {
     if (command == 'removeuser') console.onRemoveUserInputCleared(userId);
+    if (command == 'assigngroup-members') {
+      console.onAssignGroupInputCleared(userId);
+    }
   };
   flows.onSetDateText = console.onSetDateText;
   flows.onSyncCalendarText = console.onSyncCalendarText;
   flows.onSetTimeText = setTime.onText;
   flows.onSetTimeNewNameText = setTime.onNewNameText;
   flows.onAddAliasText = console.onAddAliasText;
+  flows.onAssignGroupText = console.onAssignGroupText;
   flows.onAvailabilitySaved = scheduler.allocateImmediately;
 
   // Long polling hits the odd transient network hiccup; the bot retries by

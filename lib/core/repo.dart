@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:math';
 
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
@@ -16,6 +15,7 @@ part 'persistence/repo/sessions.dart';
 part 'persistence/repo/availability.dart';
 part 'persistence/repo/attendance.dart';
 part 'persistence/repo/holidays.dart';
+part 'persistence/repo/groups.dart';
 
 /// A registered Ed25519 public key that the desktop console app uses to sign
 /// admin API requests. The value is the base64 of the raw 32-byte key.
