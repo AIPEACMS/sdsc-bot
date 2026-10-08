@@ -74,7 +74,7 @@ extension RepoGroups on Repo {
           ..sort((a, b) => a.id.compareTo(b.id));
     final members = <int, GroupAssignmentMember>{};
     final groupCounts = <String, int>{
-      for (final leader in orderedLeaders) leaderTargets[leader.id]!: 0,
+      for (final leader in orderedLeaders) targetLeaders[leader.id]!: 0,
     };
     for (final user in users) {
       if (user.memberTier == MemberTier.member &&

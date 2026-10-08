@@ -96,13 +96,16 @@ void main() {
     add(4, 'existing2', group: '1');
     add(5, 'alice');
     add(6, 'bob');
+    add(7, 'carol');
 
     final preview = repo.previewAutoAssignGroups();
 
     expect(preview.members[5]!.targetGroup, '2');
-    expect(preview.members[6]!.targetGroup, '1');
+    expect(preview.members[6]!.targetGroup, '2');
+    expect(preview.members[7]!.targetGroup, '1');
     expect(repo.findUser(5)!.group, isEmpty);
     expect(repo.findUser(6)!.group, isEmpty);
+    expect(repo.findUser(7)!.group, isEmpty);
   });
 
   test('expired previews are rejected without mutation', () {
