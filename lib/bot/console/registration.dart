@@ -97,6 +97,8 @@ extension ConsoleRegistration on Console {
       _consoleGuard(this._addAlias),
       label: 'add-alias',
     );
+    state.registerCommand('assigngroup');
+    bot.command('assigngroup', _globalAdminGuard(this._assignGroup));
 
     // Hold/unhold callbacks, console only.
     bot.use((ctx, next) async {
@@ -117,6 +119,10 @@ extension ConsoleRegistration on Console {
         } else {
           await ctx.answerCallbackQuery();
         }
+        return;
+      }
+      if (head == 'assigngroup') {
+        await this._onAssignGroupCallback(ctx);
         return;
       }
       await next();

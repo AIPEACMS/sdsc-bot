@@ -17,7 +17,9 @@ import 'state.dart';
 
 part 'console/registration.dart';
 part 'console/users.dart';
+part 'console/user_removal.dart';
 part 'console/schedule.dart';
+part 'console/assigngroup.dart';
 
 class _ConsoleBase {
 
@@ -38,6 +40,8 @@ class _ConsoleBase {
   final Map<int, int> _pendingGlobalAdminRemoval = {};
   final Map<int, List<String>> _pendingUserRemoval = {};
   final Map<int, (String, List<String>)> _aliasFlow = {};
+  final Map<int, String> _pendingGroupTarget = {};
+  final Map<int, GroupAssignmentPreview> _pendingGroupAssignment = {};
 
   _ConsoleBase({
     required this.bot,

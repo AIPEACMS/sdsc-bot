@@ -45,6 +45,7 @@ class CommandCatalog {
       usage: '[@handle ...]',
     ),
     CommandHelp('/synccalendar', 'push the calendar YAML'),
+    CommandHelp('/assigngroup', 'assign members to admin-led groups'),
   ];
   static const List<CommandHelp> _console = [
     CommandHelp('/checkstatus', 'test the checker\'s check-status'),

@@ -72,6 +72,8 @@ class _FlowsBase {
 
   /// Set by main.dart: one alias typed in the console's /addalias wizard.
   Future<void> Function(Context ctx, int userId, String text)? onAddAliasText;
+  Future<void> Function(Context ctx, int userId, String text)?
+      onAssignGroupText;
 }
 
 class Flows extends _FlowsBase {

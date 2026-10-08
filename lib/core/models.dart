@@ -23,3 +23,4 @@ part 'domain/availability.dart';
 part 'domain/allocation.dart';
 part 'domain/attendance.dart';
 part 'domain/holiday.dart';
+part 'domain/group_assignment.dart';

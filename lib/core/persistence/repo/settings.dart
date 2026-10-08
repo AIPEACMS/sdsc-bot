@@ -177,41 +177,6 @@ extension RepoSettings on Repo {
     raw.execute('UPDATE users SET group_id = ? WHERE id = ?', [group, id]);
   }
 
-  /// Randomly and evenly assigns members without a group to the admins'
-  /// groups. Admins (group leaders) are never assigned; the `check` and
-  /// `old` tiers are not members and are never assigned. Returns
-  /// groupId -> how many members landed in it.
-  Map<String, int> autoAssignGroups() {
-    final users = allUsers();
-    // Defensive: every admin must hold a group.
-    for (final u in users.where((u) => u.isAdmin || u.isGlobalAdmin)) {
-      if (u.group.isEmpty) _assignGroupOnPromotion(u.id);
-    }
-    final leaders = users
-        .where((u) => (u.isAdmin || u.isGlobalAdmin) && u.group.isNotEmpty)
-        .toList();
-    if (leaders.isEmpty) return {};
-    final leaderGroups = leaders.map((a) => a.group).toList();
-    final candidates = users
-        .where((u) =>
-            !u.isAdmin &&
-            !u.isGlobalAdmin &&
-            u.memberTier == MemberTier.member &&
-            u.group.isEmpty)
-        .toList()
-      ..shuffle(Random());
-    final counts = {for (final g in leaderGroups) g: 0};
-    for (var i = 0; i < candidates.length; i++) {
-      final group = leaderGroups[i % leaderGroups.length];
-      raw.execute(
-        'UPDATE users SET group_id = ? WHERE id = ?',
-        [group, candidates[i].id],
-      );
-      counts[group] = counts[group]! + 1;
-    }
-    return counts;
-  }
-
   // ------------------------------------------------------------------- holds
 
   /// Whether the bot is held (all outgoing messages suppressed).
