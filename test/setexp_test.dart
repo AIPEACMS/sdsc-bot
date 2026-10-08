@@ -2,7 +2,6 @@ import 'package:test/test.dart';
 
 import 'package:sdsc_bot/sdsc_bot.dart';
 import 'support/grid_harness.dart';
-import 'package:sdsc_bot/core/models.dart';
 
 void main() {
   setUp(setUpGrid);
