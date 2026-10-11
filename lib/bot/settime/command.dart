@@ -184,7 +184,7 @@ extension SetTimeCommand on SetTime {
     for (final sat in [window.sat0, window.sat1]) {
       if (window.locked(sat, now)) continue;
       kb = kb.text(
-        'Week ${this._date(sat)} - ${this._date(sat.add(const Duration(days: 6)))}',
+        'Week ${_calendarWeekLabel(sat)}',
         'settime-week|${this._date(sat)}',
       ).row();
     }
@@ -224,14 +224,20 @@ extension SetTimeCommand on SetTime {
         .row()
         .text('❌ Cancel', 'settime|no');
     final text = draft.scope == _SetTimeScope.temporary
-        ? 'Select sessions to remove from week ${this._date(draft.targetSaturday!)} '
-            '- ${this._date(draft.targetSaturday!.add(const Duration(days: 6)))}:'
+        ? 'Select sessions to remove from week '
+            '${_calendarWeekLabel(draft.targetSaturday!)}:'
         : 'Select recurring sessions to remove:';
     if (edit) {
       await ctx.editMessageText(text, replyMarkup: kb);
     } else {
       await ctx.editMessageText(text, replyMarkup: kb);
     }
+  }
+
+  String _calendarWeekLabel(DateTime saturday) {
+    final monday = saturday.subtract(const Duration(days: 5));
+    final sunday = monday.add(const Duration(days: 6));
+    return '${_date(monday)} - ${_date(sunday)}';
   }
 
 }

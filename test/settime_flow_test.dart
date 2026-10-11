@@ -342,6 +342,31 @@ void main() {
     expect(repo.scheduleTemplate(), hasLength(3));
   });
 
+  test('temporary week labels show the Monday-Sunday calendar range', () async {
+    await sendText(1, '/settime');
+    await sendCallback(1, 'settime-scope|temporary');
+    await sendCallback(1, 'settime-action|remove');
+
+    final picker = edited.last['reply_markup'] as Map<String, dynamic>;
+    final buttons = (picker['inline_keyboard'] as List)
+        .expand((row) => row as List)
+        .map((button) => button as Map<String, dynamic>)
+        .toList();
+    expect(buttons.first['text'], 'Week 2026-09-14 - 2026-09-20');
+    expect(buttons.first['callback_data'], 'settime-week|2026-09-19');
+    expect(buttons[1]['text'], 'Week 2026-09-21 - 2026-09-27');
+    expect(buttons[1]['callback_data'], 'settime-week|2026-09-26');
+
+    await sendCallback(1, 'settime-week|2026-09-19');
+    expect(
+      edited.last['text'],
+      contains('Select sessions to remove from week 2026-09-14 - 2026-09-20:'),
+    );
+    await sendCallback(1, 'settime-remove|0');
+    await sendCallback(1, 'settime-remove|done');
+    expect(sent.last['text'], contains('Week 2026-09-14 - 2026-09-20 will be updated to:'));
+  });
+
   test('overlap choice replaces its buttons with the final confirmation', () async {
     await sendText(1, '/settime');
     await sendText(1, 'sat 9 13 ocbc');
