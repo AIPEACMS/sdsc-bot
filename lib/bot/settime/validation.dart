@@ -182,7 +182,7 @@ extension SetTimeValidation on SetTime {
       _writeRows(sb, before);
       sb.writeln('\nAfter change:');
       sb.writeln(
-        'Week ${this._date(sat)} - ${this._date(sat.add(const Duration(days: 6)))} '
+        'Week ${_calendarWeekLabel(sat)} '
         'will be updated to:',
       );
       _writeRows(sb, after);
