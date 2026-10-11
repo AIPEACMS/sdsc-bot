@@ -13,6 +13,7 @@ extension ConsoleAssignGroup on Console {
         'assigngroup|select|${leader.group}',
       );
     }
+    keyboard = keyboard.row().text('❌ Cancel', 'assigngroup|cancel');
     final message = await ctx.reply(
       'Which group do you want to assign the member(s) to?',
       replyMarkup: keyboard,

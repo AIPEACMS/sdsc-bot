@@ -271,6 +271,7 @@ void main() {
     expect(thirdAck, contains('Session 4: Friday 18:00 to 20:00'));
 
     await sendText(1, 'done');
+    expect(edited.any((body) => body['reply_markup'] == null), isTrue);
     final confirmation = sent.last['text'] as String;
     expect(confirmation, contains('Before change:'));
     expect(confirmation, contains('After change:'));
@@ -334,6 +335,7 @@ void main() {
 
     await sendCallback(1, 'settime-remove|0');
     await sendCallback(1, 'settime-remove|done');
+    expect(edited.last['reply_markup'], isNull);
     final confirmation = sent.last['text'] as String;
     expect(confirmation, contains('Before change:'));
     expect(confirmation, contains('After change:'));

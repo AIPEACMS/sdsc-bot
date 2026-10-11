@@ -1,7 +1,6 @@
 part of '../settime.dart';
 
 extension SetTimeCommand on SetTime {
-
   /// Drafts in progress, per gadmin user id.
   void register() {
     commandBoth(bot, state, 'settime', _guard(_start), label: 'set-time');
@@ -13,7 +12,8 @@ extension SetTimeCommand on SetTime {
         if (_isGadmin(ctx)) await this._onConfirmOrCancel(ctx);
         return;
       }
-      if (head == 'settime-scope' || head == 'settime-action' ||
+      if (head == 'settime-scope' ||
+          head == 'settime-action' ||
           head == 'settime-conflict') {
         if (_isGadmin(ctx)) await _onChoice(ctx, head);
         return;
@@ -53,7 +53,7 @@ extension SetTimeCommand on SetTime {
     // Keep the old typed flow working if the user starts sending lines before
     // choosing a button; the buttons are the normal path for new sessions.
     state.pendingArg[userId] = PendingArg('settime');
-    await ctx.reply(
+    final message = await ctx.reply(
       '🗓 <b>Set the activity times</b>\n\n'
       'Do you want this change to be temporary for one week, or persistent '
       'from now on?',
@@ -65,6 +65,7 @@ extension SetTimeCommand on SetTime {
           .row()
           .text('❌ Cancel', 'settime|no'),
     );
+    state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
   Future<void> _onChoice(Context ctx, String head) async {
@@ -74,6 +75,7 @@ extension SetTimeCommand on SetTime {
     if (draft == null) {
       await ctx.editMessageText(
         'This draft has expired. Start again with /settime.',
+        replyMarkup: null,
       );
       return;
     }
@@ -140,7 +142,10 @@ extension SetTimeCommand on SetTime {
     final userId = ctx.from!.id;
     final draft = _drafts[userId];
     if (draft == null) {
-      await ctx.editMessageText('This draft has expired. Start again with /settime.');
+      await ctx.editMessageText(
+        'This draft has expired. Start again with /settime.',
+        replyMarkup: null,
+      );
       return;
     }
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
@@ -154,14 +159,24 @@ extension SetTimeCommand on SetTime {
     }
     if (value == 'done') {
       if (draft.removeRows.isEmpty) {
-        await ctx.editMessageText('Select at least one session to remove.');
+        await ctx.editMessageText(
+          'Select at least one session to remove.',
+          replyMarkup: null,
+        );
         return;
       }
+      await ctx.editMessageText('Selection accepted.', replyMarkup: null);
       await this._showConfirmation(ctx, userId);
       return;
     }
     final index = int.tryParse(value);
-    if (index == null || index < 0 || index >= draft.beforeRows!.length) return;
+    if (index == null || index < 0 || index >= draft.beforeRows!.length) {
+      await ctx.editMessageText(
+        'That session is no longer available.',
+        replyMarkup: null,
+      );
+      return;
+    }
     final row = draft.beforeRows![index];
     final key = this._rowKey(row);
     if (draft.removeKeys.contains(key)) {
@@ -172,7 +187,9 @@ extension SetTimeCommand on SetTime {
     draft.removeRows
       ..clear()
       ..addAll(
-        draft.beforeRows!.where((candidate) => draft.removeKeys.contains(this._rowKey(candidate))),
+        draft.beforeRows!.where(
+          (candidate) => draft.removeKeys.contains(this._rowKey(candidate)),
+        ),
       );
     await _showRemovePicker(ctx, userId, edit: true);
   }
@@ -183,10 +200,12 @@ extension SetTimeCommand on SetTime {
     var kb = InlineKeyboard();
     for (final sat in [window.sat0, window.sat1]) {
       if (window.locked(sat, now)) continue;
-      kb = kb.text(
+      kb = kb
+          .text(
         'Week ${_calendarWeekLabel(sat)}',
         'settime-week|${this._date(sat)}',
-      ).row();
+          )
+          .row();
     }
     kb = kb.text('❌ Cancel', 'settime|no');
     await ctx.editMessageText(
@@ -239,5 +258,4 @@ extension SetTimeCommand on SetTime {
     final sunday = monday.add(const Duration(days: 6));
     return '${_date(monday)} - ${_date(sunday)}';
   }
-
 }

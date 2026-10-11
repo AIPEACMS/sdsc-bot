@@ -1,11 +1,7 @@
 part of '../flows.dart';
 
 extension FlowsPresentation on Flows {
-
-  (Map<String, int>, Set<String>) _allocationInfo(
-    RollingWindow w,
-    int userId,
-  ) {
+  (Map<String, int>, Set<String>) _allocationInfo(RollingWindow w, int userId) {
     final counts = <String, int>{};
     final own = <String>{};
     for (final sat in [w.sat0, w.sat1]) {
@@ -29,7 +25,8 @@ extension FlowsPresentation on Flows {
     Set<Slot> want,
   ) {
     want.removeWhere((slot) {
-      if (slot == candidateSlot || slot.weekendIndex != candidateSlot.weekendIndex) {
+      if (slot == candidateSlot ||
+          slot.weekendIndex != candidateSlot.weekendIndex) {
         return false;
       }
       final other = _sessionForSlotInWeekend(candidate.weekendStart, slot);
@@ -45,7 +42,8 @@ extension FlowsPresentation on Flows {
   ) {
     _clearOverlappingWants(candidate, candidateSlot, want);
     available.removeWhere((slot) {
-      if (slot == candidateSlot || slot.weekendIndex != candidateSlot.weekendIndex) {
+      if (slot == candidateSlot ||
+          slot.weekendIndex != candidateSlot.weekendIndex) {
         return false;
       }
       final other = _sessionForSlotInWeekend(candidate.weekendStart, slot);
@@ -78,7 +76,10 @@ extension FlowsPresentation on Flows {
     state.forgetAvailability(userId);
     state.clearInteractiveMessages(userId);
     try {
-      await ctx.editMessageText('Cancelled — your previous answer is kept.');
+      await ctx.editMessageText(
+        'Cancelled — your previous answer is kept.',
+        replyMarkup: null,
+      );
     } catch (_) {
       // message may be gone; ignore
     }
@@ -97,7 +98,13 @@ extension FlowsPresentation on Flows {
     await ctx.answerCallbackQuery();
     state.clearInteractiveMessages(userId);
     final sat0 = DateTime.tryParse(sat0Raw);
-    if (sat0 == null) return;
+    if (sat0 == null) {
+      await ctx.editMessageText(
+        'This availability request is no longer valid.',
+        replyMarkup: null,
+      );
+      return;
+    }
     final w = _windowForSat(sat0);
     final now = config.toLocal(Config.nowUtc());
 
@@ -139,7 +146,10 @@ extension FlowsPresentation on Flows {
     state.availabilityMessages.remove(userId);
 
     if (saved == 0) {
-      await ctx.reply('Both weekends are already locked — nothing was saved.');
+      await ctx.editMessageText(
+        'Both weekends are already locked — nothing was saved.',
+        replyMarkup: null,
+      );
       return;
     }
     // Re-optimize immediately after saving the updated availability.
@@ -151,6 +161,7 @@ extension FlowsPresentation on Flows {
             ? 'You indicated <b>not available</b> for the open weekends.'
             : 'Availability saved.',
         parseMode: ParseMode.html,
+        replyMarkup: null,
       );
     } catch (_) {
       // message may be gone; ignore
@@ -237,10 +248,7 @@ extension FlowsPresentation on Flows {
       );
       if (isAdmin) repo.setTier(userId, MemberTier.admin);
     } else if (!existing.isGlobalAdmin) {
-      repo.setTier(
-        userId,
-        isAdmin ? MemberTier.admin : tier,
-      );
+      repo.setTier(userId, isAdmin ? MemberTier.admin : tier);
     }
     // /start provides the role-aware welcome and grid itself. Other first
     // contacts still receive them here after being auto-registered.
@@ -269,5 +277,4 @@ extension FlowsPresentation on Flows {
       ),
     );
   }
-
 }

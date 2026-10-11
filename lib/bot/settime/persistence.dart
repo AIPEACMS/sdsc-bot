@@ -1,7 +1,6 @@
 part of '../settime.dart';
 
 extension SetTimePersistence on SetTime {
-
   /// Stores the template and rebuilds every open weekend, then re-prompts the
   /// members whose availability it cleared.
   Future<void> _apply(Context ctx, int userId, _Draft draft) async {
@@ -11,6 +10,7 @@ extension SetTimePersistence on SetTime {
     if (rows == null || rows.isEmpty) {
       await ctx.editMessageText(
         '⚠️ Nothing was saved — the activity list is unchanged.',
+        replyMarkup: null,
       );
       return;
     }
@@ -22,12 +22,14 @@ extension SetTimePersistence on SetTime {
         await ctx.editMessageText(
           '⚠️ That date is outside the current two-week window. '
           'The activity list is unchanged.',
+          replyMarkup: null,
         );
         return;
       }
       if (w.locked(sat, now)) {
         await ctx.editMessageText(
           '⚠️ That week is already locked. The activity list is unchanged.',
+          replyMarkup: null,
         );
         return;
       }
@@ -86,8 +88,13 @@ extension SetTimePersistence on SetTime {
     );
     await ctx.editMessageText(
       '✅ <b>Saved.</b> The activity list is updated'
-      '${affected.isEmpty ? '.' : scheduleChangeEnabled ? ' — ${affected.length} member(s) asked to pick again.' : ' — re-prompts are disabled.'}',
+      '${affected.isEmpty
+          ? '.'
+          : scheduleChangeEnabled
+          ? ' — ${affected.length} member(s) asked to pick again.'
+          : ' — re-prompts are disabled.'}',
       parseMode: ParseMode.html,
+      replyMarkup: null,
     );
   }
 
@@ -109,5 +116,4 @@ extension SetTimePersistence on SetTime {
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
-
 }

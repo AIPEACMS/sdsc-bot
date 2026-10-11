@@ -1,7 +1,6 @@
 part of '../admin.dart';
 
 extension AdminCommands on Admin {
-
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
     commandBoth(
@@ -33,8 +32,20 @@ extension AdminCommands on Admin {
     bot.command('users', _guard(this._users)); // Compatibility alias.
     state.registerCommand('groupuser');
     bot.command('groupuser', _guard(this._groupUsers));
-    commandBoth(bot, state, 'prompt', _guard(this._promptConfirm), label: 'prompt');
-    commandBoth(bot, state, 'remind', _guard(this._remindConfirm), label: 'remind');
+    commandBoth(
+      bot,
+      state,
+      'prompt',
+      _guard(this._promptConfirm),
+      label: 'prompt',
+    );
+    commandBoth(
+      bot,
+      state,
+      'remind',
+      _guard(this._remindConfirm),
+      label: 'remind',
+    );
     commandBoth(
       bot,
       state,
@@ -47,7 +58,13 @@ extension AdminCommands on Admin {
       label: 'allocate',
     );
     commandBoth(bot, state, 'ask', _guard(this._ask), label: 'ask');
-    commandBoth(bot, state, 'confirm', _guard(this._confirm), label: 'mark-attend');
+    commandBoth(
+      bot,
+      state,
+      'confirm',
+      _guard(this._confirm),
+      label: 'mark-attend',
+    );
     commandBoth(
       bot,
       state,
@@ -71,6 +88,8 @@ extension AdminCommands on Admin {
       const mine = {
         'att_sess',
         'att_toggle',
+        'att_done',
+        'att_cancel',
         'setexp',
         'setval',
         'mpick',
@@ -237,5 +256,4 @@ extension AdminCommands on Admin {
       : tier == MemberTier.member
       ? 'member'
       : tier;
-
 }

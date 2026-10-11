@@ -47,6 +47,7 @@ void main() {
       expect(sent.last['text'], contains('@alice @bob'));
 
       await sendPlainText(2, '@alice bad-handle @bob');
+      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
       expect(sent.last['text'], contains('Add these 3 out-members?'));
       expect(sent.last['reply_markup'], isNotNull);
       await sendCallback(2, 'adduser|yes');
@@ -60,7 +61,9 @@ void main() {
     },
   );
 
-  test('add-user wizard uses singular confirmation copy for one handle', () async {
+  test(
+    'add-user wizard uses singular confirmation copy for one handle',
+    () async {
     await sendText(2, '/adduser');
     await sendPlainText(2, '@oneperson');
     expect(sent.last['text'], 'Add this member?\n• @oneperson');
@@ -70,7 +73,8 @@ void main() {
     await sendPlainText(2, '@oneoutmember');
     expect(sent.last['text'], 'Add this out-member?\n• @oneoutmember');
     await sendCallback(2, 'adduser|no');
-  });
+    },
+  );
 
   test(
     'cancelled add-user batch adds nobody and clears the wizard state',
@@ -86,15 +90,103 @@ void main() {
     },
   );
 
-  test('broadcast wizard cancel does not enter availability cancel flow', () async {
+  test(
+    'broadcast wizard cancel does not enter availability cancel flow',
+    () async {
+      await sendText(2, '/broadcast');
+      await sendPlainText(2, 'hello everyone');
+      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+      await sendCallback(2, 'bcast|no');
+      expect(edited.last['reply_markup'], isNull);
+
     await sendText(2, '/broadcast');
     await sendCallback(2, 'admincancel|0');
     expect(edited.last['text'], 'Cancelled.');
     expect(
-      sent.where((body) => body['text'] == 'Your previous availability is kept.'),
+        sent.where(
+          (body) => body['text'] == 'Your previous availability is kept.',
+        ),
       isEmpty,
     );
-  });
+    },
+  );
+
+  test(
+    'attendance toggles stay staged until Done and Cancel discards them',
+    () async {
+      final session = repo
+          .sessionsForWeekend(
+            RollingWindow.forDate(config.toLocal(Config.nowUtc())).sat0,
+          )
+          .first;
+      final original = repo.attendanceForSession(session.id).first.attended;
+
+      await sendText(2, '/confirm');
+      expect(_inlineTexts(sent.last), contains('✅ Done'));
+      await sendCallback(2, 'att_sess|${session.id}');
+      await sendCallback(2, 'att_toggle|${session.id}|2');
+      expect(repo.attendanceForSession(session.id).first.attended, original);
+      await sendCallback(2, 'att_cancel');
+      expect(repo.attendanceForSession(session.id).first.attended, original);
+      expect(edited.last['reply_markup'], isNull);
+
+      await sendText(2, '/confirm');
+      await sendCallback(2, 'att_sess|${session.id}');
+      await sendCallback(2, 'att_toggle|${session.id}|2');
+      await sendCallback(2, 'att_done|member');
+      await sendCallback(2, 'att_done|all');
+      expect(
+        repo.attendanceForSession(session.id).first.attended,
+        isNot(original),
+      );
+      expect(edited.last['reply_markup'], isNull);
+    },
+  );
+
+  test(
+    'setexp member picker and assigngroup selector can be cancelled',
+    () async {
+      await sendText(2, '/setexp newbie');
+      expect(_inlineTexts(sent.last), contains('❌ Cancel'));
+      await sendCallback(2, 'admincancel|0');
+      expect(edited.last['reply_markup'], isNull);
+
+      await sendText(1, '/assigngroup');
+      expect(_inlineTexts(sent.last), contains('❌ Cancel'));
+      await sendCallback(1, 'assigngroup|cancel');
+      expect(edited.last['reply_markup'], isNull);
+    },
+  );
+
+  test(
+    'date and calendar typed wizard results dismiss their prompts',
+    () async {
+      await sendText(1, '/setdate');
+      await sendPlainText(1, 'not-a-date');
+      expect(sent.last['text'], 'Invalid date. Use YYYY-MM-DD.');
+      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+
+      await sendText(1, '/synccalendar');
+      await sendPlainText(1, 'not yaml');
+      expect(sent.last['text'], startsWith('❌ Sync failed:'));
+      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+    },
+  );
+
+  test(
+    'console wizard Cancel buttons use the console cancellation path',
+    () async {
+      await sendText(1, '/setdate');
+      await sendCallback(1, 'cancel|0');
+      expect(edited.last['text'], 'Cancelled.');
+      expect(edited.last['reply_markup'], isNull);
+
+      await sendText(1, '/synccalendar');
+      await sendCallback(1, 'cancel|0');
+      expect(edited.last['text'], 'Cancelled.');
+      expect(edited.last['reply_markup'], isNull);
+    },
+  );
 
   test('/grid is rejected for non-console users', () async {
     await sendText(2, '/grid');
@@ -125,7 +217,10 @@ void main() {
       User(id: 4, name: '@member', experience: Experience.newbie, group: '1'),
     );
     await sendText(4, '/checkstatus');
-    expect(sent.last['text'], contains('Only the console can use /checkstatus'));
+    expect(
+      sent.last['text'],
+      contains('Only the console can use /checkstatus'),
+    );
   });
 
   test('/status appends the allocation table for both weekends', () async {
@@ -140,7 +235,9 @@ void main() {
     expect(text, contains('@checker')); // sat1 allocation
   });
 
-  test('plain-text hyphenated aliases are gone; canonical commands and aliases work', () async {
+  test(
+    'plain-text hyphenated aliases are gone; canonical commands and aliases work',
+    () async {
     await sendPlainText(2, 'all-status');
     expect(sent.last['text'], contains('All members status'));
     final before = sent.length;
@@ -161,9 +258,12 @@ void main() {
     final adminButtons = keyboardTexts(sent.last);
     expect(adminButtons, contains('all-status'));
     expect(adminButtons, isNot(contains('all-users')));
-  });
+    },
+  );
 
-  test('More Commands is sectioned and excludes every button-backed command', () async {
+  test(
+    'More Commands is sectioned and excludes every button-backed command',
+    () async {
     await sendPlainText(2, 'more-cmd');
     final adminCommands = sent.last['text'] as String;
     expect(
@@ -178,7 +278,10 @@ void main() {
     );
     expect(adminCommands, isNot(contains('<b>Member</b>')));
     expect(adminCommands, isNot(contains('/groupstatus')));
-    expect(adminCommands, contains('/groupuser - show your group\'s member details'));
+      expect(
+        adminCommands,
+        contains('/groupuser - show your group\'s member details'),
+      );
     expect(adminCommands, isNot(contains('/groupusers')));
     expect(adminCommands, isNot(contains('/ask')));
     expect(adminCommands, isNot(contains('/broadcast')));
@@ -190,10 +293,19 @@ void main() {
     expect(text, contains('<b>Console</b>'));
     expect(text, contains('<b>Global admin</b>'));
     expect(text, contains('<b>Admin</b>'));
-    expect(text.indexOf('<b>Console</b>'), lessThan(text.indexOf('<b>Global admin</b>')));
-    expect(text.indexOf('<b>Global admin</b>'), lessThan(text.indexOf('<b>Admin</b>')));
+      expect(
+        text.indexOf('<b>Console</b>'),
+        lessThan(text.indexOf('<b>Global admin</b>')),
+      );
+      expect(
+        text.indexOf('<b>Global admin</b>'),
+        lessThan(text.indexOf('<b>Admin</b>')),
+      );
     expect(text, contains('/addcheck @handle - add a checker'));
-    expect(text, contains('/assigngroup - assign members to admin-led groups'));
+      expect(
+        text,
+        contains('/assigngroup - assign members to admin-led groups'),
+      );
     expect(text, contains('/groupuser - show your group\'s member details'));
     expect(text, isNot(contains('/allstatus')));
     expect(text, contains('/checkstatus - test the checker\'s check-status'));
@@ -204,5 +316,17 @@ void main() {
     expect(text, isNot(contains('/mystatus')));
     expect(keyboardTexts(sent.last).first, 'more-cmd');
     expect(keyboardTexts(sent.last), contains('add-user'));
-  });
+    },
+  );
+}
+
+List<String> _inlineTexts(Map<String, dynamic> body) {
+  final keyboard =
+      (body['reply_markup'] as Map<String, dynamic>?)?['inline_keyboard'];
+  if (keyboard is! List) return const [];
+  return [
+    for (final row in keyboard)
+      for (final button in row as List)
+        (button as Map<String, dynamic>)['text'] as String,
+  ];
 }

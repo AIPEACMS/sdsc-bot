@@ -1,6 +1,11 @@
 part of '../settime.dart';
 
 extension SetTimeDraft on SetTime {
+  void onInputCleared(int userId, String command) {
+    if (command == 'settime' || command == 'settime-newname') {
+      _drafts.remove(userId);
+    }
+  }
 
   /// Entry point for the wizard: the gadmin typed one or more lines.
   Future<void> onText(Context ctx, int userId, String text) async {
@@ -129,6 +134,7 @@ extension SetTimeDraft on SetTime {
     if (draft == null) {
       await ctx.editMessageText(
         'This draft has expired. Start again with /settime.',
+        replyMarkup: null,
       );
       return;
     }
@@ -136,7 +142,10 @@ extension SetTimeDraft on SetTime {
     final choice = parts.length > 1 ? parts[1] : '';
     final token = draft.unresolvedTokens(repo).firstOrNull;
     if (token == null) {
-      await ctx.editMessageText('All locations are known now.');
+      await ctx.editMessageText(
+        'All locations are known now.',
+        replyMarkup: null,
+      );
       return;
     }
     if (choice == 'new') {
@@ -144,18 +153,23 @@ extension SetTimeDraft on SetTime {
       state.pendingArg[userId] = PendingArg('settime-newname');
       await ctx.editMessageText(
         'What is the full name of the new location? Send it in one message.',
+        replyMarkup: null,
       );
       return;
     }
     final loc = repo.locationByKey(choice);
     if (loc == null || !loc.isApproved) {
-      await ctx.editMessageText('That location is no longer available.');
+      await ctx.editMessageText(
+        'That location is no longer available.',
+        replyMarkup: null,
+      );
       return;
     }
     draft.resolved[token] = loc.key;
     await ctx.editMessageText(
       '✅ <b>${this._html(token)}</b> → ${this._html(loc.name)}.',
       parseMode: ParseMode.html,
+      replyMarkup: null,
     );
     await _continueDraft(ctx, userId);
   }
@@ -247,5 +261,4 @@ extension SetTimeDraft on SetTime {
     }
     await this._showConfirmation(ctx, userId);
   }
-
 }
