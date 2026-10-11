@@ -158,6 +158,10 @@ Future<void> main() async {
     if (command == 'assigngroup-members') {
       console.onAssignGroupInputCleared(userId);
     }
+    if (command == 'addalias') console.onAddAliasInputCleared(userId);
+    if (command == 'settime' || command == 'settime-newname') {
+      setTime.onInputCleared(userId, command);
+    }
   };
   flows.onSetDateText = console.onSetDateText;
   flows.onSyncCalendarText = console.onSyncCalendarText;
@@ -173,7 +177,8 @@ Future<void> main() async {
   var lastNetworkLog = DateTime.fromMillisecondsSinceEpoch(0);
   bot.onError((error) {
     final text = error.error.toString();
-    final transient = text.contains('Error during long polling') ||
+    final transient =
+        text.contains('Error during long polling') ||
         text.contains('Network request failed') ||
         text.contains('Unknown network error');
     if (transient) {

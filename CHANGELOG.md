@@ -5,6 +5,18 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.7.5] - 2026-10-11
+
+### Fixed
+
+- Interactive attendance marking now supports staged Done/Cancel actions and
+  closes its controls when finished.
+- Temporary `/settime` week labels show the correct Monday-Sunday calendar
+  range, and selection controls close before previews appear.
+- Typed admin and console wizards now dismiss stale Cancel controls before
+  showing their next step or result.
+- Set-exp and group-assignment pickers now have cancellation paths.
+
 ## [4.7.4] - 2026-10-11
 
 ### Fixed

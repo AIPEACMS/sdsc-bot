@@ -1,12 +1,12 @@
 part of '../flows.dart';
 
 extension FlowsCallbacks on Flows {
-
   NotificationPreference? _parseNotificationPreference(String raw) {
     return switch (raw.toLowerCase()) {
       'weekly' || 'week' => NotificationPreference.weekly,
-      'every-other' || 'every_other' || 'everyother' =>
-        NotificationPreference.everyOther,
+      'every-other' ||
+      'every_other' ||
+      'everyother' => NotificationPreference.everyOther,
       'never' => NotificationPreference.never,
       _ => null,
     };
@@ -17,12 +17,9 @@ extension FlowsCallbacks on Flows {
         NotificationPreference.weekly => 'every week',
         NotificationPreference.everyOther => 'every other week',
         NotificationPreference.never => 'never',
-      }
+      };
 
-;
-
-  String _notifyUsage() =>
-      'Usage: /notify weekly|every-other|never';
+  String _notifyUsage() => 'Usage: /notify weekly|every-other|never';
 
   String _slotLabel(Slot slot, RollingWindow w, Repo repo) {
     final date = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
@@ -180,7 +177,9 @@ extension FlowsCallbacks on Flows {
     final sat0 = DateTime.tryParse(sat0Raw);
     if (sat0 == null) return;
     final kind = parts.length > 2
-        ? HolidayKind.values.where((value) => value.name == parts[2]).firstOrNull
+        ? HolidayKind.values
+              .where((value) => value.name == parts[2])
+              .firstOrNull
         : null;
     final windowHolidays = [sat0, sat0.add(const Duration(days: 7))]
         .map(repo.holidayOn)
@@ -193,7 +192,13 @@ extension FlowsCallbacks on Flows {
         weeks.add(periodWeek.weekStart);
       }
     }
-    if (weeks.isEmpty) return;
+    if (weeks.isEmpty) {
+      await ctx.editMessageText(
+        'This holiday opt-out is no longer available.',
+        replyMarkup: null,
+      );
+      return;
+    }
     for (final week in weeks) {
       repo.setHolidayOptout(userId, week);
     }
@@ -213,22 +218,35 @@ extension FlowsCallbacks on Flows {
         ),
       );
     }
-    await ctx.editMessageText(messages.msg5Z());
+    await ctx.editMessageText(messages.msg5Z(), replyMarkup: null);
   }
 
   Future<void> _toggleSlot(Context ctx, int userId, List<String> parts) async {
     await ctx.answerCallbackQuery();
-    if (parts.length < 3) return;
+    if (parts.length < 3) {
+      await ctx.editMessageText(
+        'This availability choice is no longer valid.',
+        replyMarkup: null,
+      );
+      return;
+    }
     final sat0 = DateTime.tryParse(parts[1]);
     final slot = Slot.parse(parts[2]);
-    if (sat0 == null || slot == null) return;
+    if (sat0 == null || slot == null) {
+      await ctx.editMessageText(
+        'This availability choice is no longer valid.',
+        replyMarkup: null,
+      );
+      return;
+    }
     final w = this._windowForSat(sat0);
     final sat = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
     final now = config.toLocal(Config.nowUtc());
     if (w.locked(sat, now)) {
-      await ctx.reply(
+      await ctx.editMessageText(
         'That weekend\'s availability is already locked — '
         'its Friday deadline passed.',
+        replyMarkup: null,
       );
       return;
     }
@@ -279,5 +297,4 @@ extension FlowsCallbacks on Flows {
       // message may be gone; ignore
     }
   }
-
 }

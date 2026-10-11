@@ -1,6 +1,9 @@
 part of '../console.dart';
 
 extension ConsoleSchedule on Console {
+  void onAddAliasInputCleared(int userId) {
+    _aliasFlow.remove(userId);
+  }
 
   Future<void> _addLocation(Context ctx) async {
     if (ctx.args.isEmpty) {
@@ -171,5 +174,4 @@ extension ConsoleSchedule on Console {
     LogRing.log('console: removed console key ${target.substring(0, 12)}…');
     await ctx.reply('✅ Key removed — the app can no longer sign in.');
   }
-
 }

@@ -1,7 +1,6 @@
 part of '../console.dart';
 
 extension ConsoleRegistration on Console {
-
   /// Set from main.dart: resumed when a new location is approved so the
   /// waiting global admin gets the updated session list.
 
@@ -59,9 +58,21 @@ extension ConsoleRegistration on Console {
       _globalAdminGuard(this._unholdConfirm),
       label: 'unhold',
     );
-    commandBoth(bot, state, 'addkey', _consoleGuard(this._addKey), label: 'add-key');
+    commandBoth(
+      bot,
+      state,
+      'addkey',
+      _consoleGuard(this._addKey),
+      label: 'add-key',
+    );
     commandBoth(bot, state, 'keys', _consoleGuard(this._keys), label: 'keys');
-    commandBoth(bot, state, 'rmkey', _consoleGuard(this._rmKey), label: 'rm-key');
+    commandBoth(
+      bot,
+      state,
+      'rmkey',
+      _consoleGuard(this._rmKey),
+      label: 'rm-key',
+    );
     commandBoth(
       bot,
       state,
@@ -123,6 +134,13 @@ extension ConsoleRegistration on Console {
       }
       if (head == 'assigngroup') {
         await this._onAssignGroupCallback(ctx);
+        return;
+      }
+      if (head == 'cancel' && _isConsole(ctx)) {
+        await ctx.answerCallbackQuery();
+        state.pendingArg.remove(ctx.from!.id);
+        state.clearInteractiveMessages(ctx.from!.id);
+        await ctx.editMessageText('Cancelled.', replyMarkup: null);
         return;
       }
       await next();
@@ -296,5 +314,4 @@ extension ConsoleRegistration on Console {
       replyMarkup: Pickers.confirm('addgadmin'),
     );
   }
-
 }

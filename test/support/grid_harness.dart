@@ -5,6 +5,7 @@ import 'package:televerse/telegram.dart' show Update;
 import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
 import 'package:sdsc_bot/bot/admin.dart';
+import 'package:sdsc_bot/bot/calendar_sync.dart';
 import 'package:sdsc_bot/bot/console.dart';
 import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/hold.dart';
@@ -148,40 +149,46 @@ Future<void> setUpGrid() async {
     config: config,
     state: state,
     holdGate: holdGate,
+    calendarSync: CalendarSync(repo: repo, config: config),
   );
+  flows.onSetDateText = console.onSetDateText;
+  flows.onSyncCalendarText = console.onSyncCalendarText;
   flows.register();
   admin.register();
   console.register();
 
-  repo.upsertUser(User(
+  repo.upsertUser(
+    User(
     id: 1,
     name: '@console',
     experience: Experience.experienced,
     group: '1',
-  ));
+    ),
+  );
   repo.updateAdmin(1, true);
   expect(repo.appointGlobalAdmin(1), GlobalAdminResult.success);
-  repo.upsertUser(User(
-    id: 2,
-    name: '@admin',
-    experience: Experience.experienced,
-    group: '1',
-  ));
+  repo.upsertUser(
+    User(id: 2, name: '@admin', experience: Experience.experienced, group: '1'),
+  );
   repo.updateAdmin(2, true);
-  repo.upsertUser(User(
+  repo.upsertUser(
+    User(
     id: 3,
     name: '@checker',
     experience: Experience.newbie,
     group: '',
     memberTier: MemberTier.check,
-  ));
-  repo.upsertUser(User(
+    ),
+  );
+  repo.upsertUser(
+    User(
     id: 4,
     name: '@out-member',
     experience: Experience.newbie,
     group: '1',
     memberTier: MemberTier.outMember,
-  ));
+    ),
+  );
 
   final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
   repo.ensureSessionsForWeekend(
@@ -213,7 +220,8 @@ Future<void> setUpGrid() async {
 }
 
 Future<void> sendText(int userId, String text, {String? username}) =>
-    bot.handleUpdate(Update.fromJson({
+    bot.handleUpdate(
+      Update.fromJson({
   'update_id': 1,
   'message': {
     'message_id': 1,
@@ -234,7 +242,8 @@ Future<void> sendText(int userId, String text, {String? username}) =>
       },
     ],
   },
-}));
+      }),
+    );
 
 Future<void> sendPlainText(int userId, String text) => bot.handleUpdate(
       Update.fromJson({

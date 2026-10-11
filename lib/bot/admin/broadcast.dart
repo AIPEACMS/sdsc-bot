@@ -1,14 +1,11 @@
 part of '../admin.dart';
-
 extension AdminBroadcast on Admin {
-
   /// The calling admin's group. Empty when the user has no group (e.g. the
   /// console before being added as a member) — then no group filter applies.
   String _adminGroup(Context ctx) {
     final user = repo.findUser(ctx.from?.id ?? 0);
     return user?.group ?? '';
   }
-
   /// The calling admin's own group only: the /confirm flow is scoped to the
   /// group the admin leads, so a leader never marks (or is reminded about)
   /// another group's members.
@@ -35,10 +32,41 @@ extension AdminBroadcast on Admin {
           )
           .row();
     }
-    await ctx.reply(
+    kb = kb.text('✅ Done', 'att_done|all').row().text('❌ Cancel', 'att_cancel');
+    final message = await ctx.reply(
       'Mark attendance for ${this._day(sat)}:\n'
       '🔵 some of your group unmarked · 🟢 all marked · '
       'no icon = nobody from your group',
+      replyMarkup: kb,
+    );
+    state.trackInteractiveMessage(
+      ctx.from!.id,
+      ctx.from!.id,
+      message.messageId,
+    );
+  }
+  Future<void> _renderSessionList(Context ctx, int adminId) async {
+    final sat = this._currentWeekendSat();
+    final sessions = repo.sessionsForWeekend(sat);
+    final group = _adminGroup(ctx);
+    var kb = InlineKeyboard();
+    for (final s in sessions) {
+      final mark = _sessionMark(s, group, adminId);
+      final loc = repo.locationName(s.location);
+      kb = kb
+          .text(
+            '$mark$loc ${Slot.dayLabel(s.day)} '
+                '${s.start.hour.toString().padLeft(2, '0')}: '
+                '${s.start.minute.toString().padLeft(2, '0')}-'
+                '${s.end.hour.toString().padLeft(2, '0')}: '
+                '${s.end.minute.toString().padLeft(2, '0')}',
+            'att_sess|${s.id}',
+          )
+          .row();
+    }
+    kb = kb.text('✅ Done', 'att_done|all').row().text('❌ Cancel', 'att_cancel');
+    await ctx.editMessageText(
+      'Mark attendance for ${this._day(sat)}:',
       replyMarkup: kb,
     );
   }
@@ -46,14 +74,27 @@ extension AdminBroadcast on Admin {
   /// The status mark for one session's button, scoped to the admin's [group]:
   /// '' (transparent) when nobody from the group is allocated, '🟢 ' when
   /// every allocated member is marked, '🔵 ' when some are still unmarked.
-  String _sessionMark(Session s, String group) {
+  String _sessionMark(Session s, String group, [int? adminId]) {
     final members = _sessionMembers(s, group);
     if (members.isEmpty) return '';
-    final marks = repo.attendanceForSession(s.id);
+    final draft = adminId == null
+        ? null
+        : state.attendanceDrafts[(adminId, s.id)];
     for (final user in members) {
-      if (!marks.any((a) => a.userId == user.id)) return '🔵 ';
+      final mark = draft == null
+          ? _dbAttendance(user.id, s.id)
+          : draft.values[user.id];
+      if (mark == null) return '🔵 ';
     }
     return '🟢 ';
+  }
+
+  bool? _dbAttendance(int userId, int sessionId) {
+    final mark = repo
+        .attendanceForSession(sessionId)
+        .where((attendance) => attendance.userId == userId)
+        .firstOrNull;
+    return mark?.attended;
   }
 
   /// The admin's group members allocated to [session] (empty group = every
@@ -71,7 +112,13 @@ extension AdminBroadcast on Admin {
 
   Future<void> _sessionPicker(Context ctx, int sessionId) async {
     final session = repo.sessionById(sessionId);
-    if (session == null) return;
+    if (session == null) {
+      await ctx.editMessageText(
+        'That session is no longer available.',
+        replyMarkup: null,
+      );
+      return;
+    }
     await _renderSessionPicker(ctx, session);
   }
 
@@ -86,18 +133,23 @@ extension AdminBroadcast on Admin {
       await ctx.editMessageText(
         '${service.sessionLabel(session)}\n'
         'No one from your group is allocated here.',
+        replyMarkup: null,
       );
       return;
     }
 
-    final state = repo.attendanceForSession(session.id);
+    final draft = this._draftFor(ctx, session, members);
     var kb = InlineKeyboard();
     for (final user in members) {
-      final mark = _markFor(user.id, state);
+      final mark = _markForValue(user.id, draft.values[user.id]);
       kb = kb
           .text('$mark ${user.name}', 'att_toggle|${session.id}|${user.id}')
           .row();
     }
+    kb = kb
+        .text('✅ Done', 'att_done|member')
+        .row()
+        .text('❌ Cancel', 'att_cancel');
     await ctx.editMessageText(
       '${service.sessionLabel(session)}\n'
       'Tap to cycle: ⬜ unmarked → ✅ present → ❌ not participated → ⬜',
@@ -105,30 +157,81 @@ extension AdminBroadcast on Admin {
     );
   }
 
-  String _markFor(int userId, List<Attendance> marks) {
-    for (final m in marks) {
-      if (m.userId == userId) return m.attended ? '✅' : '❌';
-    }
-    return '⬜';
+  String _markForValue(int userId, bool? value) => value == null
+      ? '⬜'
+      : value
+      ? '✅'
+      : '❌';
+
+  AttendanceDraft _draftFor(Context ctx, Session session, List<User> members) {
+    final key = (ctx.from!.id, session.id);
+    return state.attendanceDrafts.putIfAbsent(key, () {
+      final snapshot = <int, bool?>{
+        for (final user in members) user.id: _dbAttendance(user.id, session.id),
+      };
+      return AttendanceDraft(snapshot);
+    });
   }
 
   Future<void> _toggleAttendance(Context ctx, int sessionId, int userId) async {
     final session = repo.sessionById(sessionId);
-    if (session == null) return;
-    final user = repo.findUser(userId);
-    if (user == null || user.memberTier == MemberTier.outMember) return;
-    final current = repo
-        .attendanceForSession(sessionId)
-        .where((a) => a.userId == userId)
-        .toList();
-    if (current.isEmpty) {
-      service.markAttendance(userId, sessionId, attended: true);
-    } else if (current.first.attended) {
-      repo.setAttendanceState(userId, sessionId, attended: false);
-    } else {
-      repo.clearAttendance(userId, sessionId);
+    if (session == null) {
+      await ctx.editMessageText(
+        'That session is no longer available.',
+        replyMarkup: null,
+      );
+      return;
     }
+    final group = _adminGroup(ctx);
+    final members = _sessionMembers(session, group);
+    if (!members.any((member) => member.id == userId)) {
+      await ctx.editMessageText(
+        'That member is not in your group for this session.',
+        replyMarkup: null,
+      );
+      return;
+    }
+    final draft = this._draftFor(ctx, session, members);
+    final current = draft.values[userId];
+    draft.values[userId] = current == null
+        ? true
+        : current
+        ? false
+        : null;
     await _renderSessionPicker(ctx, session);
+  }
+
+  Future<void> _finishAttendance(Context ctx) async {
+    final adminId = ctx.from!.id;
+    for (final entry
+        in state.attendanceDrafts.entries
+            .where((entry) => entry.key.$1 == adminId)
+            .toList()) {
+      final sessionId = entry.key.$2;
+      for (final member in entry.value.values.entries) {
+        if (member.value == entry.value.original[member.key]) continue;
+        final value = member.value;
+        if (value == null) {
+          repo.clearAttendance(member.key, sessionId);
+        } else if (value) {
+          service.markAttendance(member.key, sessionId, attended: true);
+        } else {
+          repo.setAttendanceState(member.key, sessionId, attended: false);
+        }
+      }
+      state.attendanceDrafts.remove(entry.key);
+    }
+    state.clearInteractiveMessages(adminId);
+    await ctx.editMessageText('✅ Attendance saved.', replyMarkup: null);
+  }
+
+  Future<void> _cancelAttendance(Context ctx) async {
+    state.clearAttendanceDrafts(ctx.from!.id);
+    state.clearInteractiveMessages(ctx.from!.id);
+    await ctx.editMessageText(
+      '❌ Attendance changes discarded.',
+      replyMarkup: null,
+    );
   }
 
   // ----------------------------------------------------------- /setexp
@@ -186,13 +289,21 @@ extension AdminBroadcast on Admin {
         )
         .toList();
     if (users.isEmpty) {
-      await ctx.reply('No registered users yet.');
+      if (ctx.callbackQuery != null) {
+        await ctx.editMessageText(
+          'No registered users match that value.',
+          replyMarkup: null,
+        );
+      } else {
+        await ctx.reply('No registered users match that value.');
+      }
       return;
     }
     var kb = InlineKeyboard();
     for (final u in users) {
       kb = kb.text(u.name, '$kind|$value|${u.id}').row();
     }
+    kb = kb.text('❌ Cancel', 'admincancel|0');
     final text =
         'Set <b>'
         '${kind == 'setexp' ? 'experience to $value' : 'group to ${value.toUpperCase()}'}'
@@ -215,7 +326,13 @@ extension AdminBroadcast on Admin {
     int userId,
   ) async {
     final user = repo.findUser(userId);
-    if (user == null || user.memberTier == MemberTier.outMember) return;
+    if (user == null || user.memberTier == MemberTier.outMember) {
+      await ctx.editMessageText(
+        'That user is no longer available.',
+        replyMarkup: null,
+      );
+      return;
+    }
     if (kind == 'setexp') {
       repo.updateExperience(
         userId,
@@ -224,7 +341,6 @@ extension AdminBroadcast on Admin {
     } else {
       repo.updateGroup(userId, value.toUpperCase());
     }
-    await ctx.answerCallbackQuery();
     final updated = repo.findUser(userId)!;
     final exp = updated.experience == Experience.experienced
         ? 'experienced'
@@ -233,6 +349,7 @@ extension AdminBroadcast on Admin {
       '✅ <b>${updated.name}</b> → $exp, '
       'group ${updated.group.isEmpty ? 'none' : updated.group}',
       parseMode: ParseMode.html,
+      replyMarkup: null,
     );
   }
 
@@ -279,5 +396,4 @@ extension AdminBroadcast on Admin {
       message.messageId,
     );
   }
-
 }

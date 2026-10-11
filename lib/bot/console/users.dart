@@ -1,7 +1,6 @@
 part of '../console.dart';
 
 extension ConsoleUsers on Console {
-
   Future<void> _removeGlobalAdminConfirm(Context ctx) async {
     final current = repo.globalAdmin();
     if (current == null) {
@@ -36,10 +35,19 @@ extension ConsoleUsers on Console {
     if (head == 'addgadmin') {
       final id = _pendingGlobalAdmin.remove(ctx.from!.id);
       if (!yes) {
-        await ctx.editMessageText('Cancelled — nobody was appointed.');
+        await ctx.editMessageText(
+          'Cancelled — nobody was appointed.',
+          replyMarkup: null,
+        );
         return;
       }
-      if (id == null) return;
+      if (id == null) {
+        await ctx.editMessageText(
+          'This appointment request is no longer valid.',
+          replyMarkup: null,
+        );
+        return;
+      }
       final result = repo.appointGlobalAdmin(id);
       await ctx.editMessageText(switch (result) {
         GlobalAdminResult.success => '✅ Global admin appointed.',
@@ -47,20 +55,27 @@ extension ConsoleUsers on Console {
         GlobalAdminResult.alreadyExists => 'A global admin already exists.',
         GlobalAdminResult.outMember =>
           'Out-members cannot become the global admin.',
-      });
+      }, replyMarkup: null);
       return;
     }
     final id = _pendingGlobalAdminRemoval.remove(ctx.from!.id);
     if (!yes) {
-      await ctx.editMessageText('Cancelled — nothing changed.');
+      await ctx.editMessageText(
+        'Cancelled — nothing changed.',
+        replyMarkup: null,
+      );
       return;
     }
     if (id == null || !repo.removeGlobalAdmin(id)) {
-      await ctx.editMessageText('The global admin changed; nothing was removed.');
+      await ctx.editMessageText(
+        'The global admin changed; nothing was removed.',
+        replyMarkup: null,
+      );
       return;
     }
     await ctx.editMessageText(
       '✅ Global admin removed; they are now a regular member.',
+      replyMarkup: null,
     );
   }
 
@@ -229,7 +244,10 @@ extension ConsoleUsers on Console {
     final yes = parts.length > 1 && parts[1] == 'yes';
     final isHold = parts.first == 'hold';
     if (!yes) {
-      await ctx.editMessageText('Cancelled — nothing changed.');
+      await ctx.editMessageText(
+        'Cancelled — nothing changed.',
+        replyMarkup: null,
+      );
       return;
     }
     if (isHold) {
@@ -238,6 +256,7 @@ extension ConsoleUsers on Console {
       await ctx.editMessageText(
         '🔇 <b>Bot held.</b> No messages will be sent.',
         parseMode: ParseMode.html,
+        replyMarkup: null,
       );
       repo.setHeld(true);
       holdGate.held = true;
@@ -248,6 +267,7 @@ extension ConsoleUsers on Console {
       await ctx.editMessageText(
         '✅ <b>Bot unheld.</b> It can send again.',
         parseMode: ParseMode.html,
+        replyMarkup: null,
       );
     }
   }
@@ -282,5 +302,4 @@ extension ConsoleUsers on Console {
     }
     await ctx.reply(sb.toString().trimRight(), parseMode: ParseMode.html);
   }
-
 }

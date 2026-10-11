@@ -1,7 +1,6 @@
 part of '../settime.dart';
 
 extension SetTimeValidation on SetTime {
-
   Future<void> _showConfirmation(
     Context ctx,
     int userId, {
@@ -13,8 +12,7 @@ extension SetTimeValidation on SetTime {
       await ctx.reply('Send at least one dated session before finishing.');
       return;
     }
-    final before = draft.beforeRows ??=
-        draft.scope == _SetTimeScope.temporary
+    final before = draft.beforeRows ??= draft.scope == _SetTimeScope.temporary
             ? repo.scheduleForWeekend(draft.targetSaturday!)
             : repo.scheduleTemplate();
     final after = _applyDraft(before, draft);
@@ -66,11 +64,14 @@ extension SetTimeValidation on SetTime {
         .where((row) => conflict.keys.contains(_rowKey(row)))
         .toList();
     final description = rows
-        .map((row) =>
+        .map(
+          (row) =>
             '${Slot.dayName(row.day)} ${prettyClock(row.start)}-'
-            '${prettyClock(row.end)} ${repo.locationName(row.location)}')
+              '${prettyClock(row.end)} ${repo.locationName(row.location)}',
+        )
         .join('\n');
-    final text = '<b>Overlapping sessions found</b>\n\n$description\n\n'
+    final text =
+        '<b>Overlapping sessions found</b>\n\n$description\n\n'
         'Are these the same session with different durations, or two separate sessions?';
     final keyboard = InlineKeyboard()
         .text('Same session', 'settime-conflict|same')
@@ -79,7 +80,11 @@ extension SetTimeValidation on SetTime {
         .row()
         .text('❌ Cancel', 'settime|no');
     if (edit) {
-      await ctx.editMessageText(text, parseMode: ParseMode.html, replyMarkup: keyboard);
+      await ctx.editMessageText(
+        text,
+        parseMode: ParseMode.html,
+        replyMarkup: keyboard,
+      );
     } else {
       await ctx.reply(text, parseMode: ParseMode.html, replyMarkup: keyboard);
     }
@@ -88,7 +93,9 @@ extension SetTimeValidation on SetTime {
   Future<void> _resolveConflict(Context ctx, int userId, String choice) async {
     final draft = _drafts[userId]!;
     final conflict = draft.conflicts![draft.conflictIndex];
-    final group = choice == 'same' ? 'capacity-${draft.conflictIndex + 1}' : null;
+    final group = choice == 'same'
+        ? 'capacity-${draft.conflictIndex + 1}'
+        : null;
     draft.afterRows = [
       for (final row in draft.afterRows!)
         conflict.keys.contains(_rowKey(row))
@@ -114,9 +121,11 @@ extension SetTimeValidation on SetTime {
         changed = false;
         for (var j = 0; j < rows.length; j++) {
           if (component.contains(j)) continue;
-          final overlaps = component.any((index) =>
+          final overlaps = component.any(
+            (index) =>
               _samePlaceAndDay(rows[index], rows[j]) &&
-              _timesOverlap(rows[index], rows[j]));
+                _timesOverlap(rows[index], rows[j]),
+          );
           if (overlaps) {
             component.add(j);
             changed = true;
@@ -125,11 +134,15 @@ extension SetTimeValidation on SetTime {
       }
       visited.addAll(component);
       if (component.length > 1) {
-        final group = component.map((index) => rows[index].capacityGroup).toSet();
+        final group = component
+            .map((index) => rows[index].capacityGroup)
+            .toSet();
         if (group.length != 1 || group.first == null) {
-          result.add(_ConflictGroup([
+          result.add(
+            _ConflictGroup([
             for (final index in component) _rowKey(rows[index]),
-          ]));
+            ]),
+          );
         }
       }
     }
@@ -163,7 +176,9 @@ extension SetTimeValidation on SetTime {
     final loc = key != null
         ? repo.locationName(key)
         : (draft.requestedNames[line.locationToken] ?? line.locationToken);
-    final date = line.targetDate == null ? '' : ' ${this._date(line.targetDate!)}';
+    final date = line.targetDate == null
+        ? ''
+        : ' ${this._date(line.targetDate!)}';
     final max = line.maxPeople == null ? '' : ' [max ${line.maxPeople}]';
     return 'Session $n: ${Slot.dayName(line.day)}$date '
         '${prettyClock(line.start)} to ${prettyClock(line.end)} '
@@ -273,6 +288,7 @@ extension SetTimeValidation on SetTime {
     if (draft == null) {
       await ctx.editMessageText(
         'This draft has expired. Start again with /settime.',
+        replyMarkup: null,
       );
       return;
     }
@@ -281,11 +297,11 @@ extension SetTimeValidation on SetTime {
       state.pendingArg.remove(userId);
       await ctx.editMessageText(
         '❌ Cancelled — the activity list is unchanged.',
+        replyMarkup: null,
       );
       return;
     }
     await this._apply(ctx, userId, draft);
     _drafts.remove(userId);
   }
-
 }

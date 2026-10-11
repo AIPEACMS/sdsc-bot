@@ -1,7 +1,6 @@
 part of '../flows.dart';
 
 extension FlowsRegistration on Flows {
-
   /// Fired after a member's availability is saved (Done or Not available).
   /// Wired in main.dart to the scheduler's dynamic-allocation trigger.
   void register() {
@@ -29,9 +28,11 @@ extension FlowsRegistration on Flows {
         final pending = state.pendingArg[userId];
         if (pending != null && pending.isExpired) {
           state.pendingArg.remove(userId);
+          await this._dismissInteractiveMessages(userId);
           onPendingInputCleared?.call(userId, pending.command);
         } else if (pending != null) {
           state.pendingArg.remove(userId);
+          await this._dismissInteractiveMessages(userId);
           await this._consumePendingArg(ctx, userId, pending.command, text);
           return;
         }
@@ -52,6 +53,10 @@ extension FlowsRegistration on Flows {
       final data = ctx.callbackQuery?.data;
       if (data == null) return next();
       final head = data.split('|').first;
+      if (head == 'cancel') {
+        final parts = data.split('|');
+        if (parts.length > 1 && parts[1] == '0') return next();
+      }
       if (head == 'slot' ||
           head == 'done' ||
           head == 'no' ||
@@ -74,7 +79,10 @@ extension FlowsRegistration on Flows {
         state.clearInteractiveMessages(ctx.from!.id);
         await ctx.answerCallbackQuery();
         try {
-          await ctx.editMessageText('Cancelled — your profile is unchanged.');
+          await ctx.editMessageText(
+            'Cancelled — your profile is unchanged.',
+            replyMarkup: null,
+          );
         } catch (_) {
           // message may be gone; ignore
         }
@@ -94,7 +102,13 @@ extension FlowsRegistration on Flows {
     state.registerLabel('check-status');
     bot.hears('check-status', this._onCheckStatus);
     commandBoth(bot, state, 'grid', this._onGrid, label: 'grid');
-    commandBoth(bot, state, 'resetgrid', this._onResetGrid, label: 'reset-grid');
+    commandBoth(
+      bot,
+      state,
+      'resetgrid',
+      this._onResetGrid,
+      label: 'reset-grid',
+    );
     commandBoth(bot, state, 'notify', this._onNotify, label: 'notify');
     state.registerLabel('more-cmd');
     bot.hears('more-cmd', _onMoreCommands);
@@ -112,16 +126,21 @@ extension FlowsRegistration on Flows {
     // no hint that the bot exists.
     if (user == null && !isConsole) return;
 
-    final name = user?.name ??
+    final name =
+        user?.name ??
         (ctx.from?.username == null ? 'Console' : '@${ctx.from!.username}');
     final isAdmin = user?.isAdmin == true;
     final retired = user?.memberTier == MemberTier.old;
     final checker = user?.memberTier == MemberTier.check;
 
-    final sb = StringBuffer('👋 <b>${this._html(name)}</b>, here is what you can do:');
+    final sb = StringBuffer(
+      '👋 <b>${this._html(name)}</b>, here is what you can do:',
+    );
 
     if (retired) {
-      sb.writeln('\nThank you for your commitment! Hope to see you in the future!');
+      sb.writeln(
+        '\nThank you for your commitment! Hope to see you in the future!',
+      );
     }
 
     // Checkers are not members. Keep their focused start response and single
@@ -143,7 +162,8 @@ extension FlowsRegistration on Flows {
       tier: user?.memberTier,
     );
     for (final section in visibleSections) {
-      final title = user?.memberTier == MemberTier.outMember &&
+      final title =
+          user?.memberTier == MemberTier.outMember &&
               !isConsole &&
               section.title == 'Out-member'
           ? 'Member-o'
@@ -152,10 +172,7 @@ extension FlowsRegistration on Flows {
       for (final button in section.buttons) {
         sb.write(
           '\n${this._html(button.label)} - '
-          '${this._html(RoleKeyboard.descriptionFor(
-            button,
-            outMember: section.title == 'Out-member',
-          ))}',
+          '${this._html(RoleKeyboard.descriptionFor(button, outMember: section.title == 'Out-member'))}',
         );
       }
     }
@@ -259,9 +276,7 @@ extension FlowsRegistration on Flows {
   String _profilePrompt(int step) => switch (step) {
     0 => 'What is your preferred name?',
     _ => '',
-  }
-
-;
+  };
 
   Future<void> _consumeProfileStep(
     Context ctx,
@@ -291,5 +306,4 @@ extension FlowsRegistration on Flows {
       await ctx.reply('✅ Profile saved.');
     }
   }
-
 }

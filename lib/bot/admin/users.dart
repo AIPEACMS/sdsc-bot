@@ -1,7 +1,6 @@
 part of '../admin.dart';
 
 extension AdminUsers on Admin {
-
   // ----------------------------------------------------------- /status
 
   Future<void> _status(Context ctx, {String? group}) async {
@@ -38,8 +37,9 @@ extension AdminUsers on Admin {
       ..writeln('Registered members: ${users.length}')
       ..writeln('Responded: $responders/${users.length}');
 
-    final attendanceUsers =
-        users.where((user) => user.memberTier != MemberTier.outMember).toList();
+    final attendanceUsers = users
+        .where((user) => user.memberTier != MemberTier.outMember)
+        .toList();
     if (attendanceUsers.isNotEmpty) {
       sb.writeln('\n<b>Last attendance</b>');
       for (final user in attendanceUsers) {
@@ -106,21 +106,18 @@ extension AdminUsers on Admin {
     await _status(ctx, group: group);
   }
 
-  Future<void> _users(
-    Context ctx, {
-    String? group,
-  }) async {
-    final users = repo.allUsers().where((u) {
+  Future<void> _users(Context ctx, {String? group}) async {
+    final users =
+        repo.allUsers().where((u) {
       // Archived users are retained for recovery but not shown in Telegram
       // roster views.
       if (u.memberTier == MemberTier.old) return false;
       if (group != null && u.group != group) return false;
       return true;
-    }).toList()
-      ..sort((a, b) {
-        final tierComparison = _displayTierRank(a).compareTo(
-          _displayTierRank(b),
-        );
+        }).toList()..sort((a, b) {
+          final tierComparison = _displayTierRank(
+            a,
+          ).compareTo(_displayTierRank(b));
         if (tierComparison != 0) return tierComparison;
         return _displayName(a).compareTo(_displayName(b));
       });
@@ -129,7 +126,8 @@ extension AdminUsers on Admin {
       final outMember = u.memberTier == MemberTier.outMember;
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
       final stats = outMember ? null : repo.attendanceStats(u.id);
-      final byLoc = stats?.byLocation.entries
+      final byLoc =
+          stats?.byLocation.entries
               .where((e) => e.value > 0)
               .map((e) => '${e.value} ${repo.locationName(e.key)}')
               .join(', ') ??
@@ -158,9 +156,7 @@ extension AdminUsers on Admin {
         NotificationPreference.weekly => 'weekly',
         NotificationPreference.everyOther => 'every other week',
         NotificationPreference.never => 'never',
-      }
-
-;
+      };
 
   int _displayTierRank(User user) {
     final index = MemberTier.order.indexOf(_displayTier(user));
@@ -245,9 +241,15 @@ extension AdminUsers on Admin {
   Future<void> _askPick(Context ctx, int memberId) async {
     await ctx.answerCallbackQuery();
     final user = repo.findUser(memberId);
-    if (user == null || user.memberTier == MemberTier.outMember) return;
+    if (user == null || user.memberTier == MemberTier.outMember) {
+      await ctx.editMessageText(
+        'That member is no longer available.',
+        replyMarkup: null,
+      );
+      return;
+    }
     final result = await _sendAsk(ctx, user);
-    await ctx.editMessageText(result.$1);
+    await ctx.editMessageText(result.$1, replyMarkup: null);
   }
 
   /// Sends an individual picker only while the current availability window is
@@ -258,7 +260,10 @@ extension AdminUsers on Admin {
     }
     if (!repo.activeOutreachEnabled('ask')) {
       LogRing.log('ask: suppressed 1 delivery (route disabled)');
-      return ('Ask delivery is disabled. No availability picker was sent.', false);
+      return (
+        'Ask delivery is disabled. No availability picker was sent.',
+        false,
+      );
     }
     final now = config.toLocal(Config.nowUtc());
     final w = this._window();
@@ -296,5 +301,4 @@ extension AdminUsers on Admin {
         ? w.sat0.subtract(const Duration(days: 7))
         : w.sat0;
   }
-
 }

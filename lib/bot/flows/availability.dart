@@ -1,7 +1,6 @@
 part of '../flows.dart';
 
 extension FlowsAvailability on Flows {
-
   // ------------------------------------------------------------- /grid
 
   /// Console-only: cycle through the console/admin/check/member grids to
@@ -112,6 +111,7 @@ extension FlowsAvailability on Flows {
 
   Future<void> _dismissInteractiveMessages(int userId) async {
     state.forgetAvailability(userId);
+    state.clearAttendanceDrafts(userId);
     state.cancelInputFlow(userId);
     for (final (chatId, messageId) in state.takeInteractiveMessages(userId)) {
       try {
@@ -260,13 +260,14 @@ extension FlowsAvailability on Flows {
         : null;
     await ctx.answerCallbackQuery();
     if (preference == null) {
-      await ctx.editMessageText(this._notifyUsage());
+      await ctx.editMessageText(this._notifyUsage(), replyMarkup: null);
       return;
     }
     final user = repo.findUser(userId);
     if (user == null || user.memberTier != MemberTier.outMember) {
       await ctx.editMessageText(
         'Only out-members can change notification frequency.',
+        replyMarkup: null,
       );
       return;
     }
@@ -280,12 +281,12 @@ extension FlowsAvailability on Flows {
     bool edit = false,
   }) async {
     repo.setNotificationPreference(userId, preference);
-    final text = '✅ Notification preference: ${this._notificationLabel(preference)}.';
+    final text =
+        '✅ Notification preference: ${this._notificationLabel(preference)}.';
     if (edit) {
-      await ctx.editMessageText(text);
+      await ctx.editMessageText(text, replyMarkup: null);
     } else {
       await ctx.reply(text);
     }
   }
-
 }

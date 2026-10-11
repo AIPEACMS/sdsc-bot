@@ -13,6 +13,15 @@ class PendingArg {
   bool get isExpired => DateTime.now().difference(createdAt) > timeout;
 }
 
+class AttendanceDraft {
+  final Map<int, bool?> original;
+  final Map<int, bool?> values;
+
+  AttendanceDraft(Map<int, bool?> snapshot)
+    : original = Map<int, bool?>.of(snapshot),
+      values = Map<int, bool?>.of(snapshot);
+}
+
 /// Transient in-memory state for the bot. Nothing here is durable — it only
 /// tracks interactive flows in progress (availability picks) and the console's
 /// grid preview.
@@ -39,6 +48,9 @@ class BotState {
 
   /// Users waiting for a text argument (e.g. the message to broadcast).
   final Map<int, PendingArg> pendingArg = {};
+
+  /// Attendance changes staged by admin and session. Null means unmarked.
+  final Map<(int, int), AttendanceDraft> attendanceDrafts = {};
 
   /// Users mid-way through the preferred-name profile wizard.
   final Map<int, int> profileStep = {};
@@ -83,6 +95,10 @@ class BotState {
     pendingArg.remove(userId);
     profileStep.remove(userId);
     profileCancel.remove(userId);
+  }
+
+  void clearAttendanceDrafts(int adminId) {
+    attendanceDrafts.removeWhere((key, _) => key.$1 == adminId);
   }
 
   /// The in-progress (want, available) pick sets for [userId], creating them
