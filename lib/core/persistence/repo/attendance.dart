@@ -5,15 +5,15 @@ extension RepoAttendance on Repo {
   /// Per-weekend allocation flags (in settings) so a weekend is allocated
   /// exactly once even if the scheduler ticks repeatedly.
   bool weekendAllocated(DateTime sat) =>
-      getSetting('alloc_${this._dayKey(sat)}') == '1';
+      getSetting('alloc_${_dayKey(sat)}') == '1';
 
   void markWeekendAllocated(DateTime sat) =>
-      setSetting('alloc_${this._dayKey(sat)}', '1');
+      setSetting('alloc_${_dayKey(sat)}', '1');
 
   /// Clears the allocated flag so the dynamic allocator may run again (used
   /// when the schedule changes for an open weekend).
   void setWeekendAllocated(DateTime sat, bool value) =>
-      setSetting('alloc_${this._dayKey(sat)}', value ? '1' : '0');
+      setSetting('alloc_${_dayKey(sat)}', value ? '1' : '0');
 
   // -------------------------------------------------------------- attendance
 
@@ -90,7 +90,7 @@ WHERE a.user_id = ? AND a.attended = 1
         .select(
           'SELECT DISTINCT weekend_start FROM sessions '
           'WHERE weekend_start <= ? ORDER BY weekend_start DESC',
-          [this._dayKey(latestSat)],
+          [_dayKey(latestSat)],
         )
         .map((r) => DateTime.parse(r['weekend_start'] as String))
         .toList();
@@ -141,12 +141,12 @@ WHERE a.user_id = ? AND a.attended = 1
   void addHoliday(DateTime weekMonday, HolidayKind kind) {
     raw.execute(
       'INSERT OR REPLACE INTO holidays (week_start, kind) VALUES (?, ?)',
-      [this._fmt(weekMonday), kind.name],
+      [_fmt(weekMonday), kind.name],
     );
   }
 
   void removeHoliday(DateTime weekMonday) {
-    raw.execute('DELETE FROM holidays WHERE week_start = ?', [this._fmt(weekMonday)]);
+    raw.execute('DELETE FROM holidays WHERE week_start = ?', [_fmt(weekMonday)]);
   }
 
   List<Holiday> allHolidays() =>
@@ -184,7 +184,7 @@ WHERE a.user_id = ? AND a.attended = 1
     final monday = WeekMath.mondayOf(date);
     final rows = raw.select(
       'SELECT * FROM holidays WHERE week_start = ?',
-      [this._fmt(monday)],
+      [_fmt(monday)],
     );
     return rows.isEmpty ? null : Holiday.fromRow(rows.first);
   }
@@ -197,14 +197,14 @@ WHERE a.user_id = ? AND a.attended = 1
     raw.execute(
       'INSERT OR REPLACE INTO holiday_optouts (user_id, week_start) '
       'VALUES (?, ?)',
-      [userId, this._fmt(weekMonday)],
+      [userId, _fmt(weekMonday)],
     );
   }
 
   bool hasHolidayOptout(int userId, DateTime weekMonday) {
     final rows = raw.select(
       'SELECT 1 FROM holiday_optouts WHERE user_id = ? AND week_start = ?',
-      [userId, this._fmt(weekMonday)],
+      [userId, _fmt(weekMonday)],
     );
     return rows.isNotEmpty;
   }
@@ -246,13 +246,13 @@ ON CONFLICT(academic_year) DO UPDATE SET
   yaml = excluded.yaml,
   updated_at = excluded.updated_at
 ''',
-      [academicYear, yaml, this._fmt(Config.nowUtc())],
+      [academicYear, yaml, _fmt(Config.nowUtc())],
     );
   }
 
   /// Deletes all holiday rows derived from calendars (week_start >= [from]).
   void clearDerivedHolidays(DateTime from) {
-    raw.execute('DELETE FROM holidays WHERE week_start >= ?', [this._fmt(from)]);
+    raw.execute('DELETE FROM holidays WHERE week_start >= ?', [_fmt(from)]);
   }
 
   /// The most recently synced calendar year, parsed; null when none is stored

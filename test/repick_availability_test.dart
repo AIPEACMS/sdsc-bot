@@ -9,6 +9,7 @@ import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import 'support/repick_harness.dart';
+import 'support/bot_readiness.dart';
 import 'test_helpers.dart';
 
 void main() {
@@ -16,8 +17,10 @@ void main() {
   tearDown(tearDownRepick);
   test('Done with nothing selected is treated as not available', () async {
     final sent = <Map<String, dynamic>>[];
+    final readiness = BotReadiness();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
+      readiness.observe(req);
       final path = req.uri.path;
       if (path.endsWith('/getMe')) {
         await _json(req, {
@@ -79,7 +82,7 @@ void main() {
     flows.register();
 
     final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await readiness.wait();
 
     // alice taps Done without selecting any slot. This weekend (2026-08-15)
     // is already locked on the real clock; next weekend is still open.
@@ -182,9 +185,13 @@ void main() {
   test('confirmation lists booked 🔒 and offered 🟢 slots separately', () {
     const want = Slot(0, 'sat', 'am', 'ocbc');
     const avail = Slot(0, 'sat', 'pm', 'pasirRis');
-    final text = messages.msg3(const [want], const [avail],
-        label: (s) => '${s.location == 'ocbc' ? 'OCBC' : 'PR'} '
-            '${Slot.dayLabel(s.day)} ${s.slot.toUpperCase()}');
+    final text = messages.msg3(
+      const [want],
+      const [avail],
+      label: (s) =>
+          '${s.location == 'ocbc' ? 'OCBC' : 'PR'} '
+          '${Slot.dayLabel(s.day)} ${s.slot.toUpperCase()}',
+    );
     expect(text, contains('🔒 OCBC Sat AM'));
     expect(text, contains('🟢 PR Sat PM'));
   });
@@ -250,33 +257,37 @@ void main() {
     expect(labels, contains('🔕 Skip me for the whole winter holiday'));
   });
 
-  test('full limited sessions show allocated capacity and are not selectable', () {
-    final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
-    final limited = Session(
-      id: 99,
-      weekendStart: w.sat0,
-      day: 'sat',
-      slot: 'limited',
-      location: 'ocbc',
-      start: DateTime(2026, 8, 15, 9),
-      end: DateTime(2026, 8, 15, 15),
-      maxPeople: 3,
-    );
-    final keyboard = CycleServiceNotifications.buildKeyboard(
-      w,
-      (const {}, const {}),
-      now: DateTime(2026, 8, 12),
-      sessions: [limited],
-       allocatedCounts: {capacityKey(limited): 3},
-      locationName: (k) => k,
-    );
-    final buttons = keyboard.inlineKeyboard.expand((row) => row).toList();
-    final full = buttons.firstWhere((button) => button.text.contains('[3/3]'));
-    expect(full.text, contains('⛔'));
-    expect(full.callbackData, startsWith('full|'));
-  });
+  test(
+    'full limited sessions show allocated capacity and are not selectable',
+    () {
+      final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
+      final limited = Session(
+        id: 99,
+        weekendStart: w.sat0,
+        day: 'sat',
+        slot: 'limited',
+        location: 'ocbc',
+        start: DateTime(2026, 8, 15, 9),
+        end: DateTime(2026, 8, 15, 15),
+        maxPeople: 3,
+      );
+      final keyboard = CycleServiceNotifications.buildKeyboard(
+        w,
+        (const {}, const {}),
+        now: DateTime(2026, 8, 12),
+        sessions: [limited],
+        allocatedCounts: {capacityKey(limited): 3},
+        locationName: (k) => k,
+      );
+      final buttons = keyboard.inlineKeyboard.expand((row) => row).toList();
+      final full = buttons.firstWhere(
+        (button) => button.text.contains('[3/3]'),
+      );
+      expect(full.text, contains('⛔'));
+      expect(full.callbackData, startsWith('full|'));
+    },
+  );
 }
-
 
 Future<void> _json(
   HttpRequest req,

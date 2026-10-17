@@ -13,8 +13,8 @@ extension SetTimeValidation on SetTime {
       return;
     }
     final before = draft.beforeRows ??= draft.scope == _SetTimeScope.temporary
-            ? repo.scheduleForWeekend(draft.targetSaturday!)
-            : repo.scheduleTemplate();
+        ? repo.scheduleForWeekend(draft.targetSaturday!)
+        : repo.scheduleTemplate();
     final after = _applyDraft(before, draft);
     if (after.isEmpty) {
       await ctx.reply(
@@ -66,7 +66,7 @@ extension SetTimeValidation on SetTime {
     final description = rows
         .map(
           (row) =>
-            '${Slot.dayName(row.day)} ${prettyClock(row.start)}-'
+              '${Slot.dayName(row.day)} ${prettyClock(row.start)}-'
               '${prettyClock(row.end)} ${repo.locationName(row.location)}',
         )
         .join('\n');
@@ -123,7 +123,7 @@ extension SetTimeValidation on SetTime {
           if (component.contains(j)) continue;
           final overlaps = component.any(
             (index) =>
-              _samePlaceAndDay(rows[index], rows[j]) &&
+                _samePlaceAndDay(rows[index], rows[j]) &&
                 _timesOverlap(rows[index], rows[j]),
           );
           if (overlaps) {
@@ -140,7 +140,7 @@ extension SetTimeValidation on SetTime {
         if (group.length != 1 || group.first == null) {
           result.add(
             _ConflictGroup([
-            for (final index in component) _rowKey(rows[index]),
+              for (final index in component) _rowKey(rows[index]),
             ]),
           );
         }
@@ -178,7 +178,7 @@ extension SetTimeValidation on SetTime {
         : (draft.requestedNames[line.locationToken] ?? line.locationToken);
     final date = line.targetDate == null
         ? ''
-        : ' ${this._date(line.targetDate!)}';
+        : ' ${_date(line.targetDate!)}';
     final max = line.maxPeople == null ? '' : ' [max ${line.maxPeople}]';
     return 'Session $n: ${Slot.dayName(line.day)}$date '
         '${prettyClock(line.start)} to ${prettyClock(line.end)} '
@@ -207,8 +207,60 @@ extension SetTimeValidation on SetTime {
       sb.writeln('\nAfter change: the recurring schedule from now on will be:');
       _writeRows(sb, after);
     }
+    final removed = _allocationsAffected(draft, after);
+    sb.writeln('\nThese allocations will be removed:');
+    if (removed.isEmpty) {
+      sb.writeln('No existing allocations will be removed.');
+    } else {
+      for (final row in removed) {
+        sb.writeln('• ${_html(row.$1.name)} — ${_html(_sessionName(row.$2))}');
+      }
+    }
+    final notify = repo.activeOutreachEnabled('schedule-change');
+    sb.writeln(
+      notify
+          ? 'They WILL be notified of the allocation removal.'
+          : 'They will NOT be automatically notified, if needed, please tell them personally',
+    );
     return sb.toString().trimRight();
   }
+
+  List<(User, Session)> _allocationsAffected(
+    _Draft draft,
+    List<ScheduleSlot> after,
+  ) {
+    final now = config.toLocal(Config.nowUtc());
+    final window = scheduleRuntime.window(now);
+    final weekends = draft.scope == _SetTimeScope.temporary
+        ? window.weekends.any((sat) => sat == draft.targetSaturday) &&
+                  !window.locked(draft.targetSaturday!, now)
+              ? [draft.targetSaturday!]
+              : const <DateTime>[]
+        : window.weekends.where((sat) => !window.locked(sat, now)).toList();
+    final retained = after
+        .map((row) => '${row.day}|${row.slot}|${row.location}')
+        .toSet();
+    final affected = <(User, Session)>[];
+    for (final sat in weekends) {
+      for (final allocation in repo.allocationsForWeekend(sat)) {
+        if (draft.scope == _SetTimeScope.persistent ||
+            !retained.contains(
+              '${allocation.$2.day}|${allocation.$2.slot}|${allocation.$2.location}',
+            )) {
+          affected.add(allocation);
+        }
+      }
+    }
+    return affected;
+  }
+
+  String _sessionName(Session session) =>
+      '${_date(session.start)} ${repo.locationName(session.location)} · ${Slot.dayName(session.day)} '
+      '${_clock(session.start)}-${_clock(session.end)}';
+
+  String _clock(DateTime value) =>
+      '${value.hour.toString().padLeft(2, '0')}:'
+      '${value.minute.toString().padLeft(2, '0')}';
 
   void _writeRows(StringBuffer sb, List<ScheduleSlot> rows) {
     if (rows.isEmpty) {
@@ -220,7 +272,7 @@ extension SetTimeValidation on SetTime {
       sb.writeln(
         '${i + 1}. ${Slot.dayName(row.day)} '
         '${prettyClock(row.start)} to ${prettyClock(row.end)} '
-        'at location: ${this._html(repo.locationName(row.location))}'
+        'at location: ${_html(repo.locationName(row.location))}'
         '${row.maxPeople == null ? '' : ' [max ${row.maxPeople}]'}',
       );
     }
@@ -249,12 +301,24 @@ extension SetTimeValidation on SetTime {
             .where((old) => !additions.any((remove) => _sameRow(old, remove)))
             .toList();
     }
-    final slots = <String, String>{};
+    String signature(ScheduleSlot row) =>
+        '${row.day}|${row.start}|${row.end}';
+    final slots = <String, String>{
+      for (final row in before) signature(row): row.slot,
+    };
+    final usedSlots = {for (final row in before) row.slot};
     var next = 1;
     final out = <ScheduleSlot>[];
     for (final row in rows) {
-      final key = '${row.day}|${row.start}|${row.end}';
-      final slot = slots.putIfAbsent(key, () => 's${next++}');
+      final key = signature(row);
+      final slot = slots.putIfAbsent(key, () {
+        while (usedSlots.contains('s$next')) {
+          next++;
+        }
+        final newSlot = 's${next++}';
+        usedSlots.add(newSlot);
+        return newSlot;
+      });
       out.add(
         ScheduleSlot(
           day: row.day,
@@ -301,7 +365,7 @@ extension SetTimeValidation on SetTime {
       );
       return;
     }
-    await this._apply(ctx, userId, draft);
+    await _apply(ctx, userId, draft);
     _drafts.remove(userId);
   }
 }

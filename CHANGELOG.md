@@ -2,6 +2,25 @@
 
 All notable user-facing changes to the SDSC bot.
 
+## [4.8.0] - 2026-10-17
+
+### Added
+
+- Added authenticated allocation-removal preview and execution endpoints with
+  current-window validation, whole-session temporary overrides, and batched
+  removal notices controlled by the schedule-change route.
+- Added the gadmin `/rm_allocate_entry` selection and confirmation flow for
+  allocations in the current two-week window, including locked dates.
+- Added console confirmation controls to remove an allocation or delete a
+  session from one week without changing the recurring schedule.
+- Set-time confirmation now lists allocations affected by its schedule mutation
+  and states whether schedule-change notifications are enabled.
+
+### Fixed
+
+- Temporary session changes preserve surviving allocation and availability
+  entries while removing only data belonging to removed sessions.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 

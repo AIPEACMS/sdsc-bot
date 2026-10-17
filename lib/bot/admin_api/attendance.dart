@@ -139,7 +139,7 @@ extension AdminApiAttendance on AdminApi {
       return (400, {'ok': false, 'error': 'cycle service not wired'});
     }
     final now = config.toLocal(Config.nowUtc());
-    final w = this._window(now);
+    final w = _window(now);
     switch (op) {
       case 'prompt':
         await service.sendPrompts(w);
@@ -181,7 +181,7 @@ extension AdminApiAttendance on AdminApi {
       );
     }
     final now = config.toLocal(Config.nowUtc());
-    final w = this._window(now);
+    final w = _window(now);
     final holiday = service.optedOutHolidayFor(user, w);
     if (holiday != null) {
       return (
@@ -251,7 +251,7 @@ extension AdminApiAttendance on AdminApi {
   /// attendance states, for the console's attendance timetable.
   Map<String, Object?> _attendanceBody() {
     final now = config.toLocal(Config.nowUtc());
-    final w = this._window(now);
+    final w = _window(now);
     final sessions = repo.windowSessions(w);
     final bySession = <int, List<User>>{};
     for (final sat in w.weekends) {
@@ -269,7 +269,7 @@ extension AdminApiAttendance on AdminApi {
         for (final s in sessions)
           {
             'id': s.id,
-            'label': this._sessionLabel(s),
+            'label': _sessionLabel(s),
             'location': s.location,
             'weekendStart': s.weekendStart.toIso8601String(),
             'day': s.day,

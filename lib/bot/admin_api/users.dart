@@ -147,7 +147,7 @@ extension AdminApiUsers on AdminApi {
     return (200, {
       'ok': true,
       ..._scheduleJson(),
-      'schedule': this._scheduleJson(),
+      'schedule': _scheduleJson(),
     });
   }
 

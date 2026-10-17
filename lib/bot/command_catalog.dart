@@ -46,6 +46,7 @@ class CommandCatalog {
     ),
     CommandHelp('/synccalendar', 'push the calendar YAML'),
     CommandHelp('/assigngroup', 'assign members to admin-led groups'),
+    CommandHelp('/rm_allocate_entry', 'remove selected current-window allocations'),
   ];
   static const List<CommandHelp> _console = [
     CommandHelp('/checkstatus', 'test the checker\'s check-status'),

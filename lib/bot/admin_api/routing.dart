@@ -1,7 +1,6 @@
 part of '../admin_api.dart';
 
 extension AdminApiRouting on AdminApi {
-
   /// Wired from main.dart with the real [CycleService]. The cycle-driving
   /// endpoints (prompt/remind/allocate/ask/broadcast) require it; everything
   /// else works without it (and does in tests).
@@ -133,16 +132,16 @@ extension AdminApiRouting on AdminApi {
       case 'schedule':
         if (segs.length != 2) return (404, {'ok': false, 'error': 'not found'});
         if (method == 'GET') return (200, _scheduleBody());
-        if (method == 'POST') return this._setSchedule(bodyText);
+        if (method == 'POST') return _setSchedule(bodyText);
       case 'users':
         if (method == 'GET' && segs.length == 2) {
           return (200, {'ok': true, 'users': _usersJson()});
         }
         if (method == 'POST' && segs.length == 3 && segs[2] == 'remove') {
-          return this._removeUsers(bodyText);
+          return _removeUsers(bodyText);
         }
         if (method == 'POST' && segs.length == 2) {
-          return this._addUser(bodyText);
+          return _addUser(bodyText);
         }
         if (method == 'POST' && segs.length == 4 && segs[3].isNotEmpty) {
           final id = int.tryParse(segs[2]);
@@ -151,34 +150,35 @@ extension AdminApiRouting on AdminApi {
           }
           switch (segs[3]) {
             case 'tier':
-              return this._setTier(id, bodyText);
+              return _setTier(id, bodyText);
             case 'admin':
-              return this._setUserAdmin(id, bodyText);
+              return _setUserAdmin(id, bodyText);
             case 'gadmin':
-              return this._setUserGlobalAdmin(id, bodyText);
+              return _setUserGlobalAdmin(id, bodyText);
             case 'exp':
-              return this._setUserExp(id, bodyText);
+              return _setUserExp(id, bodyText);
             case 'group':
-              return this._setUserGroup(id, bodyText);
+              return _setUserGroup(id, bodyText);
             case 'notification':
             case 'notify':
-              return this._setUserNotification(id, bodyText);
+              return _setUserNotification(id, bodyText);
           }
         }
-        if (method == 'GET' && segs.length == 4 &&
+        if (method == 'GET' &&
+            segs.length == 4 &&
             (segs[3] == 'notification' || segs[3] == 'notify')) {
           final id = int.tryParse(segs[2]);
           if (id == null) return (400, {'ok': false, 'error': 'bad user id'});
-          return this._getUserNotification(id);
+          return _getUserNotification(id);
         }
       case 'assign-groups':
-        if (method == 'POST') return this._assignGroups();
+        if (method == 'POST') return _assignGroups();
       case 'locations':
         if (method == 'GET' && segs.length == 2) {
-          return (200, this._locationsBody());
+          return (200, _locationsBody());
         }
         if (method == 'POST' && segs.length == 2) {
-          return this._createLocation(bodyText);
+          return _createLocation(bodyText);
         }
         if (method == 'POST' &&
             segs.length == 4 &&
@@ -188,33 +188,42 @@ extension AdminApiRouting on AdminApi {
           if (id == null) {
             return (400, {'ok': false, 'error': 'bad location id'});
           }
-          return this._approveLocation(id, bodyText);
+          return _approveLocation(id, bodyText);
         }
       case 'hold':
-        if (method == 'POST') return this._setHold(bodyText);
+        if (method == 'POST') return _setHold(bodyText);
       case 'date':
-        if (method == 'POST') return this._setDate(bodyText);
+        if (method == 'POST') return _setDate(bodyText);
       case 'sync-calendar':
-        if (method == 'POST') return this._syncCalendar(bodyText);
+        if (method == 'POST') return _syncCalendar(bodyText);
       case 'prompt':
-        if (method == 'POST') return this._runCycleOp('prompt');
+        if (method == 'POST') return _runCycleOp('prompt');
       case 'remind':
-        if (method == 'POST') return this._runCycleOp('remind');
+        if (method == 'POST') return _runCycleOp('remind');
       case 'allocate':
-        if (method == 'POST') return this._runCycleOp('allocate');
+        if (method == 'POST') return _runCycleOp('allocate');
       case 'ask':
-        if (method == 'POST') return this._ask(bodyText);
+        if (method == 'POST') return _ask(bodyText);
       case 'broadcast':
-        if (method == 'POST') return this._broadcast(bodyText);
+        if (method == 'POST') return _broadcast(bodyText);
       case 'attendance':
-        if (method == 'GET') return (200, this._attendanceBody());
-        if (method == 'POST') return this._toggleAttendance(bodyText);
+        if (method == 'GET') return (200, _attendanceBody());
+        if (method == 'POST') return _toggleAttendance(bodyText);
+      case 'allocations':
+        if (method == 'POST' &&
+            segs.length == 3 &&
+            segs[2] == 'removal-preview') {
+          return _allocationRemovalPreview(bodyText);
+        }
+        if (method == 'POST' && segs.length == 3 && segs[2] == 'remove') {
+          return _removeAllocations(bodyText);
+        }
       case 'logs':
         if (method == 'GET') {
           return (200, {'ok': true, 'lines': LogRing.snapshot});
         }
       case 'log-retention':
-        if (method == 'POST') return this._setLogRetention(bodyText);
+        if (method == 'POST') return _setLogRetention(bodyText);
     }
     return (404, {'ok': false, 'error': 'not found'});
   }
@@ -293,7 +302,9 @@ extension AdminApiRouting on AdminApi {
     } catch (_) {
       return (400, {'ok': false, 'error': 'expected a JSON object'});
     }
-    if (body.length != 2 || body['route'] is! String || body['enabled'] is! bool) {
+    if (body.length != 2 ||
+        body['route'] is! String ||
+        body['enabled'] is! bool) {
       return (
         400,
         {'ok': false, 'error': 'expected {"route": <key>, "enabled": bool}'},

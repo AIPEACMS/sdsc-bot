@@ -15,6 +15,7 @@ import 'package:sdsc_bot/core/repo.dart';
 import 'package:televerse/telegram.dart' show Update;
 import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
+import 'support/bot_readiness.dart';
 
 void main() {
   late Directory tmp;
@@ -22,6 +23,7 @@ void main() {
   late Repo repo;
   late Bot<Context> bot;
   late HttpServer server;
+  late BotReadiness readiness;
   late Future<void> botStart;
   late List<Map<String, dynamic>> sent;
   late List<Map<String, dynamic>> edited;
@@ -49,8 +51,10 @@ void main() {
     final state = BotState();
     sent = [];
     edited = [];
+    readiness = BotReadiness();
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
+      readiness.observe(req);
       final path = req.uri.path;
       if (path.endsWith('/getMe')) {
         await _json(req, {
@@ -160,7 +164,7 @@ void main() {
     repo.addPendingUser('never_started', isAdmin: false);
 
     botStart = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await readiness.wait();
   });
 
   tearDown(() async {

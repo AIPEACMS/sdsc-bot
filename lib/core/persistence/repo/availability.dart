@@ -13,7 +13,11 @@ extension RepoAvailability on Repo {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
-      tx.execute('DELETE FROM sessions WHERE weekend_start = ?', [this._dayKey(sat)]);
+      tx.execute('DELETE FROM attendance WHERE session_id IN '
+          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
+      tx.execute('DELETE FROM allocations WHERE session_id IN '
+          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
+      tx.execute('DELETE FROM sessions WHERE weekend_start = ?', [_dayKey(sat)]);
       tx.execute('COMMIT');
     } catch (_) {
       tx.execute('ROLLBACK');
@@ -29,9 +33,9 @@ extension RepoAvailability on Repo {
     tx.execute('BEGIN IMMEDIATE');
     try {
       tx.execute('DELETE FROM allocations WHERE session_id IN '
-          '(SELECT id FROM sessions WHERE weekend_start = ?)', [this._dayKey(sat)]);
+          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
       tx.execute('DELETE FROM availability WHERE weekend_start = ?',
-          [this._dayKey(sat)]);
+          [_dayKey(sat)]);
       tx.execute('COMMIT');
     } catch (_) {
       tx.execute('ROLLBACK');
@@ -70,7 +74,7 @@ WHERE s.weekend_start = ?
   )
 ORDER BY s.start_at
 ''',
-        [this._dayKey(sat)],
+        [_dayKey(sat)],
       )
       .map(Session.fromRow)
       .toList();
@@ -99,21 +103,50 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
   updated_at = excluded.updated_at
 ''',
       [
-        this._dayKey(a.weekendStart),
+        _dayKey(a.weekendStart),
         a.userId,
-        this._dayKey(a.bundleStart),
+        _dayKey(a.bundleStart),
         jsonEncode(a.slots.map((s) => s.encode()).toList()),
         jsonEncode(a.wantSlots.map((s) => s.encode()).toList()),
         a.available ? 1 : 0,
-        this._fmt(a.updatedAt),
+        _fmt(a.updatedAt),
       ],
+    );
+  }
+
+  /// Removes one session choice from saved availability without disturbing a
+  /// member's selections for the other sessions in the same weekend.
+  void removeAvailabilityForSession(
+    int userId,
+    DateTime weekendStart,
+    String day,
+    String slot,
+    String location,
+  ) {
+    final current = getAvailability(weekendStart, userId);
+    if (current == null) return;
+    bool sameSession(Slot choice) =>
+        choice.day == day && choice.slot == slot && choice.location == location;
+    if (!current.slots.any(sameSession) && !current.wantSlots.any(sameSession)) {
+      return;
+    }
+    setAvailability(
+      Availability(
+        weekendStart: current.weekendStart,
+        userId: current.userId,
+        bundleStart: current.bundleStart,
+        slots: {...current.slots}..removeWhere(sameSession),
+        wantSlots: {...current.wantSlots}..removeWhere(sameSession),
+        available: current.available,
+        updatedAt: current.updatedAt,
+      ),
     );
   }
 
   Availability? getAvailability(DateTime weekendStart, int userId) {
     final rows = raw.select(
       'SELECT * FROM availability WHERE weekend_start = ? AND user_id = ?',
-      [this._dayKey(weekendStart), userId],
+      [_dayKey(weekendStart), userId],
     );
     if (rows.isEmpty) return null;
     final r = rows.first;
@@ -131,7 +164,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
   List<Availability> availabilityForWeekend(DateTime weekendStart) {
     final rows = raw.select(
       'SELECT * FROM availability WHERE weekend_start = ?',
-      [this._dayKey(weekendStart)],
+      [_dayKey(weekendStart)],
     );
     return rows
         .map((r) => Availability(
@@ -151,7 +184,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
     final rows = raw.select(
       'SELECT 1 FROM availability WHERE bundle_start = ? AND user_id = ? '
       'LIMIT 1',
-      [this._dayKey(bundleStart), userId],
+      [_dayKey(bundleStart), userId],
     );
     return rows.isNotEmpty;
   }
@@ -221,7 +254,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
       tx.execute(
         'DELETE FROM allocations WHERE session_id IN '
         '(SELECT id FROM sessions WHERE weekend_start = ?)',
-        [this._dayKey(sat)],
+        [_dayKey(sat)],
       );
       final stmt = tx.prepare(
         'INSERT INTO allocations (user_id, session_id) VALUES (?, ?)',
@@ -243,7 +276,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
     raw.execute(
       'DELETE FROM allocations WHERE user_id = ? AND session_id IN '
       '(SELECT id FROM sessions WHERE weekend_start = ?)',
-      [userId, this._dayKey(sat)],
+      [userId, _dayKey(sat)],
     );
   }
 
@@ -266,7 +299,7 @@ JOIN sessions s ON s.id = al.session_id
 WHERE s.weekend_start = ?
 ORDER BY s.start_at, u.name
 ''',
-      [this._dayKey(sat)],
+      [_dayKey(sat)],
     );
     return rows.map((r) {
       final user = User.fromRow(r);

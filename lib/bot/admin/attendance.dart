@@ -37,12 +37,12 @@ extension AdminAttendance on Admin {
         parts[0] == 'att_done' ||
         parts[0] == 'att_cancel';
     if (attendance) await ctx.answerCallbackQuery();
-    if (!this._isAdmin(ctx)) return;
+    if (!_isAdmin(ctx)) return;
     switch (parts[0]) {
       case 'att_sess':
         final id = int.tryParse(parts.length > 1 ? parts[1] : '');
         if (id != null) {
-          await this._sessionPicker(ctx, id);
+          await _sessionPicker(ctx, id);
         } else {
           await ctx.editMessageText(
             'That session is no longer available.',
@@ -53,7 +53,7 @@ extension AdminAttendance on Admin {
         final sid = parts.length > 1 ? int.tryParse(parts[1]) : null;
         final uid = parts.length > 2 ? int.tryParse(parts[2]) : null;
         if (sid != null && uid != null) {
-          await this._toggleAttendance(ctx, sid, uid);
+          await _toggleAttendance(ctx, sid, uid);
         } else {
           await ctx.editMessageText(
             'That attendance choice is no longer valid.',
@@ -62,17 +62,17 @@ extension AdminAttendance on Admin {
         }
       case 'att_done':
         if (parts.length > 1 && parts[1] == 'member') {
-          await this._renderSessionList(ctx, ctx.from!.id);
+          await _renderSessionList(ctx, ctx.from!.id);
         } else {
-          await this._finishAttendance(ctx);
+          await _finishAttendance(ctx);
         }
       case 'att_cancel':
-        await this._cancelAttendance(ctx);
+        await _cancelAttendance(ctx);
       case 'setexp':
         await ctx.answerCallbackQuery();
         final uid = parts.length > 2 ? int.tryParse(parts[2]) : null;
         if (uid != null) {
-          await this._applySet(ctx, parts[0], parts[1], uid);
+          await _applySet(ctx, parts[0], parts[1], uid);
         } else {
           await ctx.editMessageText(
             'That user is no longer available.',
@@ -84,10 +84,10 @@ extension AdminAttendance on Admin {
         final value = parts.length > 2 ? parts[2] : '';
         if (kind == 'setexp') {
           await ctx.answerCallbackQuery();
-          await this._pickUserFor(ctx, kind, value);
+          await _pickUserFor(ctx, kind, value);
         }
       case 'mpick':
-         await this._onMemberPick(ctx, parts);
+         await _onMemberPick(ctx, parts);
       case 'bcast':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
@@ -97,7 +97,7 @@ extension AdminAttendance on Admin {
         );
         if (yes) {
           final text = _pendingBroadcast.remove(ctx.from!.id);
-          if (text != null) await this._doBroadcast(ctx, text);
+          if (text != null) await _doBroadcast(ctx, text);
         } else {
           _pendingBroadcast.remove(ctx.from!.id);
         }
@@ -120,7 +120,7 @@ extension AdminAttendance on Admin {
         if (handles == null) return;
         await ctx.editMessageText(
           handles
-              .map((handle) => this._addOutcome(handle, tier: tier))
+              .map((handle) => _addOutcome(handle, tier: tier))
               .join('\n'),
           replyMarkup: null,
         );
@@ -131,7 +131,7 @@ extension AdminAttendance on Admin {
           yes ? 'Sending prompts…' : 'Cancelled — nothing was sent.',
           replyMarkup: null,
         );
-        if (yes) await service.sendPrompts(this._window());
+        if (yes) await service.sendPrompts(_window());
       case 'remind':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
@@ -139,7 +139,7 @@ extension AdminAttendance on Admin {
           yes ? 'Sending reminders…' : 'Cancelled — nothing was sent.',
           replyMarkup: null,
         );
-        if (yes) await service.sendReminders(this._window());
+        if (yes) await service.sendReminders(_window());
       case 'admincancel':
         await ctx.answerCallbackQuery();
         state.pendingArg.remove(ctx.from!.id);
@@ -177,7 +177,7 @@ extension AdminAttendance on Admin {
       }
        final memberId = int.tryParse(target);
       if (memberId != null) {
-        await this._askPick(ctx, memberId);
+        await _askPick(ctx, memberId);
       } else {
         await ctx.editMessageText(
           'That member is no longer available.',

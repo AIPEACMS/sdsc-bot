@@ -33,7 +33,7 @@ class _DatabaseBase {
 }
 
 class Database extends _DatabaseBase {
-  Database._(sqlite.Database db) : super._(db);
+  Database._(super.db) : super._();
 
   factory Database.open(Config config) {
     final db = sqlite.sqlite3.open(config.dbPath);

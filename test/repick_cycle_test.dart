@@ -9,6 +9,7 @@ import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import 'support/repick_harness.dart';
+import 'support/bot_readiness.dart';
 import 'test_helpers.dart';
 
 void main() {
@@ -19,8 +20,10 @@ void main() {
     () async {
       final edits = <Map<String, dynamic>>[];
       var answered = 0;
+      final readiness = BotReadiness();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((req) async {
+        readiness.observe(req);
         final path = req.uri.path;
         if (path.endsWith('/getMe')) {
           await _json(req, {
@@ -79,7 +82,7 @@ void main() {
       ).register();
 
       final startFuture = bot.start();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await readiness.wait();
 
       final w = RollingWindow.fromSat0(DateTime(2026, 8, 15));
       final picker = CycleServiceNotifications.buildKeyboard(
@@ -162,8 +165,10 @@ void main() {
     'toggling cycles off → offered → booked → off and saves want separately',
     () async {
       final sent = <Map<String, dynamic>>[];
+      final readiness = BotReadiness();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((req) async {
+        readiness.observe(req);
         final path = req.uri.path;
         if (path.endsWith('/getMe')) {
           await _json(req, {
@@ -220,7 +225,7 @@ void main() {
       ).register();
 
       final startFuture = bot.start();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await readiness.wait();
 
       Future<void> tap(int updateId, String data) => bot.handleUpdate(
         Update.fromJson({
@@ -277,8 +282,10 @@ void main() {
 
   test('saving availability revokes the member\'s allocation', () async {
     final sent = <Map<String, dynamic>>[];
+    final readiness = BotReadiness();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
+      readiness.observe(req);
       final path = req.uri.path;
       if (path.endsWith('/getMe')) {
         await _json(req, {
@@ -346,7 +353,7 @@ void main() {
     ).register();
 
     final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await readiness.wait();
 
     // alice answers the bundle (Done, nothing selected). The open weekend
     // (Sat 22 Aug) gets saved; her allocation there must be revoked so the
@@ -377,7 +384,6 @@ void main() {
     expect(allocs.where((e) => e.$1.id == 42), isEmpty);
   });
 }
-
 
 Future<void> _json(
   HttpRequest req,

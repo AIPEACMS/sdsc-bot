@@ -19,10 +19,18 @@ dart run bin/main.dart
 
 ## Test / lint
 
+For local development, run the affected test suites with four workers. Bot
+integration tests wait for a fake Telegram long-poll readiness signal instead
+of sleeping for a guessed startup interval:
+
 ```sh
-dart test
+./tool/test-affected.sh
+./tool/test-affected.sh --all
 dart analyze
 ```
+
+Pass `--base <git-ref>` to include committed changes since a base reference,
+or `--all` to run the complete suite. CI always runs the full suite.
 
 ## Deploy
 

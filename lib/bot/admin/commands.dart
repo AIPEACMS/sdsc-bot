@@ -14,36 +14,36 @@ extension AdminCommands on Admin {
       bot,
       state,
       'allstatus',
-      _guard(this._status),
+      _guard(_status),
       label: 'all-status',
     );
     state.registerCommand('status');
-    bot.command('status', _guard(this._status)); // Compatibility alias.
+    bot.command('status', _guard(_status)); // Compatibility alias.
     commandBoth(
       bot,
       state,
       'groupstatus',
-      _guard(this._groupStatus),
+      _guard(_groupStatus),
       label: 'group-status',
     );
     state.registerCommand('allusers');
-    bot.command('allusers', _guard(this._users));
+    bot.command('allusers', _guard(_users));
     state.registerCommand('users');
-    bot.command('users', _guard(this._users)); // Compatibility alias.
+    bot.command('users', _guard(_users)); // Compatibility alias.
     state.registerCommand('groupuser');
-    bot.command('groupuser', _guard(this._groupUsers));
+    bot.command('groupuser', _guard(_groupUsers));
     commandBoth(
       bot,
       state,
       'prompt',
-      _guard(this._promptConfirm),
+      _guard(_promptConfirm),
       label: 'prompt',
     );
     commandBoth(
       bot,
       state,
       'remind',
-      _guard(this._remindConfirm),
+      _guard(_remindConfirm),
       label: 'remind',
     );
     commandBoth(
@@ -57,26 +57,26 @@ extension AdminCommands on Admin {
       }),
       label: 'allocate',
     );
-    commandBoth(bot, state, 'ask', _guard(this._ask), label: 'ask');
+    commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
     commandBoth(
       bot,
       state,
       'confirm',
-      _guard(this._confirm),
+      _guard(_confirm),
       label: 'mark-attend',
     );
     commandBoth(
       bot,
       state,
       'setexp',
-      _guard((ctx) => this._pickUser(ctx, 'setexp')),
+      _guard((ctx) => _pickUser(ctx, 'setexp')),
       label: 'set-exp',
     );
     commandBoth(
       bot,
       state,
       'broadcast',
-      _guard(this._broadcast),
+      _guard(_broadcast),
       label: 'broadcast',
     );
 
@@ -100,7 +100,7 @@ extension AdminCommands on Admin {
         'admincancel',
       };
       if (mine.contains(head)) {
-        await this._onAdminCallback(ctx);
+        await _onAdminCallback(ctx);
         return;
       }
       await next();
@@ -177,7 +177,7 @@ extension AdminCommands on Admin {
     final tier = _pendingAddTier[userId] ?? MemberTier.member;
     _pendingAddTier[userId] = tier;
     _pendingAddUser[userId] = handles;
-    final list = handles.map((handle) => '• @${this._html(handle)}').join('\n');
+    final list = handles.map((handle) => '• @${_html(handle)}').join('\n');
     final batchLabel = handles.length == 1
         ? 'this ${_tierLabel(tier)}'
         : 'these ${handles.length} ${_tierLabel(tier)}s';

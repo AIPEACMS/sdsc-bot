@@ -9,6 +9,7 @@ import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import 'support/repick_harness.dart';
+import 'support/bot_readiness.dart';
 
 void main() {
   setUp(setUpRepick);
@@ -17,8 +18,10 @@ void main() {
     'cancel aborts the in-progress repick, keeping the saved answer',
     () async {
       final sent = <Map<String, dynamic>>[];
+      final readiness = BotReadiness();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((req) async {
+        readiness.observe(req);
         final path = req.uri.path;
         if (path.endsWith('/getMe')) {
           await _json(req, {
@@ -53,12 +56,7 @@ void main() {
       });
 
       repo.upsertUser(
-        User(
-          id: 42,
-          name: '@alice',
-          experience: Experience.newbie,
-          group: '1',
-        ),
+        User(id: 42, name: '@alice', experience: Experience.newbie, group: '1'),
       );
 
       final bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
@@ -80,7 +78,7 @@ void main() {
       ).register();
 
       final startFuture = bot.start();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await readiness.wait();
 
       // alice first answers the bundle (Done, nothing selected → not
       // available). This weekend (2026-08-15) is already locked on the real
@@ -164,7 +162,6 @@ void main() {
     },
   );
 }
-
 
 Future<void> _json(
   HttpRequest req,

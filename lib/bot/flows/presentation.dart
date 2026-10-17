@@ -173,7 +173,7 @@ extension FlowsPresentation on Flows {
               want,
               available,
               immediate: true,
-              label: (s) => this._slotLabel(s, w, repo),
+              label: (s) => _slotLabel(s, w, repo),
             ),
       parseMode: ParseMode.html,
     );
@@ -201,24 +201,27 @@ extension FlowsPresentation on Flows {
   RollingWindow _windowForSat(DateTime sat0) =>
       RollingWindow.fromSat0(sat0, schedule: scheduleRuntime.schedule);
 
-  /// Remembers (id, username) from any update so admins can add members by
-  /// handle later. If the handle is in the pending queue (added by an admin
-  /// before the user ever contacted the bot), the user is auto-registered
-  /// right here. Never replies, never errors.
-  void _recordSeen(Context ctx, int userId) {
+  /// Records the sender for later handle resolution and completes registration
+  /// of pending users before the update continues through the bot.
+  Future<void> _recordSeen(Context ctx, int userId) async {
     final username = ctx.from?.username;
     if (username == null || username.isEmpty) return;
     try {
       repo.upsertSeenUser(userId, username);
-      _autoRegisterPending(ctx, userId, username);
-    } catch (_) {
-      // bookkeeping failure should not break the flow
+    } catch (error) {
+      LogRing.log('seen-user update failed for $userId: $error');
+      return;
     }
+    await _autoRegisterPending(ctx, userId, username);
   }
 
   /// If [username] was added to the pending queue (via /adduser or
   /// /addadmin) before the user ever messaged the bot, register them now.
-  void _autoRegisterPending(Context ctx, int userId, String username) {
+  Future<void> _autoRegisterPending(
+    Context ctx,
+    int userId,
+    String username,
+  ) async {
     if (!repo.isPendingUser(username)) return;
     final pendingRole = repo.pendingRole(username);
     final isAdmin = pendingRole?.isAdmin ?? false;
@@ -230,7 +233,7 @@ extension FlowsPresentation on Flows {
     final existing = repo.findUser(userId);
     if (existing?.memberTier == MemberTier.outMember && isAdmin) {
       repo.removePendingUser(username);
-      ctx.reply('Out-members cannot be promoted to admin.');
+      await ctx.reply('Out-members cannot be promoted to admin.');
       return;
     }
     repo.removePendingUser(username);
@@ -257,7 +260,7 @@ extension FlowsPresentation on Flows {
     // Let the user know they're in — they can now use /start.
     final isCheck = tier == MemberTier.check && !isAdmin;
     final isOutMember = tier == MemberTier.outMember && !isAdmin;
-    ctx.reply(
+    await ctx.reply(
       isAdmin
           ? 'Welcome! You have been added as an <b>admin</b>. Send /start to see your commands.'
           : isCheck

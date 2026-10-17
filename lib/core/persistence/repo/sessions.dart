@@ -161,10 +161,13 @@ extension RepoSessions on Repo {
       .toList();
 
   List<ScheduleSlot> scheduleForWeekend(DateTime sat) {
+    if (getSetting('schedule_override_empty_${_dayKey(sat)}') == '1') {
+      return const [];
+    }
     final rows = raw.select(
       'SELECT day, slot, start_at, end_at, location_key, max_people, capacity_group '
       'FROM schedule_overrides WHERE weekend_start = ? ORDER BY rowid',
-      [this._dayKey(sat)],
+      [_dayKey(sat)],
     );
     if (rows.isEmpty) return scheduleTemplate();
     return rows
@@ -281,6 +284,11 @@ extension RepoSessions on Repo {
         }
       }
 
+      setSetting(
+        'schedule_override_empty_$weekendKey',
+        rows.isEmpty ? '1' : '0',
+      );
+
       final removedIds = existingRows
           .where(
             (row) => !retained.contains((
@@ -292,6 +300,16 @@ extension RepoSessions on Repo {
           .map((row) => row['id'] as int)
           .toList();
       for (final id in removedIds) {
+        final removed = existingRows.firstWhere((row) => row['id'] == id);
+        for (final availability in availabilityForWeekend(sat)) {
+          removeAvailabilityForSession(
+            availability.userId,
+            sat,
+            removed['day'] as String,
+            removed['slot'] as String,
+            removed['location'] as String,
+          );
+        }
         tx.execute('DELETE FROM allocations WHERE session_id = ?', [id]);
         tx.execute('DELETE FROM attendance WHERE session_id = ?', [id]);
         tx.execute('DELETE FROM sessions WHERE id = ?', [id]);
@@ -305,8 +323,9 @@ extension RepoSessions on Repo {
 
   void clearScheduleOverride(DateTime sat) {
     raw.execute('DELETE FROM schedule_overrides WHERE weekend_start = ?', [
-      this._dayKey(sat),
+      _dayKey(sat),
     ]);
+    setSetting('schedule_override_empty_${_dayKey(sat)}', '0');
   }
 
   /// Creates (idempotently) the sessions for [sat]'s weekend from [template].
@@ -318,7 +337,7 @@ extension RepoSessions on Repo {
     required int tzOffsetHours,
   }) {
     for (final t in template) {
-      final date = this._sessionDate(sat, t.day);
+      final date = _sessionDate(sat, t.day);
       if (date == null) continue;
       raw.execute(
         '''
@@ -327,12 +346,12 @@ INSERT OR IGNORE INTO sessions
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 ''',
         [
-          this._dayKey(sat),
+          _dayKey(sat),
           t.day,
           t.slot,
           t.location,
-          this._fmt(this._parseTime(date, t.start)),
-          this._fmt(this._parseTime(date, t.end)),
+          _fmt(_parseTime(date, t.start)),
+          _fmt(_parseTime(date, t.end)),
           t.maxPeople,
           t.capacityGroup,
         ],
