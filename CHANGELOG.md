@@ -2,6 +2,13 @@
 
 All notable user-facing changes to the SDSC bot.
 
+## [4.8.1] - 2026-10-17
+
+### Fixed
+
+- Clarified the temporary schedule prompt's week selection, date syntax, and
+  optional maximum-person examples.
+
 ## [4.8.0] - 2026-10-17
 
 ### Added

@@ -131,11 +131,15 @@ extension SetTimeCommand on SetTime {
     final temporary = draft.scope == _SetTimeScope.temporary;
     await ctx.editMessageText(
       temporary
-          ? 'Send one line per session for one week. Use '
-                '<code>mon as 2026-09-21 9:00 13:00 PR 5</code> for an explicit date, '
-                'or <code>thu 9:00 13:00 PR 5</code> for the next Thursday.\n'
-                'Example without a max: <code>sun 13 15 ocbc</code>.\n\n'
-                'The first line chooses the week; all later lines must be in that same week. '
+          ? 'Enter one session per line. The first line selects the week; '
+                'every later line must be in that same week.\n\n'
+                'Choose the week with either:\n'
+                '• An explicit date: <code>mon as 2026-09-21 9:00 13:00 PR 5</code> '
+                '(replace the date with your intended date).\n'
+                '• The next matching weekday: <code>thu 9:00 13:00 PR 5</code>.\n\n'
+                'Use <code>day as YYYY-MM-DD</code> on a later line if its date '
+                'would otherwise fall in a different week. The max is optional; '
+                'without one: <code>sun 13 15 ocbc</code>.\n\n'
                 'Send <b>done</b> when finished.'
           : 'Send one line per session:\n'
                 '<code>&lt;day&gt; &lt;startTime&gt; &lt;endTime&gt; &lt;location&gt; '
