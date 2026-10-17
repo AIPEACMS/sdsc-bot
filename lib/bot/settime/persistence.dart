@@ -1,8 +1,8 @@
 part of '../settime.dart';
 
 extension SetTimePersistence on SetTime {
-  /// Stores the template and rebuilds every open weekend, then re-prompts the
-  /// members whose availability it cleared.
+  /// Stores the template and rebuilds every open weekend. Temporary changes
+  /// preserve availability and allocations for sessions that remain.
   Future<void> _apply(Context ctx, int userId, _Draft draft) async {
     final now = config.toLocal(Config.nowUtc());
     final w = scheduleRuntime.window(now);
@@ -36,8 +36,6 @@ extension SetTimePersistence on SetTime {
       for (final a in repo.availabilityForWeekend(sat)) {
         if (a.available) affected.add(a.userId);
       }
-      repo.clearWeekendAvailabilityAndAllocations(sat);
-      repo.setWeekendAllocated(sat, false);
       repo.replaceScheduleOverride(
         sat,
         rows,
