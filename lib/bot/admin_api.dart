@@ -37,6 +37,11 @@ import '../core/schedule.dart';
 ///   GET   /api/state                    -> held flag, debug clock, cycle, schedule
 ///   GET   /api/schedule                 -> persisted local wall-clock schedule
 ///   POST  /api/schedule                 -> partial event time/weekday update
+///   POST  /api/session-schedule/read         -> {scope, week?}; selected rows, sessions, override and lock state
+///   POST  /api/session-schedule/preview  -> {scope, week?, action, rows:[{day,slot,start,end,location,maxPeople?,capacityGroup?}]}
+///   POST  /api/session-schedule/commit   -> same body as preview; revalidates and applies
+///   POST  /api/allocations/removal-preview -> {week?, sessionId} or {week?, entries:[{sessionId,userId}]}
+///   POST  /api/allocations/remove        -> same confirmed target body; selected-week scope permits weeks outside rolling window
 ///   GET   /api/users                    -> every user with tier + groups + attendance
 ///   POST  /api/users                    -> { "handle": "@name" } (register-or-queue)
 ///   POST  /api/users/remove             -> { "handles": ["@a", "@b"] }
@@ -67,6 +72,8 @@ part 'admin_api/operations.dart';
 part 'admin_api/attendance.dart';
 part 'admin_api/removals.dart';
 part 'admin_api/part_05.dart';
+part 'admin_api/session_schedules.dart';
+part 'admin_api/session_schedule_helpers.dart';
 
 Map<String, dynamic> _jsonBody(String text) {
   if (text.trim().isEmpty) return {};

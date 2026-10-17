@@ -8,12 +8,19 @@ extension AdminApiRemovals on AdminApi {
     } catch (_) {
       return (null, 'expected a JSON object');
     }
-    if (body.length == 1 && _integer(body['sessionId'])) {
+    if ((body.length == 1 || (body.length == 2 && body['week'] is String)) &&
+        _integer(body['sessionId'])) {
       return (body, null);
     }
     final entries = body['entries'];
-    if (body.length != 1 || entries is! List || entries.isEmpty) {
-      return (null, 'expected sessionId or a non-empty entries list');
+    final hasWeek = body['week'] is String;
+    if ((body.length != 1 && !(hasWeek && body.length == 2)) ||
+        entries is! List ||
+        entries.isEmpty) {
+      return (
+        null,
+        'expected sessionId or a non-empty entries list, optionally scoped by week',
+      );
     }
     for (final entry in entries) {
       if (entry is! Map ||
@@ -63,7 +70,20 @@ extension AdminApiRemovals on AdminApi {
   ) {
     final now = config.toLocal(Config.nowUtc());
     final window = _window(now);
-    final validIds = repo.windowSessions(window).map((s) => s.id).toSet();
+    final selectedWeek = body['week'] is String
+        ? DateTime.tryParse(body['week'] as String)
+        : null;
+    if (body.containsKey('week') &&
+        (selectedWeek == null || !_isSaturday(selectedWeek))) {
+      return null;
+    }
+    if (selectedWeek != null) {
+      final monday = selectedWeek.subtract(const Duration(days: 5));
+      if (!now.isBefore(scheduleRuntime.schedule.lock.on(monday))) return null;
+    }
+    final validIds = selectedWeek == null
+        ? repo.windowSessions(window).map((s) => s.id).toSet()
+        : repo.sessionsForWeekend(selectedWeek).map((s) => s.id).toSet();
     final sessionId = (body['sessionId'] as num?)?.toInt();
     if (sessionId != null) {
       if (!validIds.contains(sessionId)) return null;
@@ -92,6 +112,14 @@ extension AdminApiRemovals on AdminApi {
     }
     return (-1, result);
   }
+
+  bool _isSaturday(DateTime date) =>
+      date.weekday == DateTime.saturday &&
+      date.hour == 0 &&
+      date.minute == 0 &&
+      date.second == 0 &&
+      date.millisecond == 0 &&
+      date.microsecond == 0;
 
   Map<String, Object?> _removalJson(User user, Session session) => {
     'sessionId': session.id,

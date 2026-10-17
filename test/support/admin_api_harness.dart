@@ -130,12 +130,15 @@ Future<(int, Object?)> signedCall(
   String method,
   String path, {
   Object? body,
+  Object? wireBody,
   String? ts,
   String? nonce,
 }) async {
   final tsNow = ts ?? DateTime.now().millisecondsSinceEpoch.toString();
   final nonceNow = nonce ?? '${rand.nextInt(1 << 32)}-${rand.nextInt(1 << 32)}';
-  final bodyBytes = body == null ? utf8.encode('') : utf8.encode(jsonEncode(body));
+  final bodyBytes = body == null
+      ? utf8.encode('')
+      : utf8.encode(jsonEncode(body));
   final (pub, sig) = await signKey(
     method,
     path,
@@ -156,7 +159,7 @@ Future<(int, Object?)> signedCall(
     req.headers.set('X-SDSC-Sig', sig);
     if (body != null) {
       req.headers.contentType = ContentType.json;
-      req.write(jsonEncode(body));
+      req.write(jsonEncode(wireBody ?? body));
     }
     final res = await req.close();
     final text = await res.transform(utf8.decoder).join();

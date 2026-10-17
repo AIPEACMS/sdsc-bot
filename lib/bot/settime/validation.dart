@@ -176,9 +176,7 @@ extension SetTimeValidation on SetTime {
     final loc = key != null
         ? repo.locationName(key)
         : (draft.requestedNames[line.locationToken] ?? line.locationToken);
-    final date = line.targetDate == null
-        ? ''
-        : ' ${_date(line.targetDate!)}';
+    final date = line.targetDate == null ? '' : ' ${_date(line.targetDate!)}';
     final max = line.maxPeople == null ? '' : ' [max ${line.maxPeople}]';
     return 'Session $n: ${Slot.dayName(line.day)}$date '
         '${prettyClock(line.start)} to ${prettyClock(line.end)} '
@@ -232,26 +230,43 @@ extension SetTimeValidation on SetTime {
     final now = config.toLocal(Config.nowUtc());
     final window = scheduleRuntime.window(now);
     final weekends = draft.scope == _SetTimeScope.temporary
-        ? window.weekends.any((sat) => sat == draft.targetSaturday) &&
-                  !window.locked(draft.targetSaturday!, now)
-              ? [draft.targetSaturday!]
-              : const <DateTime>[]
+        ? _temporaryAffectedWeekends(draft, window, now)
         : window.weekends.where((sat) => !window.locked(sat, now)).toList();
     final retained = after
-        .map((row) => '${row.day}|${row.slot}|${row.location}')
+        .map(
+          (row) =>
+              '${row.day}|${row.slot}|${row.location}|${row.start}|${row.end}',
+        )
         .toSet();
     final affected = <(User, Session)>[];
     for (final sat in weekends) {
       for (final allocation in repo.allocationsForWeekend(sat)) {
-        if (draft.scope == _SetTimeScope.persistent ||
-            !retained.contains(
-              '${allocation.$2.day}|${allocation.$2.slot}|${allocation.$2.location}',
-            )) {
+        if (!retained.contains(
+          '${allocation.$2.day}|${allocation.$2.slot}|'
+          '${allocation.$2.location}|${_clock(allocation.$2.start)}|'
+          '${_clock(allocation.$2.end)}',
+        )) {
           affected.add(allocation);
         }
       }
     }
     return affected;
+  }
+
+  List<DateTime> _temporaryAffectedWeekends(
+    _Draft draft,
+    RollingWindow window,
+    DateTime now,
+  ) {
+    final saturday = draft.targetSaturday!;
+    final monday = saturday.subtract(const Duration(days: 5));
+    final locked = !now.isBefore(scheduleRuntime.schedule.lock.on(monday));
+    if (locked) return const [];
+    if (draft.action == _SetTimeAction.remove ||
+        window.weekends.contains(saturday)) {
+      return [saturday];
+    }
+    return const [];
   }
 
   String _sessionName(Session session) =>
@@ -301,8 +316,7 @@ extension SetTimeValidation on SetTime {
             .where((old) => !additions.any((remove) => _sameRow(old, remove)))
             .toList();
     }
-    String signature(ScheduleSlot row) =>
-        '${row.day}|${row.start}|${row.end}';
+    String signature(ScheduleSlot row) => '${row.day}|${row.start}|${row.end}';
     final slots = <String, String>{
       for (final row in before) signature(row): row.slot,
     };

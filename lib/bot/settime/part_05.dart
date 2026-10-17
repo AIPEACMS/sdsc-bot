@@ -7,6 +7,7 @@ class _Draft {
   _SetTimeScope scope = _SetTimeScope.persistent;
   _SetTimeAction action = _SetTimeAction.rewrite;
   DateTime? targetSaturday;
+  int temporaryWeekPage = 0;
   List<ScheduleSlot>? beforeRows;
   List<ScheduleSlot>? afterRows;
   List<_ConflictGroup>? conflicts;

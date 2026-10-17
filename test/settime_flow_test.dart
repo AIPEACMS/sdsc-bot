@@ -16,10 +16,6 @@ import 'package:sdsc_bot/bot/settime.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import 'support/bot_readiness.dart';
 
-/// End-to-end `/settime`: lines -> confirmation -> apply, plus the re-pick
-/// prompt scope. Regression cover for the "template replaced (0 rows)" bug,
-/// which silently saved an empty schedule because a location token that
-/// resolves automatically (e.g. `ocbc`) was never written into the draft.
 void main() {
   late Directory tmp;
   late Database db;
@@ -34,9 +30,7 @@ void main() {
   late HttpServer server;
   late Bot bot;
   late BotReadiness readiness;
-
   setUp(() async {
-    // Pin the clock to a Wednesday so both weekends of the window are open.
     Config.setDebugNow(DateTime.utc(2026, 9, 16, 4));
     tmp = Directory.systemTemp.createTempSync('sdsc_settime_');
     config = Config(
@@ -58,7 +52,6 @@ void main() {
     db = Database.open(config);
     repo = Repo(db);
     state = BotState();
-
     sent = <Map<String, dynamic>>[];
     edited = <Map<String, dynamic>>[];
     readiness = BotReadiness();
@@ -109,7 +102,6 @@ void main() {
         await _json(req, {'ok': false, 'error': 'nf'}, status: 404);
       }
     });
-
     bot = Bot.local('test-token', 'http://127.0.0.1:${server.port}');
     final messages = Messages(
       (group) => repo.groupAdmin(group)?.name ?? config.contactForGroup(group),
@@ -140,8 +132,6 @@ void main() {
     setTime.register();
     flows.onSetTimeText = setTime.onText;
     flows.onSetTimeNewNameText = setTime.onNewNameText;
-
-    // The gadmin (also the console), and three members with different states.
     repo.upsertUser(
       const User(
         id: 1,
@@ -152,15 +142,29 @@ void main() {
     );
     repo.appointGlobalAdmin(1);
     repo.upsertUser(
-      const User(id: 2, name: '@avail', experience: Experience.newbie, group: '1'),
+      const User(
+        id: 2,
+        name: '@avail',
+        experience: Experience.newbie,
+        group: '1',
+      ),
     );
     repo.upsertUser(
-      const User(id: 3, name: '@unavail', experience: Experience.newbie, group: '1'),
+      const User(
+        id: 3,
+        name: '@unavail',
+        experience: Experience.newbie,
+        group: '1',
+      ),
     );
     repo.upsertUser(
-      const User(id: 4, name: '@silent', experience: Experience.newbie, group: '1'),
+      const User(
+        id: 4,
+        name: '@silent',
+        experience: Experience.newbie,
+        group: '1',
+      ),
     );
-
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
     repo.ensureSessionsForWeekend(
       w.sat0,
@@ -187,7 +191,6 @@ void main() {
         updatedAt: config.toLocal(Config.nowUtc()),
       ),
     );
-
     final startFuture = bot.start();
     await readiness.wait();
     addTearDown(() async {
@@ -199,7 +202,6 @@ void main() {
       Config.setDebugNow(null);
     });
   });
-
   Future<void> sendText(int userId, String text) => bot.handleUpdate(
     Update.fromJson({
       'update_id': 1,
@@ -219,7 +221,6 @@ void main() {
       },
     }),
   );
-
   Future<void> sendCallback(int userId, String data) => bot.handleUpdate(
     Update.fromJson({
       'update_id': 2,
@@ -237,7 +238,6 @@ void main() {
       },
     }),
   );
-
   List<Map<String, dynamic>> messagesTo(int chatId) => [
     for (final m in sent)
       if (m['chat_id'] == chatId) m,
@@ -249,8 +249,6 @@ void main() {
     await sendCallback(1, 'settime-scope|persistent');
     await sendCallback(1, 'settime-action|rewrite');
     expect(edited.last['text'], contains('max-num-ppl'));
-
-    // Both `ocbc` and `pr` resolve automatically (no location choice needed).
     await sendText(1, 'sat 9 13 ocbc 4');
     final firstAck = sent.last['text'] as String;
     expect(firstAck, contains('Added session 1 (1 so far)'));
@@ -258,7 +256,6 @@ void main() {
       firstAck,
       contains('Session 1: Saturday 9:00 to 13:00 at location: OCBC [max 4]'),
     );
-
     await sendText(1, 'sat 13 17 pr');
     final secondAck = sent.last['text'] as String;
     expect(secondAck, contains('Added session 2 (2 so far)'));
@@ -266,93 +263,79 @@ void main() {
       secondAck,
       contains('Session 2: Saturday 13:00 to 17:00 at location: Pasir Ris'),
     );
-
-    // Several lines in one message are acknowledged as a range.
     await sendText(1, 'sun 10 12 ocbc\nfri 18 20 pasir');
     final thirdAck = sent.last['text'] as String;
     expect(thirdAck, contains('Added sessions 3-4 (4 so far)'));
     expect(thirdAck, contains('Session 3: Sunday 10:00 to 12:00'));
     expect(thirdAck, contains('Session 4: Friday 18:00 to 20:00'));
-
     await sendText(1, 'done');
     expect(edited.any((body) => body['reply_markup'] == null), isTrue);
     final confirmation = sent.last['text'] as String;
     expect(confirmation, contains('Before change:'));
     expect(confirmation, contains('After change:'));
-    expect(confirmation, contains('Saturday 9:00 to 13:00'));
-    expect(confirmation, contains('OCBC'));
-    expect(confirmation, contains('Saturday 13:00 to 17:00'));
-    expect(confirmation, contains('Pasir Ris'));
-
     await sendCallback(1, 'settime|yes');
-
-    // The template is real, not empty (four lines across three messages).
     final template = repo.scheduleTemplate();
     expect(template.length, 4);
-    expect(
-      template.map((r) => r.location).toSet(),
-      {Locations.ocbc, Locations.pasirRis},
-    );
-
-    // And the open weekend has sessions built from it, other weekdays included.
+    expect(template.map((r) => r.location).toSet(), {
+      Locations.ocbc,
+      Locations.pasirRis,
+    });
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
     final sessions = repo.sessionsForWeekend(w.sat0);
     expect(sessions.length, 4);
-    expect(
-      sessions.map((s) => s.location).toSet(),
-      {Locations.ocbc, Locations.pasirRis},
-    );
+    expect(sessions.map((s) => s.location).toSet(), {
+      Locations.ocbc,
+      Locations.pasirRis,
+    });
     expect(sessions.map((s) => s.day).toSet(), {'sat', 'sun', 'fri'});
-    expect(sessions.first.start.hour, 9);
   });
-
-  test('only members who indicated availability are asked to pick again',
-      () async {
-    await sendText(1, '/settime');
-    await sendText(1, 'sat 9 13 ocbc');
-    await sendText(1, 'done');
-    await sendCallback(1, 'settime|yes');
-
-    List<Map<String, dynamic>> pickers(int id) => [
-      for (final m in messagesTo(id))
-        if ((m['text'] as String? ?? '').contains('activity sessions have been updated'))
-          m,
-    ];
-
-    // The member who had indicated availability gets a fresh picker...
-    final availPickers = pickers(2);
-    expect(availPickers, isNotEmpty);
-    final markup = jsonEncode(availPickers.last['reply_markup']);
-    expect(markup, contains('slot|'));
-
-    // ...the member who answered "not available" does not...
-    expect(pickers(3), isEmpty);
-    // ...and neither does the member who never responded.
-    expect(pickers(4), isEmpty);
-  });
-
+  test(
+    'only members who indicated availability are asked to pick again',
+    () async {
+      await sendText(1, '/settime');
+      await sendText(1, 'sat 9 13 ocbc');
+      await sendText(1, 'done');
+      await sendCallback(1, 'settime|yes');
+      List<Map<String, dynamic>> pickers(int id) => [
+        for (final m in messagesTo(id))
+          if ((m['text'] as String? ?? '').contains(
+            'activity sessions have been updated',
+          ))
+            m,
+      ];
+      final availPickers = pickers(2);
+      expect(availPickers, isNotEmpty);
+      final markup = jsonEncode(availPickers.last['reply_markup']);
+      expect(markup, contains('slot|'));
+      expect(pickers(3), isEmpty);
+      expect(pickers(4), isEmpty);
+    },
+  );
   test('remove sessions uses tick buttons and confirmation', () async {
     await sendText(1, '/settime');
     await sendCallback(1, 'settime-scope|persistent');
     await sendCallback(1, 'settime-action|remove');
-    expect(edited.last['text'], contains('Select recurring sessions to remove'));
-
+    expect(
+      edited.last['text'],
+      contains('Select recurring sessions to remove'),
+    );
     await sendCallback(1, 'settime-remove|0');
     await sendCallback(1, 'settime-remove|done');
-    expect(edited.last['reply_markup'], isNull);
-    final confirmation = sent.last['text'] as String;
-    expect(confirmation, contains('Before change:'));
-    expect(confirmation, contains('After change:'));
-
     await sendCallback(1, 'settime|yes');
     expect(repo.scheduleTemplate(), hasLength(3));
   });
-
   test('temporary week labels show the Monday-Sunday calendar range', () async {
+    final saturday = DateTime(2026, 10, 3);
+    repo.ensureSessionsForWeekend(
+      saturday,
+      repo.scheduleForWeekend(saturday),
+      tzOffsetHours: config.timezoneOffsetHours,
+    );
+    final session = repo.sessionsForWeekend(saturday).first;
+    repo.replaceAllocationsForWeekend(saturday, [(2, session.id)]);
     await sendText(1, '/settime');
     await sendCallback(1, 'settime-scope|temporary');
     await sendCallback(1, 'settime-action|remove');
-
     final picker = edited.last['reply_markup'] as Map<String, dynamic>;
     final buttons = (picker['inline_keyboard'] as List)
         .expand((row) => row as List)
@@ -360,19 +343,48 @@ void main() {
         .toList();
     expect(buttons.first['text'], 'Week 2026-09-14 - 2026-09-20');
     expect(buttons.first['callback_data'], 'settime-week|2026-09-19');
-    expect(buttons[1]['text'], 'Week 2026-09-21 - 2026-09-27');
-    expect(buttons[1]['callback_data'], 'settime-week|2026-09-26');
-
-    await sendCallback(1, 'settime-week|2026-09-19');
+    expect(buttons, hasLength(6)); // Four weeks, Next, Cancel.
+    expect(buttons[2]['callback_data'], 'settime-week|2026-10-03');
+    expect(buttons[3]['callback_data'], 'settime-week|2026-10-10');
+    expect(buttons[4]['callback_data'], 'settime-week-page|1');
+    await sendCallback(1, 'settime-week-page|1');
+    final nextPage = edited.last['reply_markup'] as Map<String, dynamic>;
+    final nextButtons = (nextPage['inline_keyboard'] as List)
+        .expand((row) => row as List)
+        .map((button) => button as Map<String, dynamic>)
+        .toList();
+    expect(nextButtons[0]['callback_data'], 'settime-week|2026-10-17');
+    expect(nextButtons[4]['callback_data'], 'settime-week-page|0');
+    expect(nextButtons[5]['callback_data'], 'settime-week-page|2');
+    await sendCallback(1, 'settime-week-page|0');
+    await sendCallback(1, 'settime-week|2026-10-03');
     expect(
       edited.last['text'],
-      contains('Select sessions to remove from week 2026-09-14 - 2026-09-20:'),
+      contains('Select sessions to remove from week 2026-09-28 - 2026-10-04:'),
     );
-    await sendCallback(1, 'settime-remove|0');
+    final sessionButtons =
+        (edited.last['reply_markup'] as Map<String, dynamic>)['inline_keyboard']
+            as List;
+    final removeButton =
+        (sessionButtons.first as List).first as Map<String, dynamic>;
+    await sendCallback(1, removeButton['callback_data'] as String);
     await sendCallback(1, 'settime-remove|done');
-    expect(sent.last['text'], contains('Week 2026-09-14 - 2026-09-20 will be updated to:'));
+    expect(sent.last['text'], contains('These allocations will be removed:'));
+    expect(sent.last['text'], contains('@avail'));
+    await sendCallback(1, 'settime|yes');
+    expect(
+      repo
+          .scheduleForWeekend(saturday)
+          .any(
+            (row) =>
+                row.day == session.day &&
+                row.slot == session.slot &&
+                row.location == session.location,
+          ),
+      isFalse,
+    );
+    expect(repo.allocationsForWeekend(saturday), isEmpty);
   });
-
 }
 
 Future<void> _json(

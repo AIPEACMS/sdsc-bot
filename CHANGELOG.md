@@ -2,6 +2,14 @@
 
 All notable user-facing changes to the SDSC bot.
 
+## [4.9.0] - 2026-10-17
+
+### Added
+
+- Added authenticated selected-week schedule retrieval and temporary/recurring schedule preview and commit APIs.
+- Added selected-week allocation removal targeting outside the rolling window, with server-side lock validation.
+- Expanded the Telegram temporary removal picker to four-week pages with continuing navigation and visible locked weeks.
+
 ## [4.8.1] - 2026-10-17
 
 ### Fixed
