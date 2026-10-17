@@ -5,6 +5,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.7.6] - 2026-10-17
+
+### Fixed
+
+- Temporary `/settime` changes now preserve availability and allocations for
+  sessions that remain, while removing records only for deleted sessions.
+
 ## [4.7.5] - 2026-10-11
 
 ### Fixed

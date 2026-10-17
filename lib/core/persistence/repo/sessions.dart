@@ -211,8 +211,23 @@ extension RepoSessions on Repo {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
+      final weekendKey = _dayKey(sat);
+      final existingRows = tx.select(
+        'SELECT id, day, slot, location FROM sessions WHERE weekend_start = ?',
+        [weekendKey],
+      );
+      final existingByIdentity = {
+        for (final row in existingRows)
+          (
+            row['day'] as String,
+            row['slot'] as String,
+            row['location'] as String,
+          ): row['id'] as int,
+      };
+      final retained = <(String, String, String)>{};
+
       tx.execute('DELETE FROM schedule_overrides WHERE weekend_start = ?', [
-        this._dayKey(sat),
+        weekendKey,
       ]);
       for (final r in rows) {
         tx.execute(
@@ -220,7 +235,7 @@ extension RepoSessions on Repo {
           '(weekend_start, day, slot, start_at, end_at, location_key, '
           'max_people, capacity_group) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
           [
-            this._dayKey(sat),
+            weekendKey,
             r.day,
             r.slot,
             r.start,
@@ -230,13 +245,62 @@ extension RepoSessions on Repo {
             r.capacityGroup,
           ],
         );
+
+        final identity = (r.day, r.slot, r.location);
+        retained.add(identity);
+        final sessionId = existingByIdentity[identity];
+        final date = _sessionDate(sat, r.day);
+        if (sessionId != null && date != null) {
+          tx.execute(
+            'UPDATE sessions SET start_at = ?, end_at = ?, max_people = ?, '
+            'capacity_group = ? WHERE id = ?',
+            [
+              _fmt(_parseTime(date, r.start)),
+              _fmt(_parseTime(date, r.end)),
+              r.maxPeople,
+              r.capacityGroup,
+              sessionId,
+            ],
+          );
+        } else if (sessionId == null && date != null) {
+          tx.execute(
+            'INSERT INTO sessions '
+            '(weekend_start, day, slot, location, start_at, end_at, '
+            'max_people, capacity_group) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+            [
+              weekendKey,
+              r.day,
+              r.slot,
+              r.location,
+              _fmt(_parseTime(date, r.start)),
+              _fmt(_parseTime(date, r.end)),
+              r.maxPeople,
+              r.capacityGroup,
+            ],
+          );
+        }
+      }
+
+      final removedIds = existingRows
+          .where(
+            (row) => !retained.contains((
+              row['day'] as String,
+              row['slot'] as String,
+              row['location'] as String,
+            )),
+          )
+          .map((row) => row['id'] as int)
+          .toList();
+      for (final id in removedIds) {
+        tx.execute('DELETE FROM allocations WHERE session_id = ?', [id]);
+        tx.execute('DELETE FROM attendance WHERE session_id = ?', [id]);
+        tx.execute('DELETE FROM sessions WHERE id = ?', [id]);
       }
       tx.execute('COMMIT');
     } catch (_) {
       tx.execute('ROLLBACK');
       rethrow;
     }
-    replaceSessionsForWeekend(sat, rows, tzOffsetHours: tzOffsetHours);
   }
 
   void clearScheduleOverride(DateTime sat) {
@@ -275,5 +339,4 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       );
     }
   }
-
 }
