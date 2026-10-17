@@ -1,7 +1,6 @@
 part of '../../repo.dart';
 
 extension RepoSessions on Repo {
-
   LocationInfo? locationByKey(String key) {
     final rows = raw.select('SELECT * FROM locations WHERE key = ?', [key]);
     return rows.isEmpty ? null : LocationInfo.fromRow(rows.first);
@@ -46,14 +45,13 @@ extension RepoSessions on Repo {
 
   /// Derives a unique camelCase key from a display name.
   String _locationKey(String name) {
-    final words =
-        _normLocation(name).split(' ').where((w) => w.isNotEmpty).toList();
+    final words = _normLocation(
+      name,
+    ).split(' ').where((w) => w.isNotEmpty).toList();
     if (words.isEmpty) return 'loc';
-    final base = words.first +
-        words
-            .skip(1)
-            .map((w) => w[0].toUpperCase() + w.substring(1))
-            .join();
+    final base =
+        words.first +
+        words.skip(1).map((w) => w[0].toUpperCase() + w.substring(1)).join();
     var key = base;
     var n = 2;
     while (locationByKey(key) != null) {
@@ -107,8 +105,9 @@ extension RepoSessions on Repo {
   bool approveLocation(int id, {String? name, List<String>? aliases}) {
     final loc = locationById(id);
     if (loc == null) return false;
-    final finalName =
-        (name == null || name.trim().isEmpty) ? loc.name : name.trim();
+    final finalName = (name == null || name.trim().isEmpty)
+        ? loc.name
+        : name.trim();
     final merged = _cleanAliases([...loc.aliases, ...?aliases]);
     raw.execute(
       "UPDATE locations SET status = 'approved', name = ?, aliases = ? "
@@ -123,10 +122,10 @@ extension RepoSessions on Repo {
     final loc = locationByKey(locationKey);
     if (loc == null) return;
     final merged = _cleanAliases([...loc.aliases, ...aliases]);
-    raw.execute(
-      'UPDATE locations SET aliases = ? WHERE key = ?',
-      [jsonEncode(merged), locationKey],
-    );
+    raw.execute('UPDATE locations SET aliases = ? WHERE key = ?', [
+      jsonEncode(merged),
+      locationKey,
+    ]);
   }
 
   List<String> _cleanAliases(List<String> aliases) {
@@ -196,7 +195,15 @@ extension RepoSessions on Repo {
           'INSERT INTO schedule_template '
           '(day, slot, start_at, end_at, location_key, max_people, capacity_group) '
           'VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [r.day, r.slot, r.start, r.end, r.location, r.maxPeople, r.capacityGroup],
+          [
+            r.day,
+            r.slot,
+            r.start,
+            r.end,
+            r.location,
+            r.maxPeople,
+            r.capacityGroup,
+          ],
         );
       }
       tx.execute('COMMIT');
@@ -216,7 +223,8 @@ extension RepoSessions on Repo {
     try {
       final weekendKey = _dayKey(sat);
       final existingRows = tx.select(
-        'SELECT id, day, slot, location FROM sessions WHERE weekend_start = ?',
+        'SELECT id, day, slot, location, start_at, end_at '
+        'FROM sessions WHERE weekend_start = ?',
         [weekendKey],
       );
       final existingByIdentity = {
@@ -254,16 +262,30 @@ extension RepoSessions on Repo {
         final sessionId = existingByIdentity[identity];
         final date = _sessionDate(sat, r.day);
         if (sessionId != null && date != null) {
+          final old = existingRows.firstWhere((row) => row['id'] == sessionId);
+          final startAt = _fmt(_parseTime(date, r.start));
+          final endAt = _fmt(_parseTime(date, r.end));
+          if (old['start_at'] != startAt || old['end_at'] != endAt) {
+            for (final availability in availabilityForWeekend(sat)) {
+              removeAvailabilityForSession(
+                availability.userId,
+                sat,
+                r.day,
+                r.slot,
+                r.location,
+              );
+            }
+            tx.execute('DELETE FROM allocations WHERE session_id = ?', [
+              sessionId,
+            ]);
+            tx.execute('DELETE FROM attendance WHERE session_id = ?', [
+              sessionId,
+            ]);
+          }
           tx.execute(
             'UPDATE sessions SET start_at = ?, end_at = ?, max_people = ?, '
             'capacity_group = ? WHERE id = ?',
-            [
-              _fmt(_parseTime(date, r.start)),
-              _fmt(_parseTime(date, r.end)),
-              r.maxPeople,
-              r.capacityGroup,
-              sessionId,
-            ],
+            [startAt, endAt, r.maxPeople, r.capacityGroup, sessionId],
           );
         } else if (sessionId == null && date != null) {
           tx.execute(

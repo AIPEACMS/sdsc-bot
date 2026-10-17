@@ -29,7 +29,10 @@ extension SetTimeCommand on SetTime {
         if (_isGadmin(ctx)) await _onChoice(ctx, head);
         return;
       }
-      if (head == 'settime-week' || head == 'settime-remove') {
+      if (head == 'settime-week' ||
+          head == 'settime-week-page' ||
+          head == 'settime-week-locked' ||
+          head == 'settime-remove') {
         if (_isGadmin(ctx)) await _onRemoveChoice(ctx, head);
         return;
       }
@@ -153,6 +156,12 @@ extension SetTimeCommand on SetTime {
   }
 
   Future<void> _onRemoveChoice(Context ctx, String head) async {
+    if (head == 'settime-week-locked') {
+      await ctx.answerCallbackQuery(
+        text: 'That week is locked and cannot be changed.',
+      );
+      return;
+    }
     await ctx.answerCallbackQuery();
     final userId = ctx.from!.id;
     final draft = _drafts[userId];
@@ -170,6 +179,13 @@ extension SetTimeCommand on SetTime {
       if (sat == null) return;
       draft.targetSaturday = sat;
       await _showRemovePicker(ctx, userId);
+      return;
+    }
+    if (head == 'settime-week-page') {
+      final page = int.tryParse(value);
+      if (page == null || page < 0) return;
+      draft.temporaryWeekPage = page;
+      await _showTemporaryWeekPicker(ctx, userId);
       return;
     }
     if (value == 'done') {
@@ -211,20 +227,43 @@ extension SetTimeCommand on SetTime {
 
   Future<void> _showTemporaryWeekPicker(Context ctx, int userId) async {
     final now = config.toLocal(Config.nowUtc());
-    final window = scheduleRuntime.window(now);
+    final draft = _drafts[userId]!;
+    final thisSaturday = DateTime(
+      now.year,
+      now.month,
+      now.day,
+    ).add(Duration(days: (DateTime.saturday - now.weekday + 7) % 7));
+    final first = thisSaturday.add(
+      Duration(days: draft.temporaryWeekPage * 28),
+    );
     var kb = InlineKeyboard();
-    for (final sat in [window.sat0, window.sat1]) {
-      if (window.locked(sat, now)) continue;
+    for (var i = 0; i < 4; i++) {
+      final sat = first.add(Duration(days: i * 7));
+      final monday = sat.subtract(const Duration(days: 5));
+      final lockAt = scheduleRuntime.schedule.lock.on(monday);
+      final locked = !now.isBefore(lockAt);
       kb = kb
           .text(
-        'Week ${_calendarWeekLabel(sat)}',
-        'settime-week|${_date(sat)}',
+            '${locked ? '🔒 ' : ''}Week ${_calendarWeekLabel(sat)}',
+            locked
+                ? 'settime-week-locked|${_date(sat)}'
+                : 'settime-week|${_date(sat)}',
           )
           .row();
     }
-    kb = kb.text('❌ Cancel', 'settime|no');
+    kb = kb.row();
+    if (draft.temporaryWeekPage > 0) {
+      kb = kb.text(
+        '‹ Prev page',
+        'settime-week-page|${draft.temporaryWeekPage - 1}',
+      );
+    }
+    kb = kb
+        .text('Next page ›', 'settime-week-page|${draft.temporaryWeekPage + 1}')
+        .row()
+        .text('❌ Cancel', 'settime|no');
     await ctx.editMessageText(
-      'Choose the week whose sessions you want to remove:',
+      'Choose the week whose sessions you want to remove. Locked weeks are shown but cannot be changed:',
       replyMarkup: kb,
     );
   }
@@ -247,8 +286,8 @@ extension SetTimeCommand on SetTime {
       kb = kb
           .text(
             '${selected ? '☑' : '☐'} ${Slot.dayName(row.day)} '
-            '${prettyClock(row.start)}-${prettyClock(row.end)} '
-            '${repo.locationName(row.location)}$max',
+                '${prettyClock(row.start)}-${prettyClock(row.end)} '
+                '${repo.locationName(row.location)}$max',
             'settime-remove|$i',
           )
           .row();
@@ -259,7 +298,7 @@ extension SetTimeCommand on SetTime {
         .text('❌ Cancel', 'settime|no');
     final text = draft.scope == _SetTimeScope.temporary
         ? 'Select sessions to remove from week '
-            '${_calendarWeekLabel(draft.targetSaturday!)}:'
+              '${_calendarWeekLabel(draft.targetSaturday!)}:'
         : 'Select recurring sessions to remove:';
     if (edit) {
       await ctx.editMessageText(text, replyMarkup: kb);

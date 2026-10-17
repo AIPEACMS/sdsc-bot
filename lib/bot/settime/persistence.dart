@@ -19,7 +19,8 @@ extension SetTimePersistence on SetTime {
     final affected = <int>{};
     if (draft.scope == _SetTimeScope.temporary) {
       final sat = draft.targetSaturday!;
-      if (sat != w.sat0 && sat != w.sat1) {
+      final isCurrentWindowWeek = sat == w.sat0 || sat == w.sat1;
+      if (draft.action != _SetTimeAction.remove && !isCurrentWindowWeek) {
         await ctx.editMessageText(
           '⚠️ That date is outside the current two-week window. '
           'The activity list is unchanged.',
@@ -27,7 +28,9 @@ extension SetTimePersistence on SetTime {
         );
         return;
       }
-      if (w.locked(sat, now)) {
+      final monday = sat.subtract(const Duration(days: 5));
+      final locked = !now.isBefore(scheduleRuntime.schedule.lock.on(monday));
+      if (locked) {
         await ctx.editMessageText(
           '⚠️ That week is already locked. The activity list is unchanged.',
           replyMarkup: null,
@@ -74,9 +77,8 @@ extension SetTimePersistence on SetTime {
             ChatID(entry.key),
             AllocationRemovalNotice.message(
               entry.value.map(
-                (session) => AllocationRemovalNotice.escape(
-                  _sessionName(session),
-                ),
+                (session) =>
+                    AllocationRemovalNotice.escape(_sessionName(session)),
               ),
             ),
             parseMode: ParseMode.html,

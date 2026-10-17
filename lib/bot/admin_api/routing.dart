@@ -133,6 +133,16 @@ extension AdminApiRouting on AdminApi {
         if (segs.length != 2) return (404, {'ok': false, 'error': 'not found'});
         if (method == 'GET') return (200, _scheduleBody());
         if (method == 'POST') return _setSchedule(bodyText);
+      case 'session-schedule':
+        if (method == 'POST' && segs.length == 3 && segs[2] == 'read') {
+          return _readSelectedSchedule(bodyText);
+        }
+        if (method == 'POST' && segs.length == 3 && segs[2] == 'preview') {
+          return _sessionSchedulePreview(bodyText);
+        }
+        if (method == 'POST' && segs.length == 3 && segs[2] == 'commit') {
+          return _sessionScheduleCommit(bodyText);
+        }
       case 'users':
         if (method == 'GET' && segs.length == 2) {
           return (200, {'ok': true, 'users': _usersJson()});
