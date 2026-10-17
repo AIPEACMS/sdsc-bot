@@ -9,6 +9,7 @@ import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import 'support/repick_harness.dart';
+import 'support/bot_readiness.dart';
 
 void main() {
   setUp(setUpRepick);
@@ -18,8 +19,10 @@ void main() {
     () async {
       final sent = <Map<String, dynamic>>[];
       final editedMarkups = <Map<String, dynamic>>[];
+      final readiness = BotReadiness();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       server.listen((req) async {
+        readiness.observe(req);
         final path = req.uri.path;
         if (path.endsWith('/getMe')) {
           await _json(req, {
@@ -94,7 +97,7 @@ void main() {
       ).register();
 
       final startFuture = bot.start();
-      await Future<void>.delayed(const Duration(milliseconds: 300));
+      await readiness.wait();
 
       Future<void> cmd(
         int updateId,
@@ -152,8 +155,10 @@ void main() {
 
   test('pfcancel aborts the profile wizard, keeping the saved name', () async {
     final sent = <Map<String, dynamic>>[];
+    final readiness = BotReadiness();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
+      readiness.observe(req);
       final path = req.uri.path;
       if (path.endsWith('/getMe')) {
         await _json(req, {
@@ -216,7 +221,7 @@ void main() {
     ).register();
 
     final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await readiness.wait();
 
     // alice has a preferred name already → the first prompt carries Cancel.
     await bot.handleUpdate(
@@ -267,8 +272,10 @@ void main() {
 
   test('/start prompts the profile wizard when fields are empty', () async {
     final sent = <Map<String, dynamic>>[];
+    final readiness = BotReadiness();
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
+      readiness.observe(req);
       final path = req.uri.path;
       if (path.endsWith('/getMe')) {
         await _json(req, {
@@ -325,7 +332,7 @@ void main() {
     ).register();
 
     final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await readiness.wait();
 
     await bot.handleUpdate(
       Update.fromJson({

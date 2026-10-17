@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:televerse/televerse.dart';
+import 'package:televerse/telegram.dart' hide Location, User;
 
 import '../core/config.dart';
 import '../core/log.dart';
@@ -12,6 +13,7 @@ import 'hold.dart';
 import 'key_auth.dart';
 import 'server_identity.dart';
 import 'service.dart';
+import 'allocation_removal_notice.dart';
 import '../core/schedule.dart';
 
 /// HTTP admin API for the desktop console app. Every request must authenticate
@@ -63,6 +65,7 @@ part 'admin_api/routing.dart';
 part 'admin_api/users.dart';
 part 'admin_api/operations.dart';
 part 'admin_api/attendance.dart';
+part 'admin_api/removals.dart';
 part 'admin_api/part_05.dart';
 
 Map<String, dynamic> _jsonBody(String text) {
@@ -71,7 +74,6 @@ Map<String, dynamic> _jsonBody(String text) {
 }
 
 class _AdminApiBase {
-
   final Repo repo;
 
   final Config config;

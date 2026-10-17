@@ -95,30 +95,26 @@ void main() {
     },
   );
 
-  test('a queued checker receives one checker welcome and grid on /start',
-      () async {
-    await sendText(1, '/addcheck @newchecker');
-    sent.clear();
+  test(
+    'a queued checker receives one checker welcome and grid on /start',
+    () async {
+      await sendText(1, '/addcheck @newchecker');
+      sent.clear();
 
-    await sendText(4, '/start', username: 'newchecker');
+      await sendText(4, '/start', username: 'newchecker');
 
-    expect(repo.findUser(4)!.memberTier, MemberTier.check);
-    expect(sent, hasLength(1));
-    expect(sent.single['text'], contains('you are a checker'));
-    expect(keyboardTexts(sent.single), contains('check-status'));
-  });
+      expect(repo.findUser(4)!.memberTier, MemberTier.check);
+      expect(sent, hasLength(1));
+      expect(sent.single['text'], contains('you are a checker'));
+      expect(keyboardTexts(sent.single), contains('check-status'));
+    },
+  );
 
   test('a queued out-member receives the Member-o welcome', () async {
-    repo.addPendingUser(
-      'newout',
-      isAdmin: false,
-      tier: MemberTier.outMember,
-    );
+    repo.addPendingUser('newout', isAdmin: false, tier: MemberTier.outMember);
     sent.clear();
 
     await sendText(8, 'hello', username: 'newout');
-    await Future<void>.delayed(const Duration(milliseconds: 100));
-
     expect(sent, hasLength(1));
     expect(sent.single['text'], contains('<b>Member-o</b>'));
     expect(sent.single['text'], isNot(contains('out-member')));

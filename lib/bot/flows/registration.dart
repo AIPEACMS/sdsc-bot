@@ -11,11 +11,11 @@ extension FlowsRegistration on Flows {
       final text = ctx.message?.text;
       if (text != null) {
         final userId = ctx.from!.id;
-        this._recordSeen(ctx, userId);
+        await _recordSeen(ctx, userId);
 
         if (state.isValidCommandText(text)) {
           final pending = state.pendingArg.remove(userId);
-          await this._dismissInteractiveMessages(userId);
+          await _dismissInteractiveMessages(userId);
           if (pending != null) {
             onPendingInputCleared?.call(userId, pending.command);
           }
@@ -28,12 +28,12 @@ extension FlowsRegistration on Flows {
         final pending = state.pendingArg[userId];
         if (pending != null && pending.isExpired) {
           state.pendingArg.remove(userId);
-          await this._dismissInteractiveMessages(userId);
+          await _dismissInteractiveMessages(userId);
           onPendingInputCleared?.call(userId, pending.command);
         } else if (pending != null) {
           state.pendingArg.remove(userId);
-          await this._dismissInteractiveMessages(userId);
-          await this._consumePendingArg(ctx, userId, pending.command, text);
+          await _dismissInteractiveMessages(userId);
+          await _consumePendingArg(ctx, userId, pending.command, text);
           return;
         }
         // The preferred-name profile wizard.
@@ -63,7 +63,7 @@ extension FlowsRegistration on Flows {
           head == 'cancel' ||
           head == 'holidayout' ||
           head == 'notify') {
-        await this._onCallback(ctx);
+        await _onCallback(ctx);
         return;
       }
       if (head == 'noop' || head == 'locked' || head == 'full') {
@@ -94,22 +94,22 @@ extension FlowsRegistration on Flows {
     // Register commands after the bookkeeping middleware. This lets a valid
     // command cancel a pending text flow before its handler runs.
     commandBoth(bot, state, 'start', _onStart, label: 'start');
-    commandBoth(bot, state, 'repick', this._onRepick, label: '(re)pick');
+    commandBoth(bot, state, 'repick', _onRepick, label: '(re)pick');
     commandBoth(bot, state, 'setinfo', _onSetInfo, label: 'set-info');
-    commandBoth(bot, state, 'mystatus', this._onMyStatus, label: 'my-status');
+    commandBoth(bot, state, 'mystatus', _onMyStatus, label: 'my-status');
     state.registerCommand('checkstatus');
-    bot.command('checkstatus', this._onCheckStatusCommand);
+    bot.command('checkstatus', _onCheckStatusCommand);
     state.registerLabel('check-status');
-    bot.hears('check-status', this._onCheckStatus);
-    commandBoth(bot, state, 'grid', this._onGrid, label: 'grid');
+    bot.hears('check-status', _onCheckStatus);
+    commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
     commandBoth(
       bot,
       state,
       'resetgrid',
-      this._onResetGrid,
+      _onResetGrid,
       label: 'reset-grid',
     );
-    commandBoth(bot, state, 'notify', this._onNotify, label: 'notify');
+    commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
     state.registerLabel('more-cmd');
     bot.hears('more-cmd', _onMoreCommands);
   }
@@ -118,7 +118,7 @@ extension FlowsRegistration on Flows {
 
   Future<void> _onStart(Context ctx) async {
     final userId = ctx.from!.id;
-    this._recordSeen(ctx, userId);
+    await _recordSeen(ctx, userId);
 
     final user = repo.findUser(userId);
     final isConsole = config.isConsole(userId);
@@ -134,7 +134,7 @@ extension FlowsRegistration on Flows {
     final checker = user?.memberTier == MemberTier.check;
 
     final sb = StringBuffer(
-      '👋 <b>${this._html(name)}</b>, here is what you can do:',
+      '👋 <b>${_html(name)}</b>, here is what you can do:',
     );
 
     if (retired) {
@@ -147,8 +147,8 @@ extension FlowsRegistration on Flows {
     // check-status keyboard instead of presenting the generic role sections.
     if (checker && !isConsole) {
       await ctx.reply(
-          '👋 <b>${this._html(name)}</b>, you are a checker.\n\n'
-          'check-status - show the current week\'s allocation',
+        '👋 <b>${_html(name)}</b>, you are a checker.\n\n'
+        'check-status - show the current week\'s allocation',
         parseMode: ParseMode.html,
         replyMarkup: RoleKeyboard.build('check'),
       );
@@ -168,11 +168,11 @@ extension FlowsRegistration on Flows {
               section.title == 'Out-member'
           ? 'Member-o'
           : section.title;
-      sb.write('\n\n<b>${this._html(title)}</b>');
+      sb.write('\n\n<b>${_html(title)}</b>');
       for (final button in section.buttons) {
         sb.write(
-          '\n${this._html(button.label)} - '
-          '${this._html(RoleKeyboard.descriptionFor(button, outMember: section.title == 'Out-member'))}',
+          '\n${_html(button.label)} - '
+          '${_html(RoleKeyboard.descriptionFor(button, outMember: section.title == 'Out-member'))}',
         );
       }
     }
@@ -201,7 +201,7 @@ extension FlowsRegistration on Flows {
       sb.toString(),
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(
-        this._gridFor(userId),
+        _gridFor(userId),
         consoleIdentity: isConsole,
       ),
     );
@@ -215,7 +215,7 @@ extension FlowsRegistration on Flows {
 
   Future<void> _onMoreCommands(Context ctx) async {
     final userId = ctx.from!.id;
-    this._recordSeen(ctx, userId);
+    await _recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     final isConsole = config.isConsole(userId);
     if (user == null && !isConsole) return;
@@ -238,7 +238,7 @@ extension FlowsRegistration on Flows {
       text,
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(
-        this._gridFor(userId),
+        _gridFor(userId),
         consoleIdentity: isConsole,
       ),
     );
@@ -251,9 +251,9 @@ extension FlowsRegistration on Flows {
   /// without losing their info.
   Future<void> _onSetInfo(Context ctx) async {
     final userId = ctx.from!.id;
-    this._recordSeen(ctx, userId);
+    await _recordSeen(ctx, userId);
     final user = repo.findUser(userId);
-    if (user == null || !this._isActive(user)) return;
+    if (user == null || !_isActive(user)) return;
     await _startProfileWizard(ctx, userId, user);
   }
 

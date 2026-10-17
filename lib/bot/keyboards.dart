@@ -173,7 +173,7 @@ class RoleKeyboard {
     if (isGlobalAdmin) {
       sections.add(
         VisibleRoleSection('Global admin', [
-          if (roleMore != null) roleMore,
+          ?roleMore,
           ...globalAdminButtons.where((button) =>
               !adminButtons.contains(button) &&
               button != moreGlobalAdminCommandsButton),

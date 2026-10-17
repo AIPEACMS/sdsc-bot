@@ -15,6 +15,7 @@ import 'package:sdsc_bot/core/repo.dart';
 import 'package:televerse/televerse.dart';
 import 'package:televerse/telegram.dart' show Update;
 import 'package:test/test.dart';
+import 'support/bot_readiness.dart';
 
 void main() {
   late Directory tmp;
@@ -23,6 +24,7 @@ void main() {
   late BotState state;
   late Bot bot;
   late HttpServer server;
+  late BotReadiness readiness;
   late List<Map<String, dynamic>> sent;
   late List<Map<String, dynamic>> edited;
   late Future<void> botStart;
@@ -50,8 +52,10 @@ void main() {
     state = BotState();
     sent = [];
     edited = [];
+    readiness = BotReadiness();
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((request) async {
+      readiness.observe(request);
       final path = request.uri.path;
       if (path.endsWith('/getMe')) {
         await _json(request, {
@@ -167,7 +171,7 @@ void main() {
     );
 
     botStart = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await readiness.wait();
     addTearDown(() async {
       await bot.stop();
       await botStart;
@@ -263,13 +267,13 @@ void main() {
         sent.last['text'],
         contains('@checker is not a member, skipping.'),
       );
-       expect(
-         sent.last['text'],
-         contains(
-           'Please confirm you want to assign these members to group 2 '
-           'under leader @leader:',
-         ),
-       );
+      expect(
+        sent.last['text'],
+        contains(
+          'Please confirm you want to assign these members to group 2 '
+          'under leader @leader:',
+        ),
+      );
       await callback(2, 'assigngroup|yes');
       expect(repo.findUser(4)!.group, '2');
       expect(edited.last['reply_markup'], isNull);

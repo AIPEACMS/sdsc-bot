@@ -4,12 +4,23 @@ extension SetTimeCommand on SetTime {
   /// Drafts in progress, per gadmin user id.
   void register() {
     commandBoth(bot, state, 'settime', _guard(_start), label: 'set-time');
+    state.registerCommand('rm_allocate_entry');
+    bot.command('rm_allocate_entry', _guard(_startAllocationRemoval));
+    bot.hears('/rm_allocate_entry', _guard(_startAllocationRemoval));
     bot.use((ctx, next) async {
       final data = ctx.callbackQuery?.data;
       if (data == null) return next();
       final head = data.split('|').first;
       if (head == 'settime') {
-        if (_isGadmin(ctx)) await this._onConfirmOrCancel(ctx);
+        if (_isGadmin(ctx)) await _onConfirmOrCancel(ctx);
+        return;
+      }
+      if (head == 'rmalloc') {
+        if (_isGadmin(ctx)) {
+          await _onAllocationRemovalCallback(ctx);
+        } else {
+          await ctx.answerCallbackQuery(text: 'Not authorized');
+        }
         return;
       }
       if (head == 'settime-scope' ||
@@ -23,7 +34,7 @@ extension SetTimeCommand on SetTime {
         return;
       }
       if (head == 'stloc') {
-        if (_isGadmin(ctx)) await this._onLocationChoice(ctx);
+        if (_isGadmin(ctx)) await _onLocationChoice(ctx);
         return;
       }
       await next();
@@ -82,7 +93,7 @@ extension SetTimeCommand on SetTime {
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
     final value = parts.length > 1 ? parts[1] : '';
     if (head == 'settime-conflict') {
-      await this._resolveConflict(ctx, userId, value);
+      await _resolveConflict(ctx, userId, value);
       return;
     }
     if (head == 'settime-scope') {
@@ -166,7 +177,7 @@ extension SetTimeCommand on SetTime {
         return;
       }
       await ctx.editMessageText('Selection accepted.', replyMarkup: null);
-      await this._showConfirmation(ctx, userId);
+      await _showConfirmation(ctx, userId);
       return;
     }
     final index = int.tryParse(value);
@@ -178,7 +189,7 @@ extension SetTimeCommand on SetTime {
       return;
     }
     final row = draft.beforeRows![index];
-    final key = this._rowKey(row);
+    final key = _rowKey(row);
     if (draft.removeKeys.contains(key)) {
       draft.removeKeys.remove(key);
     } else {
@@ -188,7 +199,7 @@ extension SetTimeCommand on SetTime {
       ..clear()
       ..addAll(
         draft.beforeRows!.where(
-          (candidate) => draft.removeKeys.contains(this._rowKey(candidate)),
+          (candidate) => draft.removeKeys.contains(_rowKey(candidate)),
         ),
       );
     await _showRemovePicker(ctx, userId, edit: true);
@@ -203,7 +214,7 @@ extension SetTimeCommand on SetTime {
       kb = kb
           .text(
         'Week ${_calendarWeekLabel(sat)}',
-        'settime-week|${this._date(sat)}',
+        'settime-week|${_date(sat)}',
           )
           .row();
     }
@@ -227,7 +238,7 @@ extension SetTimeCommand on SetTime {
     var kb = InlineKeyboard();
     for (var i = 0; i < before.length; i++) {
       final row = before[i];
-      final selected = draft.removeKeys.contains(this._rowKey(row));
+      final selected = draft.removeKeys.contains(_rowKey(row));
       final max = row.maxPeople == null ? '' : ' ${row.maxPeople}';
       kb = kb
           .text(

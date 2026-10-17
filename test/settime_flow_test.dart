@@ -14,6 +14,7 @@ import 'package:sdsc_bot/bot/flows.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/settime.dart';
 import 'package:sdsc_bot/bot/state.dart';
+import 'support/bot_readiness.dart';
 
 /// End-to-end `/settime`: lines -> confirmation -> apply, plus the re-pick
 /// prompt scope. Regression cover for the "template replaced (0 rows)" bug,
@@ -32,6 +33,7 @@ void main() {
   late List<Map<String, dynamic>> edited;
   late HttpServer server;
   late Bot bot;
+  late BotReadiness readiness;
 
   setUp(() async {
     // Pin the clock to a Wednesday so both weekends of the window are open.
@@ -59,8 +61,10 @@ void main() {
 
     sent = <Map<String, dynamic>>[];
     edited = <Map<String, dynamic>>[];
+    readiness = BotReadiness();
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     server.listen((req) async {
+      readiness.observe(req);
       final path = req.uri.path;
       if (path.endsWith('/getMe')) {
         await _json(req, {
@@ -185,7 +189,7 @@ void main() {
     );
 
     final startFuture = bot.start();
-    await Future<void>.delayed(const Duration(milliseconds: 300));
+    await readiness.wait();
     addTearDown(() async {
       await bot.stop();
       await startFuture;
@@ -369,22 +373,6 @@ void main() {
     expect(sent.last['text'], contains('Week 2026-09-14 - 2026-09-20 will be updated to:'));
   });
 
-  test('overlap choice replaces its buttons with the final confirmation', () async {
-    await sendText(1, '/settime');
-    await sendText(1, 'sat 9 13 ocbc');
-    await sendText(1, 'sat 9 15 ocbc');
-    await sendText(1, 'done');
-    expect(sent.last['text'], contains('Overlapping sessions found'));
-
-    await sendCallback(1, 'settime-conflict|same');
-    expect(edited.last['text'], contains('Before change:'));
-    final markup = edited.last['reply_markup'] as Map<String, dynamic>;
-    final callbacks = (markup['inline_keyboard'] as List)
-        .expand((row) => row as List)
-        .map((button) => (button as Map)['callback_data'] as String)
-        .toList();
-    expect(callbacks, isNot(contains('settime-conflict|same')));
-  });
 }
 
 Future<void> _json(

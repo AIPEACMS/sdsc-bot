@@ -101,8 +101,8 @@ extension RepoUsers on Repo {
       user.preferredName,
       user.storedMatricNo,
       user.storedSchoolEmail,
-      this._storedTier(user.memberTier),
-      this._notificationPreferenceValue(user.notificationPreference),
+      _storedTier(user.memberTier),
+      _notificationPreferenceValue(user.notificationPreference),
       user.lastPromptState.name,
     ];
     if (user.registeredAt != null) {
@@ -201,7 +201,7 @@ extension RepoUsers on Repo {
   void setNotificationPreference(int id, NotificationPreference preference) {
     raw.execute(
       'UPDATE users SET notification_preference = ? WHERE id = ?',
-      [this._notificationPreferenceValue(preference), id],
+      [_notificationPreferenceValue(preference), id],
     );
   }
 
@@ -222,10 +222,10 @@ extension RepoUsers on Repo {
     if (isAdmin && user.memberTier == MemberTier.outMember) return false;
     if (isAdmin) {
       raw.execute('UPDATE users SET is_admin = 1 WHERE id = ?', [id]);
-      this._assignGroupOnPromotion(id);
+      _assignGroupOnPromotion(id);
     } else {
       raw.execute('UPDATE users SET is_admin = 0 WHERE id = ?', [id]);
-      this._dissolveGroup(user.group);
+      _dissolveGroup(user.group);
     }
     return true;
   }
@@ -238,7 +238,7 @@ extension RepoUsers on Repo {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
-      this._dissolveGroup(user.group);
+      _dissolveGroup(user.group);
       tx.execute(
         'UPDATE users SET is_admin = 0, member_tier = ?, group_id = \'\' '
         'WHERE id = ?',

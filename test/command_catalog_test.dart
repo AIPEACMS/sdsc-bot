@@ -108,6 +108,7 @@ void main() {
       '/removeuser',
       '/synccalendar',
       '/assigngroup',
+      '/rm_allocate_entry',
       ...admin.map((entry) => entry.command),
     ]);
     expect(gadmin.map((entry) => entry.command), isNot(contains('/hold')));
@@ -298,6 +299,7 @@ void main() {
       '/removeuser',
       '/synccalendar',
       '/assigngroup',
+      '/rm_allocate_entry',
       '/allusers',
       '/groupuser',
       '/prompt',

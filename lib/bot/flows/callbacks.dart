@@ -80,7 +80,7 @@ extension FlowsCallbacks on Flows {
   /// must be able to actually test the output).
   Future<void> _onCheckStatus(Context ctx) async {
     final userId = ctx.from!.id;
-    this._recordSeen(ctx, userId);
+    await _recordSeen(ctx, userId);
     final user = repo.findUser(userId);
     final isConsoleUser = config.isConsole(userId);
     if (user == null && !isConsoleUser) return;
@@ -93,7 +93,7 @@ extension FlowsCallbacks on Flows {
     }
 
     final now = config.toLocal(Config.nowUtc());
-    final w = this._windowFor(now);
+    final w = _windowFor(now);
 
     // "This week": weekend-0 during its week, weekend-1 once we roll over.
     final sat = now.isBefore(w.sat1) ? w.sat0 : w.sat1;
@@ -149,21 +149,21 @@ extension FlowsCallbacks on Flows {
     if (data.isEmpty) return;
     final parts = data.split('|');
     final userId = ctx.from!.id;
-    this._recordSeen(ctx, userId);
+    await _recordSeen(ctx, userId);
 
     switch (parts[0]) {
       case 'slot':
         await _toggleSlot(ctx, userId, parts);
       case 'done':
-        await this._saveAvailability(ctx, userId, parts[1], false);
+        await _saveAvailability(ctx, userId, parts[1], false);
       case 'no':
-        await this._saveAvailability(ctx, userId, parts[1], true);
+        await _saveAvailability(ctx, userId, parts[1], true);
       case 'cancel':
-        await this._cancelAvailability(ctx, userId, parts);
+        await _cancelAvailability(ctx, userId, parts);
       case 'holidayout':
         await _optOutHoliday(ctx, userId, parts);
       case 'notify':
-        await this._onNotifyCallback(ctx);
+        await _onNotifyCallback(ctx);
     }
   }
 
@@ -239,7 +239,7 @@ extension FlowsCallbacks on Flows {
       );
       return;
     }
-    final w = this._windowForSat(sat0);
+    final w = _windowForSat(sat0);
     final sat = slot.weekendIndex == 0 ? w.sat0 : w.sat1;
     final now = config.toLocal(Config.nowUtc());
     if (w.locked(sat, now)) {
@@ -252,7 +252,7 @@ extension FlowsCallbacks on Flows {
     }
 
     final (want, available) = state.picksFor(userId);
-    final session = this._sessionForSlot(w, slot);
+    final session = _sessionForSlot(w, slot);
     // Toggle cycle: off ▫️ -> offered 🟢 -> booked 🔒 -> off. A newly
     // selected choice wins over overlapping choices in the same weekend:
     // backups may overlap backups, but a booked choice clears every
@@ -261,10 +261,10 @@ extension FlowsCallbacks on Flows {
       want.remove(slot);
     } else if (available.contains(slot)) {
       available.remove(slot);
-      if (session != null) this._clearOverlaps(session, slot, want, available);
+      if (session != null) _clearOverlaps(session, slot, want, available);
       want.add(slot);
     } else {
-      if (session != null) this._clearOverlappingWants(session, slot, want);
+      if (session != null) _clearOverlappingWants(session, slot, want);
       available.add(slot);
     }
 
@@ -282,9 +282,9 @@ extension FlowsCallbacks on Flows {
           w,
           (want, available),
           now: now,
-            holidays: CycleServicePrompts.holidaysForWindow(repo, w),
-           allocatedCounts: allocationInfo.$1,
-           ownCapacityGroups: allocationInfo.$2,
+          holidays: CycleServicePrompts.holidaysForWindow(repo, w),
+          allocatedCounts: allocationInfo.$1,
+          ownCapacityGroups: allocationInfo.$2,
           hasIndicated: repo.hasBundleResponse(sat0, userId),
           sessions: [
             ...repo.sessionsForWeekend(w.sat0),

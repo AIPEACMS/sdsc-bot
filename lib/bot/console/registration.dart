@@ -18,59 +18,59 @@ extension ConsoleRegistration on Console {
       bot,
       state,
       'setdate',
-      _consoleGuard(this._setDate),
+      _consoleGuard(_setDate),
       label: 'set-date',
     );
     commandBoth(
       bot,
       state,
       'resetdate',
-      _consoleGuard(this._resetDate),
+      _consoleGuard(_resetDate),
       label: 'reset-date',
     );
     commandBoth(
       bot,
       state,
       'demote',
-      _globalAdminGuard(this._demote),
+      _globalAdminGuard(_demote),
       label: 'demote',
     );
     state.registerCommand('removeuser');
-    bot.command('removeuser', _globalAdminGuard(this._removeUser));
+    bot.command('removeuser', _globalAdminGuard(_removeUser));
     commandBoth(
       bot,
       state,
       'synccalendar',
-      _globalAdminGuard(this._syncCalendar),
+      _globalAdminGuard(_syncCalendar),
       label: 'sync-calendar',
     );
     commandBoth(
       bot,
       state,
       'hold',
-      _globalAdminGuard(this._holdConfirm),
+      _globalAdminGuard(_holdConfirm),
       label: 'hold',
     );
     commandBoth(
       bot,
       state,
       'unhold',
-      _globalAdminGuard(this._unholdConfirm),
+      _globalAdminGuard(_unholdConfirm),
       label: 'unhold',
     );
     commandBoth(
       bot,
       state,
       'addkey',
-      _consoleGuard(this._addKey),
+      _consoleGuard(_addKey),
       label: 'add-key',
     );
-    commandBoth(bot, state, 'keys', _consoleGuard(this._keys), label: 'keys');
+    commandBoth(bot, state, 'keys', _consoleGuard(_keys), label: 'keys');
     commandBoth(
       bot,
       state,
       'rmkey',
-      _consoleGuard(this._rmKey),
+      _consoleGuard(_rmKey),
       label: 'rm-key',
     );
     commandBoth(
@@ -84,32 +84,32 @@ extension ConsoleRegistration on Console {
       bot,
       state,
       'rmg',
-      _consoleGuard(this._removeGlobalAdminConfirm),
+      _consoleGuard(_removeGlobalAdminConfirm),
       label: 'rmg',
     );
     commandBoth(
       bot,
       state,
       'locations',
-      _consoleGuard(this._locations),
+      _consoleGuard(_locations),
       label: 'locations',
     );
     commandBoth(
       bot,
       state,
       'addlocation',
-      _consoleGuard(this._addLocation),
+      _consoleGuard(_addLocation),
       label: 'add-location',
     );
     commandBoth(
       bot,
       state,
       'addalias',
-      _consoleGuard(this._addAlias),
+      _consoleGuard(_addAlias),
       label: 'add-alias',
     );
     state.registerCommand('assigngroup');
-    bot.command('assigngroup', _globalAdminGuard(this._assignGroup));
+    bot.command('assigngroup', _globalAdminGuard(_assignGroup));
 
     // Hold/unhold callbacks, console only.
     bot.use((ctx, next) async {
@@ -117,23 +117,23 @@ extension ConsoleRegistration on Console {
       if (data == null) return next();
       final head = data.split('|').first;
       if (head == 'hold' || head == 'unhold') {
-        if (_isGlobalAdmin(ctx)) await this._onHoldCallback(ctx);
+        if (_isGlobalAdmin(ctx)) await _onHoldCallback(ctx);
         return;
       }
       if (head == 'addgadmin' || head == 'rmgadmin') {
-        if (_isConsole(ctx)) await this._onGlobalAdminCallback(ctx, head);
+        if (_isConsole(ctx)) await _onGlobalAdminCallback(ctx, head);
         return;
       }
       if (head == 'removeuser') {
         if (_isGlobalAdmin(ctx)) {
-          await this._onRemoveUserCallback(ctx);
+          await _onRemoveUserCallback(ctx);
         } else {
           await ctx.answerCallbackQuery();
         }
         return;
       }
       if (head == 'assigngroup') {
-        await this._onAssignGroupCallback(ctx);
+        await _onAssignGroupCallback(ctx);
         return;
       }
       if (head == 'cancel' && _isConsole(ctx)) {

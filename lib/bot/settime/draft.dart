@@ -45,13 +45,13 @@ extension SetTimeDraft on SetTime {
       final session = parsed as ParsedSession;
       if (draft.scope == _SetTimeScope.temporary) {
         final date = session.targetDate!;
-        final saturday = this._saturdayOf(date);
+        final saturday = _saturdayOf(date);
         if (draft.targetSaturday == null) {
           draft.targetSaturday = saturday;
         } else if (draft.targetSaturday != saturday) {
           errors.add(
             '❌ $line — this temporary change is for the week of '
-            '${this._date(draft.targetSaturday!)}; start another change for a different week',
+            '${_date(draft.targetSaturday!)}; start another change for a different week',
           );
           continue;
         }
@@ -72,7 +72,7 @@ extension SetTimeDraft on SetTime {
     }
     // Show exactly what was just added, numbered as in the final confirmation.
     for (var i = firstIndex; i <= total; i++) {
-      sb.writeln(this._sessionLine(draft, draft.lines[i - 1], i));
+      sb.writeln(_sessionLine(draft, draft.lines[i - 1], i));
     }
     if (errors.isNotEmpty) {
       if (added > 0) sb.writeln();
@@ -104,7 +104,7 @@ extension SetTimeDraft on SetTime {
       await _askLocation(ctx, userId, unresolved.first);
       return;
     }
-    await this._showConfirmation(ctx, userId);
+    await _showConfirmation(ctx, userId);
   }
 
   /// "Is `<token>` a new location?" with the approved locations as buttons and
@@ -120,7 +120,7 @@ extension SetTimeDraft on SetTime {
     }
     kb = kb.text('❌ Cancel', 'settime|no');
     await ctx.reply(
-      'I don\'t recognise the location <b>${this._html(token)}</b>.\n\n'
+      'I don\'t recognise the location <b>${_html(token)}</b>.\n\n'
       'Is it one of these, or a new location?',
       parseMode: ParseMode.html,
       replyMarkup: kb,
@@ -167,7 +167,7 @@ extension SetTimeDraft on SetTime {
     }
     draft.resolved[token] = loc.key;
     await ctx.editMessageText(
-      '✅ <b>${this._html(token)}</b> → ${this._html(loc.name)}.',
+      '✅ <b>${_html(token)}</b> → ${_html(loc.name)}.',
       parseMode: ParseMode.html,
       replyMarkup: null,
     );
@@ -199,8 +199,8 @@ extension SetTimeDraft on SetTime {
       await bot.api.sendMessage(
         ChatID(config.consoleId),
         '🆕 <b>New location requested</b>\n\n'
-        'The global admin asked to add <b>${this._html(loc.name)}</b>.\n'
-        'Approve it with <code>/addlocation ${this._html(loc.name)}</code> '
+        'The global admin asked to add <b>${_html(loc.name)}</b>.\n'
+        'Approve it with <code>/addlocation ${_html(loc.name)}</code> '
         '(optionally /addalias afterwards), or from the console app.',
         parseMode: ParseMode.html,
       );
@@ -209,7 +209,7 @@ extension SetTimeDraft on SetTime {
     }
 
     await ctx.reply(
-      '🕓 Thank you. I have asked the console to add <b>${this._html(loc.name)}</b>. '
+      '🕓 Thank you. I have asked the console to add <b>${_html(loc.name)}</b>. '
       'Please wait a moment — I will continue here once it is approved.',
       parseMode: ParseMode.html,
     );
@@ -224,7 +224,7 @@ extension SetTimeDraft on SetTime {
       final draft = entry.value;
       var touched = false;
       for (final e in draft.requestedNames.entries.toList()) {
-        if (this._norm(e.value) == this._norm(loc.name)) {
+        if (_norm(e.value) == _norm(loc.name)) {
           draft.resolved[e.key] = loc.key;
           draft.requestedNames.remove(e.key);
           touched = true;
@@ -245,7 +245,7 @@ extension SetTimeDraft on SetTime {
         : Pickers.confirm('settime');
     await bot.api.sendMessage(
       ChatID(userId),
-      '✅ <b>The new location is added.</b>\n\n${this._confirmationText(draft)}',
+      '✅ <b>The new location is added.</b>\n\n${_confirmationText(draft)}',
       parseMode: ParseMode.html,
       replyMarkup: kb,
     );
@@ -259,6 +259,6 @@ extension SetTimeDraft on SetTime {
       await _askLocation(ctx, userId, unresolved.first);
       return;
     }
-    await this._showConfirmation(ctx, userId);
+    await _showConfirmation(ctx, userId);
   }
 }

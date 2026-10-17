@@ -10,7 +10,7 @@ extension AdminBroadcast on Admin {
   /// group the admin leads, so a leader never marks (or is reminded about)
   /// another group's members.
   Future<void> _confirm(Context ctx) async {
-    final sat = this._currentWeekendSat();
+    final sat = _currentWeekendSat();
     final sessions = repo.sessionsForWeekend(sat);
     if (sessions.isEmpty) {
       await ctx.reply('No sessions yet. Run /allocate first.');
@@ -34,7 +34,7 @@ extension AdminBroadcast on Admin {
     }
     kb = kb.text('✅ Done', 'att_done|all').row().text('❌ Cancel', 'att_cancel');
     final message = await ctx.reply(
-      'Mark attendance for ${this._day(sat)}:\n'
+      'Mark attendance for ${_day(sat)}:\n'
       '🔵 some of your group unmarked · 🟢 all marked · '
       'no icon = nobody from your group',
       replyMarkup: kb,
@@ -46,7 +46,7 @@ extension AdminBroadcast on Admin {
     );
   }
   Future<void> _renderSessionList(Context ctx, int adminId) async {
-    final sat = this._currentWeekendSat();
+    final sat = _currentWeekendSat();
     final sessions = repo.sessionsForWeekend(sat);
     final group = _adminGroup(ctx);
     var kb = InlineKeyboard();
@@ -66,7 +66,7 @@ extension AdminBroadcast on Admin {
     }
     kb = kb.text('✅ Done', 'att_done|all').row().text('❌ Cancel', 'att_cancel');
     await ctx.editMessageText(
-      'Mark attendance for ${this._day(sat)}:',
+      'Mark attendance for ${_day(sat)}:',
       replyMarkup: kb,
     );
   }
@@ -138,7 +138,7 @@ extension AdminBroadcast on Admin {
       return;
     }
 
-    final draft = this._draftFor(ctx, session, members);
+    final draft = _draftFor(ctx, session, members);
     var kb = InlineKeyboard();
     for (final user in members) {
       final mark = _markForValue(user.id, draft.values[user.id]);
@@ -191,7 +191,7 @@ extension AdminBroadcast on Admin {
       );
       return;
     }
-    final draft = this._draftFor(ctx, session, members);
+    final draft = _draftFor(ctx, session, members);
     final current = draft.values[userId];
     draft.values[userId] = current == null
         ? true
@@ -382,7 +382,7 @@ extension AdminBroadcast on Admin {
   }
 
   Future<void> _confirmBroadcast(Context ctx, String text) async {
-    final preview = this._html(
+    final preview = _html(
       text.length > 200 ? '${text.substring(0, 200)}…' : text,
     );
     final message = await ctx.reply(

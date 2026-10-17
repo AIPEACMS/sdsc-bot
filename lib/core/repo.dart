@@ -67,5 +67,5 @@ class _RepoBase {
 class Repo extends _RepoBase {
   static const activeOutreachRouteKeys = defaultActiveOutreachRouteKeys;
 
-  Repo(Database db) : super(db);
+  Repo(super.db);
 }

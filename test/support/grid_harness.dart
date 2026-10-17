@@ -17,6 +17,7 @@ import 'package:sdsc_bot/core/messages.dart';
 import 'package:sdsc_bot/core/models.dart';
 import 'package:sdsc_bot/core/repo.dart';
 import '../test_helpers.dart';
+import 'bot_readiness.dart';
 
 late Directory tmp;
 late Database db;
@@ -60,8 +61,10 @@ Future<void> setUpGrid() async {
   state = BotState();
   sent = <Map<String, dynamic>>[];
   edited = <Map<String, dynamic>>[];
+  final readiness = BotReadiness();
   server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   server.listen((req) async {
+    readiness.observe(req);
     final path = req.uri.path;
     if (path.endsWith('/getMe')) {
       await _json(req, {
@@ -159,10 +162,10 @@ Future<void> setUpGrid() async {
 
   repo.upsertUser(
     User(
-    id: 1,
-    name: '@console',
-    experience: Experience.experienced,
-    group: '1',
+      id: 1,
+      name: '@console',
+      experience: Experience.experienced,
+      group: '1',
     ),
   );
   repo.updateAdmin(1, true);
@@ -173,20 +176,20 @@ Future<void> setUpGrid() async {
   repo.updateAdmin(2, true);
   repo.upsertUser(
     User(
-    id: 3,
-    name: '@checker',
-    experience: Experience.newbie,
-    group: '',
-    memberTier: MemberTier.check,
+      id: 3,
+      name: '@checker',
+      experience: Experience.newbie,
+      group: '',
+      memberTier: MemberTier.check,
     ),
   );
   repo.upsertUser(
     User(
-    id: 4,
-    name: '@out-member',
-    experience: Experience.newbie,
-    group: '1',
-    memberTier: MemberTier.outMember,
+      id: 4,
+      name: '@out-member',
+      experience: Experience.newbie,
+      group: '1',
+      memberTier: MemberTier.outMember,
     ),
   );
 
@@ -209,7 +212,7 @@ Future<void> setUpGrid() async {
   repo.setAttendanceState(2, s1[0].id, attended: true);
 
   final startFuture = bot.start();
-  await Future<void>.delayed(const Duration(milliseconds: 300));
+  await readiness.wait();
   addTearDown(() async {
     await bot.stop();
     await startFuture;
@@ -222,58 +225,58 @@ Future<void> setUpGrid() async {
 Future<void> sendText(int userId, String text, {String? username}) =>
     bot.handleUpdate(
       Update.fromJson({
-  'update_id': 1,
-  'message': {
-    'message_id': 1,
-    'date': 1,
-    'chat': {'id': userId, 'type': 'private'},
-    'from': {
-      'id': userId,
-      'is_bot': false,
-      'first_name': 'u',
-      ...?(username == null ? null : {'username': username}),
-    },
-    'text': text,
-    'entities': [
-      {
-        'offset': 0,
-        'length': text.contains(' ') ? text.indexOf(' ') : text.length,
-        'type': 'bot_command',
-      },
-    ],
-  },
-      }),
-    );
-
-Future<void> sendPlainText(int userId, String text) => bot.handleUpdate(
-      Update.fromJson({
-        'update_id': 3,
+        'update_id': 1,
         'message': {
           'message_id': 1,
           'date': 1,
           'chat': {'id': userId, 'type': 'private'},
-          'from': {'id': userId, 'is_bot': false, 'first_name': 'u'},
+          'from': {
+            'id': userId,
+            'is_bot': false,
+            'first_name': 'u',
+            ...?(username == null ? null : {'username': username}),
+          },
           'text': text,
+          'entities': [
+            {
+              'offset': 0,
+              'length': text.contains(' ') ? text.indexOf(' ') : text.length,
+              'type': 'bot_command',
+            },
+          ],
         },
       }),
     );
 
+Future<void> sendPlainText(int userId, String text) => bot.handleUpdate(
+  Update.fromJson({
+    'update_id': 3,
+    'message': {
+      'message_id': 1,
+      'date': 1,
+      'chat': {'id': userId, 'type': 'private'},
+      'from': {'id': userId, 'is_bot': false, 'first_name': 'u'},
+      'text': text,
+    },
+  }),
+);
+
 Future<void> sendCallback(int userId, String data) => bot.handleUpdate(
-      Update.fromJson({
-        'update_id': 2,
-        'callback_query': {
-          'id': 'callback-$userId-$data',
-          'from': {'id': userId, 'is_bot': false, 'first_name': 'u'},
-          'chat_instance': 'test-chat-instance',
-          'message': {
-            'message_id': 1,
-            'date': 1,
-            'chat': {'id': userId, 'type': 'private'},
-          },
-          'data': data,
-        },
-      }),
-    );
+  Update.fromJson({
+    'update_id': 2,
+    'callback_query': {
+      'id': 'callback-$userId-$data',
+      'from': {'id': userId, 'is_bot': false, 'first_name': 'u'},
+      'chat_instance': 'test-chat-instance',
+      'message': {
+        'message_id': 1,
+        'date': 1,
+        'chat': {'id': userId, 'type': 'private'},
+      },
+      'data': data,
+    },
+  }),
+);
 
 List<String> keyboardTexts(Map<String, dynamic> body) {
   final kb = (body['reply_markup'] as Map<String, dynamic>?)?['keyboard'];

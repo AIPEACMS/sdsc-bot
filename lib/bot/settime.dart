@@ -10,6 +10,7 @@ import 'command_both.dart';
 import 'pickers.dart';
 import 'service.dart';
 import 'state.dart';
+import 'allocation_removal_notice.dart';
 import '../core/schedule.dart';
 
 /// `/settime` — guided schedule changes for the global admin. The gadmin can
@@ -21,6 +22,7 @@ part 'settime/draft.dart';
 part 'settime/validation.dart';
 part 'settime/persistence.dart';
 part 'settime/part_05.dart';
+part 'settime/allocation_removal.dart';
 
 class _SetTimeBase {
 
@@ -37,6 +39,8 @@ class _SetTimeBase {
   final ScheduleRuntime scheduleRuntime;
 
   final Map<int, _Draft> _drafts = {};
+  final Map<int, List<(int, int)>> _allocationRemovalTargets = {};
+  final Map<int, Set<String>> _allocationRemovalSelection = {};
 
   _SetTimeBase({
     required this.bot,

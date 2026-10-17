@@ -4,7 +4,7 @@ extension AdminUsers on Admin {
   // ----------------------------------------------------------- /status
 
   Future<void> _status(Context ctx, {String? group}) async {
-    final w = this._window();
+    final w = _window();
     final users = repo
         .activeUsers()
         .where((user) => group == null || user.group == group)
@@ -27,12 +27,12 @@ extension AdminUsers on Admin {
       ..writeln(
         '📊 <b>${group == null ? 'All members' : 'Group $group'} status</b>',
       )
-      ..writeln('Bundle: "${this._day(w.sat0)}, ${this._day(w.sat1)}"')
+      ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"')
       ..writeln(
-        'Prompt: ${this._day(w.promptDay)}  |  '
-        'Reminder: ${this._day(w.reminderDay)}  |  '
-        'Lock W1: ${this._day(w.deadline0)}  |  '
-        'Lock W2: ${this._day(w.deadline1)}',
+        'Prompt: ${_day(w.promptDay)}  |  '
+        'Reminder: ${_day(w.reminderDay)}  |  '
+        'Lock W1: ${_day(w.deadline0)}  |  '
+        'Lock W2: ${_day(w.deadline1)}',
       )
       ..writeln('Registered members: ${users.length}')
       ..writeln('Responded: $responders/${users.length}');
@@ -82,7 +82,7 @@ extension AdminUsers on Admin {
     sb.write(
       service.checkListText(
         w.sat0,
-        title: '📋 <b>Allocation · ${this._day(w.sat0)}</b>',
+        title: '📋 <b>Allocation · ${_day(w.sat0)}</b>',
         userIds: group == null ? null : activeIds,
       ),
     );
@@ -90,7 +90,7 @@ extension AdminUsers on Admin {
     sb.write(
       service.checkListText(
         w.sat1,
-        title: '📋 <b>Allocation · ${this._day(w.sat1)}</b>',
+        title: '📋 <b>Allocation · ${_day(w.sat1)}</b>',
         userIds: group == null ? null : activeIds,
       ),
     );
@@ -98,7 +98,7 @@ extension AdminUsers on Admin {
   }
 
   Future<void> _groupStatus(Context ctx) async {
-    final group = this._adminGroup(ctx);
+    final group = _adminGroup(ctx);
     if (group.isEmpty) {
       await ctx.reply('You are not assigned to a group.');
       return;
@@ -164,7 +164,7 @@ extension AdminUsers on Admin {
   }
 
   Future<void> _groupUsers(Context ctx) async {
-    final group = this._adminGroup(ctx);
+    final group = _adminGroup(ctx);
     if (group.isEmpty) {
       await ctx.reply('You are not assigned to a group.');
       return;
@@ -266,7 +266,7 @@ extension AdminUsers on Admin {
       );
     }
     final now = config.toLocal(Config.nowUtc());
-    final w = this._window();
+    final w = _window();
     final holiday = service.optedOutHolidayFor(user, w);
     if (holiday != null) {
       return (
@@ -296,7 +296,7 @@ extension AdminUsers on Admin {
   /// finished) can still be marked.
   DateTime _currentWeekendSat() {
     final now = config.toLocal(Config.nowUtc());
-    final w = this._windowFor(now);
+    final w = _windowFor(now);
     return now.isBefore(w.sat0)
         ? w.sat0.subtract(const Duration(days: 7))
         : w.sat0;

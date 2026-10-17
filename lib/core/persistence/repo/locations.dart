@@ -139,7 +139,7 @@ ORDER BY s.username
         String tier = MemberTier.member,
         NotificationPreference? notificationPreference,
       }) {
-    final normalized = this._pendingHandle(handle);
+    final normalized = _pendingHandle(handle);
     final effectivePreference = notificationPreference ??
         defaultNotificationPreference(tier);
     final previous = pendingRole(normalized);
@@ -157,7 +157,7 @@ ON CONFLICT(username) DO UPDATE SET
         normalized,
         isAdmin ? 1 : 0,
         tier,
-        this._notificationPreferenceValue(effectivePreference),
+        _notificationPreferenceValue(effectivePreference),
       ],
     );
     return previous;
@@ -167,13 +167,13 @@ ON CONFLICT(username) DO UPDATE SET
     final rows = raw.select(
       'SELECT is_admin, tier, notification_preference '
       'FROM pending_users WHERE username = ?',
-      [this._pendingHandle(handle)],
+      [_pendingHandle(handle)],
     );
     if (rows.isEmpty) return null;
     return PendingRole(
       isAdmin: (rows.first['is_admin'] as int) == 1,
       tier: rows.first['tier'] as String,
-      notificationPreference: this._notificationPreferenceFromValue(
+      notificationPreference: _notificationPreferenceFromValue(
         rows.first['notification_preference'] as String?,
       ),
     );
@@ -196,7 +196,7 @@ ON CONFLICT(username) DO UPDATE SET
   bool isPendingUser(String handle) {
     final rows = raw.select(
       'SELECT 1 FROM pending_users WHERE username = ?',
-      [this._pendingHandle(handle)],
+      [_pendingHandle(handle)],
     );
     return rows.isNotEmpty;
   }
@@ -204,14 +204,14 @@ ON CONFLICT(username) DO UPDATE SET
   bool pendingIsAdmin(String handle) {
     final rows = raw.select(
       'SELECT is_admin FROM pending_users WHERE username = ?',
-      [this._pendingHandle(handle)],
+      [_pendingHandle(handle)],
     );
     return rows.isNotEmpty && (rows.first['is_admin'] as int) == 1;
   }
 
   /// Removes only the pending admin flag, preserving the queued tier.
   bool demotePendingAdmin(String handle) {
-    final normalized = this._pendingHandle(handle);
+    final normalized = _pendingHandle(handle);
     final role = pendingRole(normalized);
     if (role == null || !role.isAdmin) return false;
     raw.execute(
@@ -225,7 +225,7 @@ ON CONFLICT(username) DO UPDATE SET
   String pendingTier(String handle) {
     final rows = raw.select(
       'SELECT tier FROM pending_users WHERE username = ?',
-      [this._pendingHandle(handle)],
+      [_pendingHandle(handle)],
     );
     return rows.isEmpty ? MemberTier.member : rows.first['tier'] as String;
   }
@@ -246,7 +246,7 @@ ON CONFLICT(username) DO UPDATE SET
     final rows = raw.select(
       'SELECT COUNT(*) AS c FROM sent_messages '
       'WHERE user_id = ? AND kind = ? AND day = ?',
-      [userId, kind, this._dayKey(day)],
+      [userId, kind, _dayKey(day)],
     );
     return (rows.first['c'] as int) > 0;
   }
@@ -258,7 +258,7 @@ ON CONFLICT(username) DO UPDATE SET
     final rows = raw.select(
       'SELECT sent_at FROM sent_messages '
       'WHERE user_id = ? AND kind = ? AND day = ?',
-      [userId, kind, this._dayKey(day)],
+      [userId, kind, _dayKey(day)],
     );
     if (rows.isEmpty) return null;
     return rows.first['sent_at'] as String?;
@@ -268,7 +268,7 @@ ON CONFLICT(username) DO UPDATE SET
     raw.execute(
       'INSERT OR IGNORE INTO sent_messages (user_id, kind, day, sent_at) '
       'VALUES (?, ?, ?, ?)',
-      [userId, kind, this._dayKey(day), _sgtNow()],
+      [userId, kind, _dayKey(day), _sgtNow()],
     );
   }
 

@@ -15,6 +15,7 @@ extension SetTimePersistence on SetTime {
       return;
     }
 
+    final removedAllocations = _allocationsAffected(draft, rows);
     final affected = <int>{};
     if (draft.scope == _SetTimeScope.temporary) {
       final sat = draft.targetSaturday!;
@@ -60,6 +61,35 @@ extension SetTimePersistence on SetTime {
     }
 
     final scheduleChangeEnabled = repo.activeOutreachEnabled('schedule-change');
+    var removalNotified = 0;
+    var removalFailures = 0;
+    if (scheduleChangeEnabled) {
+      final byUser = <int, List<Session>>{};
+      for (final (user, session) in removedAllocations) {
+        byUser.putIfAbsent(user.id, () => []).add(session);
+      }
+      for (final entry in byUser.entries) {
+        try {
+          await bot.api.sendMessage(
+            ChatID(entry.key),
+            AllocationRemovalNotice.message(
+              entry.value.map(
+                (session) => AllocationRemovalNotice.escape(
+                  _sessionName(session),
+                ),
+              ),
+            ),
+            parseMode: ParseMode.html,
+          );
+          removalNotified++;
+        } catch (e) {
+          removalFailures++;
+          LogRing.log(
+            'settime removal notice failed for user ${entry.key}: $e',
+          );
+        }
+      }
+    }
     for (final uid in affected) {
       final user = repo.findUser(uid);
       if (user == null) continue;
@@ -73,8 +103,8 @@ extension SetTimePersistence on SetTime {
           '🗓 <b>The activity sessions have been updated.</b>\n'
           'Please pick your availability again.',
         );
-      } catch (_) {
-        // member may have blocked the bot; ignore
+      } catch (e) {
+        LogRing.log('settime availability re-prompt failed for user $uid: $e');
       }
     }
 
@@ -82,6 +112,7 @@ extension SetTimePersistence on SetTime {
       'settime: ${draft.scope.name} ${draft.action.name} '
       '(${rows.length} rows); '
       '${scheduleChangeEnabled ? affected.length : 0} members re-prompted'
+      '; $removalNotified removal notices, $removalFailures failures'
       '${scheduleChangeEnabled ? '' : '; suppressed ${affected.length} re-prompts (route disabled)'}',
     );
     await ctx.editMessageText(

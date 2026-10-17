@@ -39,7 +39,7 @@ jobs:
         run: dart analyze
 
       - name: Test
-        run: dart test
+        run: dart test -j 4
 
       - name: Build bundle (AOT + native assets)
         run: dart build cli -o build
