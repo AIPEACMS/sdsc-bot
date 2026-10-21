@@ -1,6 +1,9 @@
 # Changelog
-
 All notable user-facing changes to the SDSC bot.
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/).
+
 
 ## [4.9.0] - 2026-10-17
 
@@ -35,9 +38,6 @@ All notable user-facing changes to the SDSC bot.
 
 - Temporary session changes preserve surviving allocation and availability
   entries while removing only data belonging to removed sessions.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [4.7.6] - 2026-10-17
 
