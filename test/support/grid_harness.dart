@@ -16,8 +16,8 @@ import 'package:sdsc_bot/core/db.dart';
 import 'package:sdsc_bot/core/messages.dart';
 import 'package:sdsc_bot/core/models.dart';
 import 'package:sdsc_bot/core/repo.dart';
-import '../test_helpers.dart';
-import 'bot_readiness.dart';
+import './test_helpers.dart';
+import './bot_readiness.dart';
 
 late Directory tmp;
 late Database db;
