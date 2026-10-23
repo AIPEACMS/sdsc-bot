@@ -198,17 +198,19 @@ extension SetTimeAllocationRemoval on SetTime {
     }
     var notified = 0;
     var failures = 0;
+    final notifiedNames = <String>[];
+    final reminderNames = <String>[];
     if (enabled) {
-      final byUser = <int, List<Session>>{};
+      final byUser = <int, (User, List<Session>)>{};
       for (final (user, session) in current) {
-        byUser.putIfAbsent(user.id, () => []).add(session);
+        byUser.putIfAbsent(user.id, () => (user, <Session>[])).$2.add(session);
       }
       for (final entry in byUser.entries) {
         try {
           await bot.api.sendMessage(
             ChatID(entry.key),
             AllocationRemovalNotice.message(
-              entry.value.map(
+              entry.value.$2.map(
                 (session) => AllocationRemovalNotice.escape(
                   '${_date(session.start)} ${_removalSessionLabel(session)}',
                 ),
@@ -217,22 +219,47 @@ extension SetTimeAllocationRemoval on SetTime {
             parseMode: ParseMode.html,
           );
           notified++;
+          notifiedNames.add(_safeRemovalRecipientName(entry.value.$1));
         } catch (e) {
           failures++;
+          reminderNames.add(_safeRemovalRecipientName(entry.value.$1));
           LogRing.log(
             'Telegram allocation removal notice failed for ${entry.key}: $e',
           );
         }
       }
+    } else {
+      final byUser = <int, User>{};
+      for (final (user, _) in current) {
+        byUser.putIfAbsent(user.id, () => user);
+      }
+      reminderNames.addAll(byUser.values.map(_safeRemovalRecipientName));
     }
     LogRing.log(
       'Telegram allocation removal: ${current.length} entries, $notified notified, $failures failures',
     );
     _clearAllocationRemoval(userId);
-    await ctx.editMessageText(
-      '✅ Removed ${current.length} allocation(s).',
-      replyMarkup: null,
-    );
+    final result = StringBuffer('✅ Removed ${current.length} allocation(s).');
+    if (notifiedNames.isNotEmpty) {
+      result
+        ..write('\n\nThese people are notified of the removal: ')
+        ..write(notifiedNames.join(', '))
+        ..write('.');
+    }
+    if (reminderNames.isNotEmpty) {
+      result
+        ..write('\n\nPlease remember to notify them if you haven\'t: ')
+        ..write(reminderNames.join(', '))
+        ..write('.');
+    }
+    await ctx.editMessageText(result.toString(), replyMarkup: null);
+  }
+
+  String _safeRemovalRecipientName(User user) {
+    final name = user.name
+        .replaceAll(RegExp(r'[\x00-\x1F\x7F-\x9F\u2028\u2029]'), ' ')
+        .trim();
+    return name.isEmpty ? 'user ${user.id}' : name;
   }
 
   void _clearAllocationRemoval(int userId) {

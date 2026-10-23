@@ -65,9 +65,13 @@ fi
 
 declare -A selected=()
 select_tests() {
-  local path
-  while IFS= read -r path; do selected["$path"]=1; done \
-    < <(find test -type f -name "$1" -print)
+  local path=$1
+  if [[ -f "$path" ]]; then
+    selected["$path"]=1
+  else
+    echo "Mapped test does not exist: $path" >&2
+    exit 1
+  fi
 }
 full_suite() {
   echo "$1; running the full suite."
@@ -82,83 +86,99 @@ for path in "${!changed[@]}"; do
       [[ -f "$path" ]] && selected["$path"]=1
       ;;
     lib/bot/settime.dart|lib/bot/settime/command.dart|lib/bot/settime/allocation_removal.dart)
-      select_tests 'allocation_removal_flow_test.dart'
-      select_tests 'command_catalog_test.dart'
-      select_tests 'settime_flow_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_flow_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_notification_test.dart'
+      select_tests 'test/bot/commands/command_catalog_test.dart'
+      select_tests 'test/bot/settime/settime_flow_test.dart'
       ;;
     lib/bot/settime/persistence.dart|lib/bot/settime/validation.dart)
-      select_tests 'allocation_removal_flow_test.dart'
-      select_tests 'settime_flow_test.dart'
-      select_tests 'settime_schedule_test.dart'
-      select_tests 'temporary_schedule_override_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_flow_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_notification_test.dart'
+      select_tests 'test/bot/settime/settime_flow_test.dart'
+      select_tests 'test/bot/settime/settime_schedule_test.dart'
+      select_tests 'test/bot/settime/temporary_schedule_override_test.dart'
       ;;
     lib/bot/admin_api.dart|lib/bot/admin_api/routing.dart|lib/bot/admin_api/removals.dart)
-      select_tests 'admin_api_allocation_removal_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_allocation_removal_test.dart'
       ;;
     lib/bot/admin_api/attendance.dart|lib/bot/admin_api/part_05.dart)
-      select_tests 'admin_api_attendance_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_attendance_test.dart'
       ;;
     lib/bot/admin_api/users.dart)
-      select_tests 'admin_api_users_test.dart'
-      select_tests 'admin_api_roles_test.dart'
-      select_tests 'admin_api_registration_removal_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_users_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_roles_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_registration_removal_test.dart'
       ;;
     lib/bot/admin_api/operations.dart)
-      select_tests 'admin_api_operations_test.dart'
-      select_tests 'admin_api_group_assignment_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_operations_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_group_assignment_test.dart'
       ;;
     lib/bot/admin.dart|lib/bot/admin/*.dart|lib/bot/console.dart|lib/bot/console/*.dart)
-      select_tests 'grid_*_test.dart'
-      select_tests 'assign_group_flow_test.dart'
-      select_tests 'remove_user_flow_test.dart'
-      select_tests 'setexp_test.dart'
-      select_tests 'allocation_removal_flow_test.dart'
+      select_tests 'test/bot/admin/grid_admin_test.dart'
+      select_tests 'test/bot/admin/grid_operations_test.dart'
+      select_tests 'test/bot/admin/grid_start_test.dart'
+      select_tests 'test/bot/admin/assign_group_flow_test.dart'
+      select_tests 'test/bot/admin/remove_user_flow_test.dart'
+      select_tests 'test/bot/admin/setexp_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_flow_test.dart'
       ;;
     lib/bot/flows/presentation.dart|lib/bot/flows/registration.dart)
-      select_tests 'grid_operations_test.dart'
-      select_tests 'repick_profile_test.dart'
+      select_tests 'test/bot/admin/grid_operations_test.dart'
+      select_tests 'test/bot/user/repick_profile_test.dart'
       ;;
     lib/bot/flows/availability.dart|lib/bot/flows/callbacks.dart)
-      select_tests 'grid_member_test.dart'
-      select_tests 'repick_availability_test.dart'
-      select_tests 'repick_cancel_test.dart'
-      select_tests 'repick_cycle_test.dart'
+      select_tests 'test/bot/user/grid_member_test.dart'
+      select_tests 'test/bot/user/repick_availability_test.dart'
+      select_tests 'test/bot/user/repick_cancel_test.dart'
+      select_tests 'test/bot/user/repick_cycle_test.dart'
       ;;
     lib/bot/flows.dart)
-      select_tests 'grid_*_test.dart'
-      select_tests 'allocation_removal_flow_test.dart'
+      select_tests 'test/bot/admin/grid_admin_test.dart'
+      select_tests 'test/bot/admin/grid_operations_test.dart'
+      select_tests 'test/bot/admin/grid_start_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_flow_test.dart'
       ;;
     lib/bot/command_catalog.dart|lib/bot/keyboards.dart)
-      select_tests 'command_catalog_test.dart'
-      select_tests 'keyboards_layout_test.dart'
-      select_tests 'grid_start_test.dart'
+      select_tests 'test/bot/commands/command_catalog_test.dart'
+      select_tests 'test/bot/commands/keyboards_layout_test.dart'
+      select_tests 'test/bot/admin/grid_start_test.dart'
       ;;
     lib/bot/allocation_removal_notice.dart)
-      select_tests 'allocation_removal_flow_test.dart'
-      select_tests 'admin_api_allocation_removal_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_flow_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_notification_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_allocation_removal_test.dart'
       ;;
     lib/core/allocate.dart|lib/core/domain/allocation.dart)
-      select_tests 'allocate*_test.dart'
+      select_tests 'test/core/allocation/allocate_basic_test.dart'
+      select_tests 'test/core/allocation/allocate_capacity_test.dart'
+      select_tests 'test/core/allocation/allocate_priority_test.dart'
+      select_tests 'test/core/allocation/allocate_weekend_test.dart'
       ;;
     lib/core/persistence/repo/availability.dart|lib/core/persistence/repo/sessions.dart)
-      select_tests 'admin_api_allocation_removal_test.dart'
-      select_tests 'allocation_removal_flow_test.dart'
-      select_tests 'settime_schedule_test.dart'
-      select_tests 'temporary_schedule_override_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_allocation_removal_test.dart'
+      select_tests 'test/bot/admin/allocation_removal_flow_test.dart'
+      select_tests 'test/bot/settime/settime_schedule_test.dart'
+      select_tests 'test/bot/settime/temporary_schedule_override_test.dart'
       ;;
     lib/core/persistence/*.dart|lib/core/persistence/repo/*.dart|lib/core/repo.dart)
-      select_tests 'repo_*_test.dart'
-      select_tests 'migration_test.dart'
-      select_tests 'settime_schedule_test.dart'
+      select_tests 'test/core/persistence/repo_messaging_attendance_test.dart'
+      select_tests 'test/core/persistence/repo_roles_test.dart'
+      select_tests 'test/core/persistence/repo_schedule_test.dart'
+      select_tests 'test/core/persistence/repo_user_flow_test.dart'
+      select_tests 'test/core/persistence/migration_test.dart'
+      select_tests 'test/bot/settime/settime_schedule_test.dart'
       ;;
     lib/core/db.dart)
-      select_tests 'migration_test.dart'
-      select_tests 'repo_*_test.dart'
+      select_tests 'test/core/persistence/migration_test.dart'
+      select_tests 'test/core/persistence/repo_messaging_attendance_test.dart'
+      select_tests 'test/core/persistence/repo_roles_test.dart'
+      select_tests 'test/core/persistence/repo_schedule_test.dart'
+      select_tests 'test/core/persistence/repo_user_flow_test.dart'
       ;;
     lib/core/schedule.dart|lib/core/domain/rolling_window.dart|lib/core/week.dart)
-      select_tests 'week_test.dart'
-      select_tests 'scheduler_test.dart'
-      select_tests 'repo_schedule_test.dart'
+      select_tests 'test/core/schedule/week_test.dart'
+      select_tests 'test/core/schedule/scheduler_test.dart'
+      select_tests 'test/core/persistence/repo_schedule_test.dart'
       ;;
     tool/*.sh|README.md|CHANGELOG.md|pubspec.yaml|pubspec.lock|.github/workflows/*.yml)
       ;;
