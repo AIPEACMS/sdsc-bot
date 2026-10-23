@@ -64,15 +64,15 @@ void main() {
   test(
     'add-user wizard uses singular confirmation copy for one handle',
     () async {
-    await sendText(2, '/adduser');
-    await sendPlainText(2, '@oneperson');
-    expect(sent.last['text'], 'Add this member?\n• @oneperson');
-    await sendCallback(2, 'adduser|no');
+      await sendText(2, '/adduser');
+      await sendPlainText(2, '@oneperson');
+      expect(sent.last['text'], 'Add this member?\n• @oneperson');
+      await sendCallback(2, 'adduser|no');
 
-    await sendText(2, '/addoutuser');
-    await sendPlainText(2, '@oneoutmember');
-    expect(sent.last['text'], 'Add this out-member?\n• @oneoutmember');
-    await sendCallback(2, 'adduser|no');
+      await sendText(2, '/addoutuser');
+      await sendPlainText(2, '@oneoutmember');
+      expect(sent.last['text'], 'Add this out-member?\n• @oneoutmember');
+      await sendCallback(2, 'adduser|no');
     },
   );
 
@@ -99,26 +99,32 @@ void main() {
       await sendCallback(2, 'bcast|no');
       expect(edited.last['reply_markup'], isNull);
 
-    await sendText(2, '/broadcast');
-    await sendCallback(2, 'admincancel|0');
-    expect(edited.last['text'], 'Cancelled.');
-    expect(
+      await sendText(2, '/broadcast');
+      await sendCallback(2, 'admincancel|0');
+      expect(edited.last['text'], 'Cancelled.');
+      expect(
         sent.where(
           (body) => body['text'] == 'Your previous availability is kept.',
         ),
-      isEmpty,
-    );
+        isEmpty,
+      );
     },
   );
 
   test(
     'attendance toggles stay staged until Done and Cancel discards them',
     () async {
-      final session = repo
-          .sessionsForWeekend(
-            RollingWindow.forDate(config.toLocal(Config.nowUtc())).sat0,
-          )
-          .first;
+      final sat0 = RollingWindow.forDate(config.toLocal(Config.nowUtc())).sat0;
+      Config.setDebugNow(
+        DateTime.utc(
+          sat0.year,
+          sat0.month,
+          sat0.day,
+          12 - config.timezoneOffsetHours,
+        ),
+      );
+      addTearDown(() => Config.setDebugNow(null));
+      final session = repo.sessionsForWeekend(sat0).first;
       final original = repo.attendanceForSession(session.id).first.attended;
 
       await sendText(2, '/confirm');
@@ -238,61 +244,61 @@ void main() {
   test(
     'plain-text hyphenated aliases are gone; canonical commands and aliases work',
     () async {
-    await sendPlainText(2, 'all-status');
-    expect(sent.last['text'], contains('All members status'));
-    final before = sent.length;
-    await sendPlainText(2, 'all-users');
-    expect(sent, hasLength(before));
+      await sendPlainText(2, 'all-status');
+      expect(sent.last['text'], contains('All members status'));
+      final before = sent.length;
+      await sendPlainText(2, 'all-users');
+      expect(sent, hasLength(before));
 
-    await sendText(2, '/allstatus');
-    expect(sent.last['text'], contains('All members status'));
-    await sendText(2, '/allusers');
-    expect(sent.last['text'], contains('All users'));
+      await sendText(2, '/allstatus');
+      expect(sent.last['text'], contains('All members status'));
+      await sendText(2, '/allusers');
+      expect(sent.last['text'], contains('All users'));
 
-    await sendText(2, '/status');
-    expect(sent.last['text'], contains('All members status'));
-    await sendText(2, '/users');
-    expect(sent.last['text'], contains('All users'));
+      await sendText(2, '/status');
+      expect(sent.last['text'], contains('All members status'));
+      await sendText(2, '/users');
+      expect(sent.last['text'], contains('All users'));
 
-    await sendText(2, '/grid');
-    final adminButtons = keyboardTexts(sent.last);
-    expect(adminButtons, contains('all-status'));
-    expect(adminButtons, isNot(contains('all-users')));
+      await sendText(2, '/grid');
+      final adminButtons = keyboardTexts(sent.last);
+      expect(adminButtons, contains('all-status'));
+      expect(adminButtons, isNot(contains('all-users')));
     },
   );
 
   test(
     'More Commands is sectioned and excludes every button-backed command',
     () async {
-    await sendPlainText(2, 'more-cmd');
-    final adminCommands = sent.last['text'] as String;
-    expect(
-      adminCommands,
-      '<b>Admin</b>\n'
-      '/allusers - list registered members\n'
-      '/groupuser - show your group\'s member details\n'
-      '/prompt - send availability prompts now\n'
-      '/remind - remind non-responders now\n'
-      '/setexp - change a member\'s experience\n'
-      '/allocate - run the allocation now',
-    );
-    expect(adminCommands, isNot(contains('<b>Member</b>')));
-    expect(adminCommands, isNot(contains('/groupstatus')));
+      await sendPlainText(2, 'more-cmd');
+      final adminCommands = sent.last['text'] as String;
+      expect(
+        adminCommands,
+        '<b>Admin</b>\n'
+        '/allusers - list registered members\n'
+        '/groupuser - show your group\'s member details\n'
+        '/prompt - send availability prompts now\n'
+        '/remind - remind non-responders now\n'
+        '/setexp - change a member\'s experience\n'
+        '/allocate - run the allocation now',
+      );
+      expect(adminCommands, isNot(contains('<b>Member</b>')));
+      expect(adminCommands, isNot(contains('/groupstatus')));
       expect(
         adminCommands,
         contains('/groupuser - show your group\'s member details'),
       );
-    expect(adminCommands, isNot(contains('/groupusers')));
-    expect(adminCommands, isNot(contains('/ask')));
-    expect(adminCommands, isNot(contains('/broadcast')));
-    expect(adminCommands, isNot(contains('/repick')));
+      expect(adminCommands, isNot(contains('/groupusers')));
+      expect(adminCommands, isNot(contains('/ask')));
+      expect(adminCommands, isNot(contains('/broadcast')));
+      expect(adminCommands, isNot(contains('/repick')));
 
-    await sendText(1, '/grid');
-    await sendPlainText(1, 'more-cmd');
-    final text = sent.last['text'] as String;
-    expect(text, contains('<b>Console</b>'));
-    expect(text, contains('<b>Global admin</b>'));
-    expect(text, contains('<b>Admin</b>'));
+      await sendText(1, '/grid');
+      await sendPlainText(1, 'more-cmd');
+      final text = sent.last['text'] as String;
+      expect(text, contains('<b>Console</b>'));
+      expect(text, contains('<b>Global admin</b>'));
+      expect(text, contains('<b>Admin</b>'));
       expect(
         text.indexOf('<b>Console</b>'),
         lessThan(text.indexOf('<b>Global admin</b>')),
@@ -301,21 +307,21 @@ void main() {
         text.indexOf('<b>Global admin</b>'),
         lessThan(text.indexOf('<b>Admin</b>')),
       );
-    expect(text, contains('/addcheck @handle - add a checker'));
+      expect(text, contains('/addcheck @handle - add a checker'));
       expect(
         text,
         contains('/assigngroup - assign members to admin-led groups'),
       );
-    expect(text, contains('/groupuser - show your group\'s member details'));
-    expect(text, isNot(contains('/allstatus')));
-    expect(text, contains('/checkstatus - test the checker\'s check-status'));
-    expect(text, isNot(contains('/hold')));
-    expect(text, isNot(contains('/start -')));
-    expect(text, isNot(contains('/repick')));
-    expect(text, isNot(contains('/setinfo')));
-    expect(text, isNot(contains('/mystatus')));
-    expect(keyboardTexts(sent.last).first, 'more-cmd');
-    expect(keyboardTexts(sent.last), contains('add-user'));
+      expect(text, contains('/groupuser - show your group\'s member details'));
+      expect(text, isNot(contains('/allstatus')));
+      expect(text, contains('/checkstatus - test the checker\'s check-status'));
+      expect(text, isNot(contains('/hold')));
+      expect(text, isNot(contains('/start -')));
+      expect(text, isNot(contains('/repick')));
+      expect(text, isNot(contains('/setinfo')));
+      expect(text, isNot(contains('/mystatus')));
+      expect(keyboardTexts(sent.last).first, 'more-cmd');
+      expect(keyboardTexts(sent.last), contains('add-user'));
     },
   );
 }
