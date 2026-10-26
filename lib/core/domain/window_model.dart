@@ -21,7 +21,7 @@ class ScheduleEvent {
     final thisDay = scheduleWeekdayNumber(weekday);
     final otherDay = scheduleWeekdayNumber(other.weekday);
     if (thisDay == null || otherDay == null) {
-      throw ArgumentError('schedule weekdays must be mon, tue, wed, thu or fri');
+      throw ArgumentError('unknown schedule weekday');
     }
     final dayComparison = thisDay.compareTo(otherDay);
     return dayComparison == 0 ? time.compareTo(other.time) : dayComparison;
@@ -35,5 +35,4 @@ class ScheduleEvent {
   int get hashCode => Object.hash(weekday, time);
 }
 
-/// The four persisted weekday + local wall-clock events that drive the rolling
-/// schedule. The time settings retain their historical keys for old databases.
+/// A persisted weekday + local wall-clock event.

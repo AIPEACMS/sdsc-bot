@@ -78,8 +78,11 @@ extension AdminApiRemovals on AdminApi {
       return null;
     }
     if (selectedWeek != null) {
-      final monday = selectedWeek.subtract(const Duration(days: 5));
-      if (!now.isBefore(scheduleRuntime.schedule.lock.on(monday))) return null;
+      final deadline = RollingWindow.fromSat0(
+        selectedWeek,
+        schedule: scheduleRuntime.schedule,
+      ).deadlineFor(selectedWeek);
+      if (!now.isBefore(deadline)) return null;
     }
     final validIds = selectedWeek == null
         ? repo.windowSessions(window).map((s) => s.id).toSet()

@@ -9,17 +9,40 @@ class ScheduleTimes {
   static const reminderWeekdayKey = 'schedule_reminder_weekday';
   static const lockWeekdayKey = 'schedule_lock_weekday';
   static const checkerWeekdayKey = 'schedule_checker_weekday';
+  static const attendanceInitialKey = 'schedule_attendance_initial';
+  static const attendanceInitialWeekdayKey =
+      'schedule_attendance_initial_weekday';
+  static const attendanceFollowupKey = 'schedule_attendance_followup';
+  static const attendanceFollowupWeekdayKey =
+      'schedule_attendance_followup_weekday';
+  static const absenceKey = 'schedule_absence';
+  static const absenceWeekdayKey = 'schedule_absence_weekday';
 
   final ScheduleEvent prompt;
   final ScheduleEvent reminder;
   final ScheduleEvent lock;
   final ScheduleEvent checker;
+  final ScheduleEvent attendanceInitial;
+  final ScheduleEvent attendanceFollowup;
+  final ScheduleEvent absence;
 
   const ScheduleTimes({
     required this.prompt,
     required this.reminder,
     required this.lock,
     required this.checker,
+    this.attendanceInitial = const ScheduleEvent(
+      weekday: 'sun',
+      time: LocalWallClock(20, 0),
+    ),
+    this.attendanceFollowup = const ScheduleEvent(
+      weekday: 'mon',
+      time: LocalWallClock(8, 0),
+    ),
+    this.absence = const ScheduleEvent(
+      weekday: 'mon',
+      time: LocalWallClock(8, 0),
+    ),
   });
 
   static const defaults = ScheduleTimes(
@@ -27,6 +50,15 @@ class ScheduleTimes {
     reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(18, 0)),
     lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
     checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
+    attendanceInitial: ScheduleEvent(
+      weekday: 'sun',
+      time: LocalWallClock(20, 0),
+    ),
+    attendanceFollowup: ScheduleEvent(
+      weekday: 'mon',
+      time: LocalWallClock(8, 0),
+    ),
+    absence: ScheduleEvent(weekday: 'mon', time: LocalWallClock(8, 0)),
   );
 
   static const defaultSettings = <String, String>{
@@ -38,6 +70,12 @@ class ScheduleTimes {
     reminderWeekdayKey: 'thu',
     lockWeekdayKey: 'fri',
     checkerWeekdayKey: 'fri',
+    attendanceInitialKey: '20:00',
+    attendanceInitialWeekdayKey: 'sun',
+    attendanceFollowupKey: '08:00',
+    attendanceFollowupWeekdayKey: 'mon',
+    absenceKey: '08:00',
+    absenceWeekdayKey: 'mon',
   };
 
   factory ScheduleTimes.fromSettings(Map<String, String?> values) {
@@ -51,29 +89,42 @@ class ScheduleTimes {
       }
     }
 
-    String readWeekday(String key) {
+    String readWeekday(String key, {bool weekdaysOnly = false}) {
       final raw = values[key];
-      return raw != null && scheduleWeekdayNumber(raw) != null
-          ? raw
+      final weekday = raw == null ? null : scheduleWeekdayNumber(raw);
+      return weekday != null && (!weekdaysOnly || weekday <= DateTime.friday)
+          ? raw!
           : defaultSettings[key]!;
     }
 
     return ScheduleTimes(
       prompt: ScheduleEvent(
-        weekday: readWeekday(promptWeekdayKey),
+        weekday: readWeekday(promptWeekdayKey, weekdaysOnly: true),
         time: read(promptKey),
       ),
       reminder: ScheduleEvent(
-        weekday: readWeekday(reminderWeekdayKey),
+        weekday: readWeekday(reminderWeekdayKey, weekdaysOnly: true),
         time: read(reminderKey),
       ),
       lock: ScheduleEvent(
-        weekday: readWeekday(lockWeekdayKey),
+        weekday: readWeekday(lockWeekdayKey, weekdaysOnly: true),
         time: read(lockKey),
       ),
       checker: ScheduleEvent(
-        weekday: readWeekday(checkerWeekdayKey),
+        weekday: readWeekday(checkerWeekdayKey, weekdaysOnly: true),
         time: read(checkerKey),
+      ),
+      attendanceInitial: ScheduleEvent(
+        weekday: readWeekday(attendanceInitialWeekdayKey),
+        time: read(attendanceInitialKey),
+      ),
+      attendanceFollowup: ScheduleEvent(
+        weekday: readWeekday(attendanceFollowupWeekdayKey),
+        time: read(attendanceFollowupKey),
+      ),
+      absence: ScheduleEvent(
+        weekday: readWeekday(absenceWeekdayKey),
+        time: read(absenceKey),
       ),
     );
   }
@@ -90,6 +141,12 @@ class ScheduleTimes {
     reminderWeekdayKey: reminder.weekday,
     lockWeekdayKey: lock.weekday,
     checkerWeekdayKey: checker.weekday,
+    attendanceInitialKey: attendanceInitial.time.value,
+    attendanceInitialWeekdayKey: attendanceInitial.weekday,
+    attendanceFollowupKey: attendanceFollowup.time.value,
+    attendanceFollowupWeekdayKey: attendanceFollowup.weekday,
+    absenceKey: absence.time.value,
+    absenceWeekdayKey: absence.weekday,
   };
 
   Map<String, String> get json => {
@@ -101,6 +158,12 @@ class ScheduleTimes {
     'reminderWeekday': reminder.weekday,
     'lockWeekday': lock.weekday,
     'checkerWeekday': checker.weekday,
+    'attendanceInitial': attendanceInitial.time.value,
+    'attendanceInitialWeekday': attendanceInitial.weekday,
+    'attendanceFollowup': attendanceFollowup.time.value,
+    'attendanceFollowupWeekday': attendanceFollowup.weekday,
+    'absence': absence.time.value,
+    'absenceWeekday': absence.weekday,
   };
 
   bool get checkerAfterLock => checker.compareTo(lock) > 0;
@@ -113,12 +176,31 @@ class ScheduleTimes {
       'checker': checker,
     }.entries) {
       final event = entry.value;
-      if (scheduleWeekdayNumber(event.weekday) == null) {
+      final weekday = scheduleWeekdayNumber(event.weekday);
+      if (weekday == null || weekday > DateTime.friday) {
         throw ArgumentError(
           '${entry.key} weekday must be mon, tue, wed, thu or fri',
         );
       }
       final value = event.time;
+      if (value.hour < 0 ||
+          value.hour > 23 ||
+          value.minute < 0 ||
+          value.minute > 59) {
+        throw ArgumentError('${entry.key} time is outside 00:00-23:59');
+      }
+    }
+    for (final entry in {
+      'attendanceInitial': attendanceInitial,
+      'attendanceFollowup': attendanceFollowup,
+      'absence': absence,
+    }.entries) {
+      if (scheduleWeekdayNumber(entry.value.weekday) == null) {
+        throw ArgumentError(
+          '${entry.key} weekday must be mon, tue, wed, thu, fri, sat or sun',
+        );
+      }
+      final value = entry.value.time;
       if (value.hour < 0 ||
           value.hour > 23 ||
           value.minute < 0 ||
@@ -145,10 +227,21 @@ class ScheduleTimes {
       prompt == other.prompt &&
       reminder == other.reminder &&
       lock == other.lock &&
-      checker == other.checker;
+      checker == other.checker &&
+      attendanceInitial == other.attendanceInitial &&
+      attendanceFollowup == other.attendanceFollowup &&
+      absence == other.absence;
 
   @override
-  int get hashCode => Object.hash(prompt, reminder, lock, checker);
+  int get hashCode => Object.hash(
+    prompt,
+    reminder,
+    lock,
+    checker,
+    attendanceInitial,
+    attendanceFollowup,
+    absence,
+  );
 }
 
 /// Built-in location keys. Locations are dynamic (DB-backed) — these are the

@@ -1,4 +1,3 @@
-
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 import 'package:sdsc_bot/bot/calendar_sync.dart';
@@ -25,7 +24,8 @@ void main() {
   test('active outreach API validates and updates one route', () async {
     final (_, initialBody) = await call('GET', '/api/state');
     final initial = initialBody as Map<String, dynamic>;
-    final initialRoutes = (initial['activeOutreach'] as Map).cast<String, bool>();
+    final initialRoutes = (initial['activeOutreach'] as Map)
+        .cast<String, bool>();
     expect(initialRoutes.length, 9);
     expect(initialRoutes.values, everyElement(isTrue));
 
@@ -35,8 +35,10 @@ void main() {
       body: {'route': 'prompt', 'enabled': false},
     );
     expect(status, 200);
-    expect((body as Map<String, dynamic>)['activeOutreach'],
-        containsPair('prompt', false));
+    expect(
+      (body as Map<String, dynamic>)['activeOutreach'],
+      containsPair('prompt', false),
+    );
     expect(repo.activeOutreachEnabled('reminder'), isTrue);
 
     final (unknownStatus, _) = await call(
@@ -85,6 +87,10 @@ void main() {
     expect(initial['schedule'], containsPair('checker', '21:00'));
     expect(initial['schedule'], containsPair('promptWeekday', 'mon'));
     expect(initial['schedule'], containsPair('reminderWeekday', 'thu'));
+    expect(initial['attendanceInitial'], '20:00');
+    expect(initial['attendanceInitialWeekday'], 'sun');
+    expect(initial['schedule'], containsPair('attendanceFollowup', '08:00'));
+    expect(initial['schedule'], containsPair('absenceWeekday', 'mon'));
     expect(initial['timezoneOffset'], 8);
 
     final (postStatus, postBody) = await call(
@@ -115,49 +121,106 @@ void main() {
     );
     expect(repo.readSchedule().prompt.value, '07:05');
 
+    final (customStatus, customBody) = await call(
+      'POST',
+      '/api/schedule',
+      body: {
+        'schedule': {
+          'attendanceInitial': '21:15',
+          'attendanceInitialWeekday': 'sat',
+          'attendanceFollowup': '07:45',
+          'attendanceFollowupWeekday': 'sun',
+          'absence': '08:30',
+          'absenceWeekday': 'wed',
+        },
+      },
+    );
+    expect(customStatus, 200);
+    final custom = customBody as Map<String, dynamic>;
+    expect(custom['attendanceInitialWeekday'], 'sat');
+    expect(custom['schedule'], containsPair('attendanceFollowup', '07:45'));
+    expect(custom['schedule'], containsPair('absenceWeekday', 'wed'));
+    expect(custom['prompt'], '07:05');
+
+    final (partialStatus, partialBody) = await call(
+      'POST',
+      '/api/schedule',
+      body: {'absenceWeekday': 'sun', 'attendanceInitial': '22:05'},
+    );
+    expect(partialStatus, 200);
+    final partial = partialBody as Map<String, dynamic>;
+    expect(partial['attendanceInitial'], '22:05');
+    expect(partial['attendanceInitialWeekday'], 'sat');
+    expect(partial['attendanceFollowup'], '07:45');
+    expect(partial['attendanceFollowupWeekday'], 'sun');
+    expect(partial['absence'], '08:30');
+    expect(partial['absenceWeekday'], 'sun');
+
     final (_, stateBody) = await call('GET', '/api/state');
     final state = stateBody as Map<String, dynamic>;
     expect(state['promptWeekday'], 'mon');
     expect(state['schedule'], containsPair('checker', '21:20'));
     expect(state['schedule'], containsPair('reminderWeekday', 'wed'));
+    expect(state['attendanceInitial'], '22:05');
+    expect(state['absenceWeekday'], 'sun');
   });
 
-  test('schedule API rejects malformed times and checker before lock', () async {
-    final (badTimeStatus, _) = await call(
-      'POST',
-      '/api/schedule',
-      body: {'prompt': '7:05'},
-    );
-    expect(badTimeStatus, 400);
-    final (badOrderStatus, badOrderBody) = await call(
-      'POST',
-      '/api/schedule',
-      body: {'lock': '20:00', 'checker': '20:00'},
-    );
-    expect(badOrderStatus, 400);
-    expect((badOrderBody as Map<String, dynamic>)['error'], contains('checker'));
+  test(
+    'schedule API rejects malformed times and checker before lock',
+    () async {
+      final (badTimeStatus, _) = await call(
+        'POST',
+        '/api/schedule',
+        body: {'prompt': '7:05'},
+      );
+      expect(badTimeStatus, 400);
+      final (badOrderStatus, badOrderBody) = await call(
+        'POST',
+        '/api/schedule',
+        body: {'lock': '20:00', 'checker': '20:00'},
+      );
+      expect(badOrderStatus, 400);
+      expect(
+        (badOrderBody as Map<String, dynamic>)['error'],
+        contains('checker'),
+      );
 
-    final (weekendStatus, weekendBody) = await call(
-      'POST',
-      '/api/schedule',
-      body: {'promptWeekday': 'sat'},
-    );
-    expect(weekendStatus, 400);
-    expect((weekendBody as Map<String, dynamic>)['error'], contains('weekday'));
+      final (weekendStatus, weekendBody) = await call(
+        'POST',
+        '/api/schedule',
+        body: {'promptWeekday': 'sat'},
+      );
+      expect(weekendStatus, 400);
+      expect(
+        (weekendBody as Map<String, dynamic>)['error'],
+        contains('weekday'),
+      );
 
-    final (emptyStatus, _) = await call(
-      'POST',
-      '/api/schedule',
-      body: <String, Object?>{},
-    );
-    expect(emptyStatus, 400);
-    final (unknownStatus, _) = await call(
-      'POST',
-      '/api/schedule',
-      body: {'promptDay': 'mon'},
-    );
-    expect(unknownStatus, 400);
-  });
+      final (validNewEventStatus, validNewEventBody) = await call(
+        'POST',
+        '/api/schedule',
+        body: {'attendanceInitialWeekday': 'sun'},
+      );
+      expect(validNewEventStatus, 200);
+      expect(
+        (validNewEventBody as Map<String, dynamic>)['attendanceInitialWeekday'],
+        'sun',
+      );
+
+      final (emptyStatus, _) = await call(
+        'POST',
+        '/api/schedule',
+        body: <String, Object?>{},
+      );
+      expect(emptyStatus, 400);
+      final (unknownStatus, _) = await call(
+        'POST',
+        '/api/schedule',
+        body: {'promptDay': 'mon'},
+      );
+      expect(unknownStatus, 400);
+    },
+  );
 
   test('GET /api/logs returns the in-memory ring', () async {
     LogRing.log('hello from the test');

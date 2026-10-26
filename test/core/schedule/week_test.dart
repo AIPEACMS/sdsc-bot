@@ -2,6 +2,26 @@ import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 
 void main() {
+  group('completed session block anchor', () {
+    test('Sunday and Monday share the previous Saturday block', () {
+      expect(
+        latestCompletedSessionBlockStart(DateTime(2026, 10, 25)),
+        DateTime(2026, 10, 17),
+      );
+      expect(
+        latestCompletedSessionBlockStart(DateTime(2026, 10, 26)),
+        DateTime(2026, 10, 17),
+      );
+    });
+
+    test('Saturday event anchors one completed block behind', () {
+      expect(
+        latestCompletedSessionBlockStart(DateTime(2026, 10, 31)),
+        DateTime(2026, 10, 24),
+      );
+    });
+  });
+
   group('WeekMath ISO weeks', () {
     test('2026-01-01 (Thu) is ISO week 1 of 2026', () {
       expect(WeekMath.isoWeek(DateTime(2026, 1, 1)), 1);
@@ -54,22 +74,10 @@ void main() {
 
     test('rolling window uses all configured schedule milestones', () {
       const schedule = ScheduleTimes(
-        prompt: ScheduleEvent(
-          weekday: 'mon',
-          time: LocalWallClock(17, 15),
-        ),
-        reminder: ScheduleEvent(
-          weekday: 'thu',
-          time: LocalWallClock(18, 30),
-        ),
-        lock: ScheduleEvent(
-          weekday: 'fri',
-          time: LocalWallClock(19, 45),
-        ),
-        checker: ScheduleEvent(
-          weekday: 'fri',
-          time: LocalWallClock(22, 0),
-        ),
+        prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(17, 15)),
+        reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(18, 30)),
+        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 45)),
+        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(22, 0)),
       );
       final window = RollingWindow.forDate(
         DateTime(2026, 8, 12),
@@ -83,22 +91,10 @@ void main() {
 
     test('rolling window uses configured weekdays and weekly lock spacing', () {
       const schedule = ScheduleTimes(
-        prompt: ScheduleEvent(
-          weekday: 'tue',
-          time: LocalWallClock(9, 0),
-        ),
-        reminder: ScheduleEvent(
-          weekday: 'wed',
-          time: LocalWallClock(10, 0),
-        ),
-        lock: ScheduleEvent(
-          weekday: 'fri',
-          time: LocalWallClock(18, 0),
-        ),
-        checker: ScheduleEvent(
-          weekday: 'fri',
-          time: LocalWallClock(20, 0),
-        ),
+        prompt: ScheduleEvent(weekday: 'tue', time: LocalWallClock(9, 0)),
+        reminder: ScheduleEvent(weekday: 'wed', time: LocalWallClock(10, 0)),
+        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(18, 0)),
+        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(20, 0)),
       );
       final window = RollingWindow.forDate(
         DateTime(2026, 8, 12),

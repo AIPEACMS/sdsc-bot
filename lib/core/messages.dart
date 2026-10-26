@@ -1,4 +1,5 @@
 import 'models.dart';
+import 'week.dart';
 
 /// All user-facing message templates. Contact placeholders are resolved per
 /// the member's registered group via [contactForGroup].
@@ -6,6 +7,13 @@ class Messages {
   final String Function(String group) contactForGroup;
 
   const Messages(this.contactForGroup);
+
+  String lockDeadlineLabel(RollingWindow window, DateTime weekendStart) =>
+      formatLocalScheduleDateTime(window.deadlineFor(weekendStart));
+
+  String lockDeadlines(RollingWindow window) =>
+      'this weekend on ${lockDeadlineLabel(window, window.sat0)} and '
+      'next weekend on ${lockDeadlineLabel(window, window.sat1)}';
 
   /// Initial availability prompt. The picker mechanics (tap once = backup,
   /// twice = booked, allocation outcome) live in the hint shown under this —
@@ -47,6 +55,7 @@ class Messages {
     String? allocateAt,
     bool immediate = false,
     String Function(Slot)? label,
+    required String lockDeadlines,
   }) {
     String show(Slot s) => label?.call(s) ?? s.toString();
     final wantList = want.map((s) => '🔒 ${show(s)}').toList();
@@ -58,25 +67,31 @@ class Messages {
         : '';
     return 'Thank you! Here is what you told us '
         '(🔒 booked · 🟢 backup):\n$list\n\n'
-        'Availability locks on the Friday before each weekend. '
+        'Availability locks $lockDeadlines. '
         'Changed your mind? Send re-pick to update before then.$alloc';
   }
 
   /// Confirmation when the member indicated they are not available.
-  String msg6() {
+  String msg6({required String lockDeadlines}) {
     return 'No worries — you are all set for the next 2 weeks. '
         'We will prompt you again for the following cycle!\n\n'
-        'Changed your mind? Send re-pick to update by Friday.';
+        'Changed your mind? Send re-pick before availability locks '
+        '$lockDeadlines.';
   }
 
   /// Allocation notice. `session` is e.g. "OCBC @ Pasir Ris" placeholder —
   /// the caller formats the session label; [time] is the "from $time to $time"
-  /// portion. [deadlinePassed] decides the tail: before the weekend's Friday
+  /// portion. [deadlinePassed] decides the tail: before the weekend's lock
   /// deadline the member can still re-pick; after it, they must message the
   /// contact instead. [deadlineLabel] is the deadline rendered as a human
-  /// time (e.g. "Friday 6:00 PM").
-  String msg4(String group, String sessionLabel, String timeLabel,
-      {required bool deadlinePassed, required String deadlineLabel}) {
+  /// time (including weekday and date).
+  String msg4(
+    String group,
+    String sessionLabel,
+    String timeLabel, {
+    required bool deadlinePassed,
+    required String deadlineLabel,
+  }) {
     final contact = contactForGroup(group);
     final tail = deadlinePassed
         ? 'If your plans suddenly change, message $contact as soon as possible.'
@@ -108,8 +123,8 @@ class Messages {
         'we will see you next semester!';
   }
 
-  /// Monday absence alert to a group admin: member(s) who have not attended
-  /// for 4+ consecutive weeks. The admin is asked to reach out personally —
+  /// Absence alert to a group admin: member(s) who have not attended for 4+
+  /// consecutive weeks. The admin is asked to reach out personally —
   /// /ask only sends an automated bot prompt, not a personal contact.
   String msgAbsent(String list, {String more = ''}) {
     return '⚠️ <b>Members not attending</b>\n\n'

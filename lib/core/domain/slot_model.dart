@@ -35,8 +35,8 @@ class LocalWallClock {
   int get hashCode => Object.hash(hour, minute);
 }
 
-/// Canonical weekdays accepted for schedule milestones.
-const scheduleWeekdays = ['mon', 'tue', 'wed', 'thu', 'fri'];
+/// Canonical weekdays accepted by configurable schedule events.
+const scheduleWeekdays = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 
 int? scheduleWeekdayNumber(String weekday) {
   final index = scheduleWeekdays.indexOf(weekday);

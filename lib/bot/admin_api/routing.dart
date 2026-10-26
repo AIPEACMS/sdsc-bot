@@ -282,6 +282,16 @@ extension AdminApiRouting on AdminApi {
       'reminderWeekday': scheduleRuntime.schedule.reminder.weekday,
       'lockWeekday': scheduleRuntime.schedule.lock.weekday,
       'checkerWeekday': scheduleRuntime.schedule.checker.weekday,
+      'attendanceInitial':
+          scheduleRuntime.schedule.attendanceInitial.time.value,
+      'attendanceInitialWeekday':
+          scheduleRuntime.schedule.attendanceInitial.weekday,
+      'attendanceFollowup':
+          scheduleRuntime.schedule.attendanceFollowup.time.value,
+      'attendanceFollowupWeekday':
+          scheduleRuntime.schedule.attendanceFollowup.weekday,
+      'absence': scheduleRuntime.schedule.absence.time.value,
+      'absenceWeekday': scheduleRuntime.schedule.absence.weekday,
       'schedule': _scheduleJson(),
       'activeOutreach': repo.activeOutreach(),
       'window': {

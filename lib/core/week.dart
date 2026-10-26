@@ -1,12 +1,8 @@
 /// ISO week calculations and cycle timeline helpers.
 ///
 /// A "cycle" is a 2-week block whose first session weekend falls on an odd ISO
-/// week (`blockWeek`). Timeline for a cycle:
-///   - prompt:   Monday of blockWeek-1
-///   - reminder: Thursday of blockWeek-1
-///   - deadline: Friday of blockWeek-1 18:00
-///   - allocate: Wednesday of blockWeek 09:00
-///   - sessions: Saturday of blockWeek and blockWeek+1
+/// week (`blockWeek`). Prompt, reminder, lock, and checker events are scheduled
+/// from [ScheduleTimes]. Session weeks remain anchored on Saturday.
 class WeekMath {
   /// ISO-8601 week number (1..53) for [date].
   static int isoWeek(DateTime date) {
@@ -80,4 +76,49 @@ class WeekMath {
   static DateTime saturdayOfWeek(int week, int year) {
     return mondayOfWeek(week, year).add(const Duration(days: 5));
   }
+}
+
+/// Returns the Saturday anchor for the most recently completed Sat-Fri block
+/// before [eventLocalDate].
+DateTime latestCompletedSessionBlockStart(DateTime eventLocalDate) {
+  final date = DateTime(
+    eventLocalDate.year,
+    eventLocalDate.month,
+    eventLocalDate.day,
+  );
+  final daysSinceSaturday = (date.weekday - DateTime.saturday + 7) % 7;
+  final mostRecentSaturday = date.subtract(Duration(days: daysSinceSaturday));
+  return mostRecentSaturday.subtract(const Duration(days: 7));
+}
+
+/// Formats a local schedule event for user-facing deadline copy.
+String formatLocalScheduleDateTime(DateTime dateTime) {
+  const weekdays = [
+    'Monday',
+    'Tuesday',
+    'Wednesday',
+    'Thursday',
+    'Friday',
+    'Saturday',
+    'Sunday',
+  ];
+  const months = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ];
+  final hour = dateTime.hour % 12 == 0 ? 12 : dateTime.hour % 12;
+  final minute = dateTime.minute.toString().padLeft(2, '0');
+  final period = dateTime.hour < 12 ? 'AM' : 'PM';
+  return '${weekdays[dateTime.weekday - 1]} ${dateTime.day} '
+      '${months[dateTime.month - 1]} at $hour:$minute $period';
 }

@@ -137,7 +137,7 @@ extension SetTimeCommand on SetTime {
           ? 'Enter one session per line. The first line selects the week; '
                 'every later line must be in that same week.\n\n'
                 'Choose the week with either:\n'
-                '• An explicit date: <code>mon as 2026-09-21 9:00 13:00 PR 5</code> '
+                '• An explicit date: <code>mon as YYYY-MM-DD 9:00 13:00 PR 5</code> '
                 '(replace the date with your intended date).\n'
                 '• The next matching weekday: <code>thu 9:00 13:00 PR 5</code>.\n\n'
                 'Use <code>day as YYYY-MM-DD</code> on a later line if its date '
@@ -239,8 +239,10 @@ extension SetTimeCommand on SetTime {
     var kb = InlineKeyboard();
     for (var i = 0; i < 4; i++) {
       final sat = first.add(Duration(days: i * 7));
-      final monday = sat.subtract(const Duration(days: 5));
-      final lockAt = scheduleRuntime.schedule.lock.on(monday);
+      final lockAt = RollingWindow.fromSat0(
+        sat,
+        schedule: scheduleRuntime.schedule,
+      ).deadlineFor(sat);
       final locked = !now.isBefore(lockAt);
       kb = kb
           .text(

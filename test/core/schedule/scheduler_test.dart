@@ -13,7 +13,7 @@ import 'package:televerse/televerse.dart';
 import 'package:test/test.dart';
 
 void main() {
-  test('schedule updates re-arm the scheduler one-shot milestone', () {
+  test('schedule updates re-arm the scheduler one-shot milestone', () async {
     final tmp = Directory.systemTemp.createTempSync('sdsc_scheduler_');
     final config = Config(
       botToken: 'test',
@@ -49,22 +49,35 @@ void main() {
     );
     Config.setDebugNow(DateTime.utc(2026, 8, 10, 1));
     try {
-      runtime.update(const ScheduleTimes(
-        prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(10, 0)),
-        reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(11, 0)),
-        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
-        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
-      ));
+      runtime.update(
+        const ScheduleTimes(
+          prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(10, 0)),
+          reminder: ScheduleEvent(weekday: 'thu', time: LocalWallClock(11, 0)),
+          lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+          checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
+          attendanceInitial: ScheduleEvent(
+            weekday: 'mon',
+            time: LocalWallClock(9, 30),
+          ),
+        ),
+      );
       scheduler.start(interval: const Duration(days: 1));
-      expect(scheduler.nextMilestone, DateTime(2026, 8, 10, 10));
+      expect(scheduler.nextMilestone, DateTime(2026, 8, 10, 9, 30));
 
-      runtime.update(const ScheduleTimes(
-        prompt: ScheduleEvent(weekday: 'tue', time: LocalWallClock(12, 0)),
-        reminder: ScheduleEvent(weekday: 'wed', time: LocalWallClock(13, 0)),
-        lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
-        checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
-      ));
-      expect(scheduler.nextMilestone, DateTime(2026, 8, 11, 12));
+      runtime.update(
+        const ScheduleTimes(
+          prompt: ScheduleEvent(weekday: 'tue', time: LocalWallClock(12, 0)),
+          reminder: ScheduleEvent(weekday: 'wed', time: LocalWallClock(13, 0)),
+          lock: ScheduleEvent(weekday: 'fri', time: LocalWallClock(19, 0)),
+          checker: ScheduleEvent(weekday: 'fri', time: LocalWallClock(21, 0)),
+          attendanceInitial: ScheduleEvent(
+            weekday: 'mon',
+            time: LocalWallClock(11, 0),
+          ),
+        ),
+      );
+      expect(scheduler.nextMilestone, DateTime(2026, 8, 10, 11));
+      await Future<void>.delayed(Duration.zero);
     } finally {
       scheduler.stop();
       Config.setDebugNow(null);

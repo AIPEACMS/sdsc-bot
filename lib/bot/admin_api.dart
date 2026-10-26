@@ -37,6 +37,12 @@ import '../core/schedule.dart';
 ///   GET   /api/state                    -> held flag, debug clock, cycle, schedule
 ///   GET   /api/schedule                 -> persisted local wall-clock schedule
 ///   POST  /api/schedule                 -> partial event time/weekday update
+///        legacy prompt/reminder/lock/checker events allow Mon-Fri in order;
+///        attendanceInitial (Sun 20:00), attendanceFollowup (Mon 08:00), and
+///        absence (Mon 08:00) each accept any weekday independently with their
+///        matching `attendanceInitialWeekday`, `attendanceFollowupWeekday`, and
+///        `absenceWeekday` fields. Omitted fields retain their saved values;
+///        timezoneOffset is server-controlled.
 ///   POST  /api/session-schedule/read         -> {scope, week?}; selected rows, sessions, override and lock state
 ///   POST  /api/session-schedule/preview  -> {scope, week?, action, rows:[{day,slot,start,end,location,maxPeople?,capacityGroup?}]}
 ///   POST  /api/session-schedule/commit   -> same body as preview; revalidates and applies

@@ -1,10 +1,9 @@
 part of '../service.dart';
 
 extension CycleServiceAllocation on CycleService {
-
-  /// Sunday/Monday attendance-marking reminders: for every allocated member
+  /// Attendance-marking reminders: for every allocated member
   /// of [sat]'s weekend with no attendance mark yet, remind the member's
-  /// group admin. The console is notified via the log ring on the second day.
+  /// group admin. The console receives a log-ring entry when it runs.
   Future<void> remindAttendanceMarking(DateTime sat, DateTime day) async {
     final sessions = repo.sessionsForWeekend(sat);
     var unmarkedTotal = 0;
@@ -30,7 +29,9 @@ extension CycleServiceAllocation on CycleService {
     }
     if (byAdmin.isEmpty) return;
     if (!repo.activeOutreachEnabled('attendance')) {
-      LogRing.log('attmark: suppressed $unmarkedTotal reminders (route disabled)');
+      LogRing.log(
+        'attmark: suppressed $unmarkedTotal reminders (route disabled)',
+      );
       return;
     }
 
@@ -58,11 +59,13 @@ extension CycleServiceAllocation on CycleService {
     );
   }
 
-  /// Monday: for every active member who has not attended for 4+ consecutive
-  /// weeks, remind their group admin to reach out personally. Repeats each
-  /// Monday while the streak holds; any attendance resets it.
-  Future<void> remindAbsentMembers(DateTime monday) async {
-    final latestSat = monday.subtract(const Duration(days: 2));
+  /// For every active member who has not attended for 4+ consecutive
+  /// weeks, remind their group admin to reach out personally. Repeats on each
+  /// configured absence event while the streak holds; attendance resets it.
+  Future<void> remindAbsentMembers(
+    DateTime latestSat,
+    DateTime eventDay,
+  ) async {
     final byAdmin = <int, List<String>>{};
     var absentTotal = 0;
     for (final user in repo.activeUsers()) {
@@ -83,7 +86,7 @@ extension CycleServiceAllocation on CycleService {
     }
 
     for (final entry in byAdmin.entries) {
-      if (repo.messageSentOnDay(entry.key, 'absent', monday)) continue;
+      if (repo.messageSentOnDay(entry.key, 'absent', eventDay)) continue;
       final list = entry.value.take(6).join('\n');
       final more = entry.value.length > 6
           ? '\n… and ${entry.value.length - 6} more'
@@ -94,19 +97,19 @@ extension CycleServiceAllocation on CycleService {
           messages.msgAbsent(list, more: more),
           parseMode: ParseMode.html,
         );
-        repo.markMessageSent(entry.key, 'absent', monday);
+        repo.markMessageSent(entry.key, 'absent', eventDay);
       } catch (_) {
-        // admin unreachable; the next Monday retries
+        // admin unreachable; the next configured absence event retries
       }
     }
     LogRing.log(
       'absent: $absentTotal members absent 4+ weeks on '
-      '${_dayShort(monday)} — console: please chase the admins',
+      '${_dayShort(eventDay)} — console: please chase the admins',
     );
   }
 
   /// The full allocation list for one weekend — the `check` tier's status
-  /// report, reused by the on-demand button and the Friday-evening push.
+  /// report, reused by the on-demand button and scheduled push.
   /// [title] overrides the heading (e.g. per-weekend headings in /status).
   String checkListText(DateTime sat, {String? title, Set<int>? userIds}) {
     final sb = StringBuffer()
@@ -120,7 +123,9 @@ extension CycleServiceAllocation on CycleService {
     final bySession = <int, List<String>>{};
     for (final (u, s) in allocations) {
       if (userIds != null && !userIds.contains(u.id)) continue;
-       bySession.putIfAbsent(s.id, () => []).add(CycleServiceNotifications._displayName(u));
+      bySession
+          .putIfAbsent(s.id, () => [])
+          .add(CycleServiceNotifications._displayName(u));
     }
 
     final sessions = repo.sessionsForWeekend(sat)
@@ -137,7 +142,8 @@ extension CycleServiceAllocation on CycleService {
     return sb.toString();
   }
 
-  /// Friday evening: push the current weekend's full allocation to every
+  /// At the configured checker event: push the current weekend's full
+  /// allocation to every
   /// `check`-tier user — a final confirmation list the backend sends
   /// proactively (not a response to their status button).
   Future<void> sendCheckList(DateTime sat) async {
@@ -164,7 +170,9 @@ extension CycleServiceAllocation on CycleService {
       }
     }
     if (failures > 0) LogRing.log('checklist: $failures sends failed');
-    if (suppressed > 0) LogRing.log('checklist: suppressed $suppressed sends (route disabled)');
+    if (suppressed > 0) {
+      LogRing.log('checklist: suppressed $suppressed sends (route disabled)');
+    }
   }
 
   /// Sends (or edits an existing) availability keyboard message to [user].
@@ -191,7 +199,7 @@ extension CycleServiceAllocation on CycleService {
       w,
       picked,
       now: config.toLocal(Config.nowUtc()),
-        holidays: CycleServicePrompts.holidaysForWindow(repo, w),
+      holidays: CycleServicePrompts.holidaysForWindow(repo, w),
       allocatedCounts: allocatedCounts,
       ownCapacityGroups: ownCapacityGroups,
       hasIndicated: repo.hasBundleResponse(w.sat0, user.id),
@@ -297,5 +305,4 @@ extension CycleServiceAllocation on CycleService {
       'if needed), or <b>twice</b> = booked 🔒. You\'ll get <b>every</b> 🔒 '
       'you book (one per time slot), plus <b>one</b> of your 🟢 backups. '
       'Tap again to unselect.';
-
 }

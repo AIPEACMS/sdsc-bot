@@ -154,7 +154,7 @@ void main() {
     expect(notice, contains('@leader'));
     expect(notice, isNot(contains('TBD')));
 
-    // Before the weekend's Friday deadline the member can still re-pick
+    // Before the weekend's lock deadline the member can still re-pick
     // instead of messaging the contact.
     final before = messages.msg4(
       '1',
@@ -168,8 +168,14 @@ void main() {
   });
 
   test('availability confirmations refer to the working re-pick label', () {
-    final available = messages.msg3(const [], const []);
-    final unavailable = messages.msg6();
+    final window = RollingWindow.fromSat0(DateTime(2026, 8, 15));
+    final lockDeadlines = messages.lockDeadlines(window);
+    final available = messages.msg3(
+      const [],
+      const [],
+      lockDeadlines: lockDeadlines,
+    );
+    final unavailable = messages.msg6(lockDeadlines: lockDeadlines);
 
     expect(available, contains('re-pick'));
     expect(available, isNot(contains('/repick')));
@@ -178,7 +184,14 @@ void main() {
   });
 
   test('confirmation no longer promises allocation at a later sharp hour', () {
-    final text = messages.msg3(const [], const [], allocateAt: '6:00 PM');
+    final text = messages.msg3(
+      const [],
+      const [],
+      allocateAt: '6:00 PM',
+      lockDeadlines: messages.lockDeadlines(
+        RollingWindow.fromSat0(DateTime(2026, 8, 15)),
+      ),
+    );
     expect(text, isNot(contains('allocated at 6:00 PM')));
   });
 
@@ -188,12 +201,45 @@ void main() {
     final text = messages.msg3(
       const [want],
       const [avail],
+      lockDeadlines: messages.lockDeadlines(
+        RollingWindow.fromSat0(DateTime(2026, 8, 15)),
+      ),
       label: (s) =>
           '${s.location == 'ocbc' ? 'OCBC' : 'PR'} '
           '${Slot.dayLabel(s.day)} ${s.slot.toUpperCase()}',
     );
     expect(text, contains('🔒 OCBC Sat AM'));
     expect(text, contains('🟢 PR Sat PM'));
+  });
+
+  test('lock copy reflects each configured weekday and date', () {
+    const schedule = ScheduleTimes(
+      prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(9, 0)),
+      reminder: ScheduleEvent(weekday: 'mon', time: LocalWallClock(10, 0)),
+      lock: ScheduleEvent(weekday: 'tue', time: LocalWallClock(17, 45)),
+      checker: ScheduleEvent(weekday: 'wed', time: LocalWallClock(19, 0)),
+    );
+    final window = RollingWindow.forDate(
+      DateTime(2026, 8, 10),
+      schedule: schedule,
+    );
+
+    final text = messages.msg3(
+      const [],
+      const [],
+      lockDeadlines: messages.lockDeadlines(window),
+    );
+    expect(text, contains('Tuesday 11 Aug at 5:45 PM'));
+    expect(text, contains('Tuesday 18 Aug at 5:45 PM'));
+    expect(text, isNot(contains('Friday')));
+    final allocation = messages.msg4(
+      '1',
+      'OCBC · Saturday 15 Aug AM',
+      '09:00 to 12:00',
+      deadlinePassed: false,
+      deadlineLabel: messages.lockDeadlineLabel(window, window.sat0),
+    );
+    expect(allocation, contains('before Tuesday 11 Aug at 5:45 PM'));
   });
 
   test('the allocation hour is the next sharp hour after indicating', () {

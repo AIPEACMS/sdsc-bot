@@ -1,7 +1,6 @@
 part of '../../repo.dart';
 
 extension RepoLocations on Repo {
-
   /// Reads all schedule values from one SQLite read transaction. Missing
   /// weekday keys are filled by [ScheduleTimes.fromSettings] for legacy DBs.
   ScheduleTimes readSchedule() {
@@ -16,6 +15,12 @@ extension RepoLocations on Repo {
         ScheduleTimes.reminderWeekdayKey,
         ScheduleTimes.lockWeekdayKey,
         ScheduleTimes.checkerWeekdayKey,
+        ScheduleTimes.attendanceInitialKey,
+        ScheduleTimes.attendanceInitialWeekdayKey,
+        ScheduleTimes.attendanceFollowupKey,
+        ScheduleTimes.attendanceFollowupWeekdayKey,
+        ScheduleTimes.absenceKey,
+        ScheduleTimes.absenceWeekdayKey,
       ];
       final rows = raw.select(
         'SELECT key, value FROM settings WHERE key IN '
@@ -98,15 +103,13 @@ ON CONFLICT(id) DO UPDATE SET username = excluded.username
   /// Users the bot has seen in messages but who are not registered yet —
   /// the candidates for the /adduser and /addadmin pickers.
   List<User> unregisteredSeen() {
-    final rows = raw.select(
-      '''
+    final rows = raw.select('''
 SELECT s.id, s.username
 FROM seen_users s
 LEFT JOIN users u ON u.id = s.id
 WHERE u.id IS NULL
 ORDER BY s.username
-''',
-    );
+''');
     return [
       for (final r in rows)
         User(
@@ -120,10 +123,9 @@ ORDER BY s.username
 
   /// The username the bot saw for [id], or null if never seen.
   String? seenUsername(int id) {
-    final rows = raw.select(
-      'SELECT username FROM seen_users WHERE id = ?',
-      [id],
-    );
+    final rows = raw.select('SELECT username FROM seen_users WHERE id = ?', [
+      id,
+    ]);
     return rows.isEmpty ? null : rows.first['username'] as String;
   }
 
@@ -133,15 +135,15 @@ ORDER BY s.username
   /// The user is auto-registered (with admin rights if [isAdmin], and with
   /// [tier] — e.g. `check` from the console's "Add check") the first time
   /// they contact the bot.
-  PendingRole? addPendingUser(String handle,
-      {
-        required bool isAdmin,
-        String tier = MemberTier.member,
-        NotificationPreference? notificationPreference,
-      }) {
+  PendingRole? addPendingUser(
+    String handle, {
+    required bool isAdmin,
+    String tier = MemberTier.member,
+    NotificationPreference? notificationPreference,
+  }) {
     final normalized = _pendingHandle(handle);
-    final effectivePreference = notificationPreference ??
-        defaultNotificationPreference(tier);
+    final effectivePreference =
+        notificationPreference ?? defaultNotificationPreference(tier);
     final previous = pendingRole(normalized);
     raw.execute(
       '''
@@ -180,24 +182,22 @@ ON CONFLICT(username) DO UPDATE SET
   }
 
   /// Replaces a queued role and returns the role that was replaced, if any.
-  PendingRole? replacePendingUser(String handle,
-          {
-            required bool isAdmin,
-            String tier = MemberTier.member,
-            NotificationPreference? notificationPreference,
-          }) =>
-      addPendingUser(
-        handle,
-        isAdmin: isAdmin,
-        tier: tier,
-        notificationPreference: notificationPreference,
-      );
+  PendingRole? replacePendingUser(
+    String handle, {
+    required bool isAdmin,
+    String tier = MemberTier.member,
+    NotificationPreference? notificationPreference,
+  }) => addPendingUser(
+    handle,
+    isAdmin: isAdmin,
+    tier: tier,
+    notificationPreference: notificationPreference,
+  );
 
   bool isPendingUser(String handle) {
-    final rows = raw.select(
-      'SELECT 1 FROM pending_users WHERE username = ?',
-      [_pendingHandle(handle)],
-    );
+    final rows = raw.select('SELECT 1 FROM pending_users WHERE username = ?', [
+      _pendingHandle(handle),
+    ]);
     return rows.isNotEmpty;
   }
 
@@ -214,10 +214,9 @@ ON CONFLICT(username) DO UPDATE SET
     final normalized = _pendingHandle(handle);
     final role = pendingRole(normalized);
     if (role == null || !role.isAdmin) return false;
-    raw.execute(
-      'UPDATE pending_users SET is_admin = 0 WHERE username = ?',
-      [normalized],
-    );
+    raw.execute('UPDATE pending_users SET is_admin = 0 WHERE username = ?', [
+      normalized,
+    ]);
     return true;
   }
 
@@ -231,10 +230,9 @@ ON CONFLICT(username) DO UPDATE SET
   }
 
   void removePendingUser(String handle) {
-    raw.execute(
-      'DELETE FROM pending_users WHERE username = ?',
-      [handle.replaceFirst('@', '').toLowerCase()],
-    );
+    raw.execute('DELETE FROM pending_users WHERE username = ?', [
+      handle.replaceFirst('@', '').toLowerCase(),
+    ]);
   }
 
   // --------------------------------------------------------- message log
@@ -303,5 +301,4 @@ ON CONFLICT(username) DO UPDATE SET
 
   List<LocationInfo> pendingLocations() =>
       allLocations().where((l) => !l.isApproved).toList();
-
 }

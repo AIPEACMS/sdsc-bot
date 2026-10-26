@@ -245,7 +245,7 @@ extension FlowsCallbacks on Flows {
     if (w.locked(sat, now)) {
       await ctx.editMessageText(
         'That weekend\'s availability is already locked — '
-        'its Friday deadline passed.',
+        'its deadline (${messages.lockDeadlineLabel(w, sat)}) passed.',
         replyMarkup: null,
       );
       return;
