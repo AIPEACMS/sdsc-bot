@@ -4,6 +4,14 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.12.1] - 2026-10-26
+
+### Fixed
+
+- Admin user rosters now show persisted aggregate session balances for members,
+  omit location-by-location counts, and no longer show a redundant empty group
+  for out-members.
+
 ## [4.12.0] - 2026-10-26
 
 ### Added
