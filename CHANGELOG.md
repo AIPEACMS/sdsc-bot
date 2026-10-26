@@ -4,6 +4,15 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.11.1] - 2026-10-26
+
+### Fixed
+
+- Manual attendance corrections now show the selected member's session count,
+  last-attended date, and persisted balance, then require confirmation of a
+  complete before-and-after preview. Prompts and previews can be cancelled and
+  are dismissed when another command starts.
+
 ## [4.11.0] - 2026-10-26
 
 ### Added
