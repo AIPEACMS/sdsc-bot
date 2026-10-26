@@ -52,7 +52,7 @@ jobs:
           sha256sum "sdsc-bot-${TAG}.tar.gz" > "sdsc-bot-${TAG}.tar.gz.sha256"
 
       - name: Publish release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             sdsc-bot-*.tar.gz
