@@ -10,6 +10,7 @@ import 'pickers.dart';
 import 'service.dart';
 import 'state.dart';
 import '../core/schedule.dart';
+import 'admin/manual_attendance_date.dart';
 
 /// Admin-facing commands and the attendance confirmation flow.
 
@@ -17,9 +18,9 @@ part 'admin/commands.dart';
 part 'admin/users.dart';
 part 'admin/broadcast.dart';
 part 'admin/attendance.dart';
+part 'admin/manual_attendance.dart';
 
 class _AdminBase {
-
   final Bot bot;
 
   final Repo repo;
@@ -35,6 +36,9 @@ class _AdminBase {
   final Map<int, List<String>> _pendingAddUser = {};
   final Map<int, String> _pendingAddTier = {};
   final Map<int, String> _pendingBroadcast = {};
+  final Map<int, (int targetId, bool allMembers)> _manualAttendanceDrafts = {};
+  final Map<int, (int targetId, bool allMembers, int delta, String? date)>
+  _manualAttendanceConfirmations = {};
 
   _AdminBase({
     required this.bot,

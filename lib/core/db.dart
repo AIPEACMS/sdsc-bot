@@ -8,6 +8,7 @@ import 'week.dart';
 
 part 'persistence/schema.dart';
 part 'persistence/migrations.dart';
+part 'persistence/attendance_migration.dart';
 part 'persistence/seeds.dart';
 
 const defaultActiveOutreachRouteKeys = [
@@ -23,7 +24,6 @@ const defaultActiveOutreachRouteKeys = [
 ];
 
 class _DatabaseBase {
-
   _DatabaseBase._(this._db);
 
   final sqlite.Database _db;

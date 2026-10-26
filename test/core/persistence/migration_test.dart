@@ -143,6 +143,42 @@ CREATE TABLE users (
     tmp.deleteSync(recursive: true);
   });
 
+  test('attendance summary backfills once and preserves later corrections', () {
+    final tmp = Directory.systemTemp.createTempSync('sdsc_attendance_mig_');
+    final path = '${tmp.path}/attendance.db';
+    final first = Database.open(_config(path));
+    final repo = Repo(first);
+    repo.upsertUser(
+      User(id: 8, name: 'member', experience: Experience.newbie, group: '1'),
+    );
+    final sat = DateTime(2026, 8, 15);
+    repo.ensureSessionsForWeekend(
+      sat,
+      repo.scheduleForWeekend(sat),
+      tzOffsetHours: 8,
+    );
+    final session = repo.sessionsForWeekend(sat).first;
+    first.raw.execute(
+      'INSERT INTO attendance (user_id, session_id, attended) VALUES (?, ?, 1)',
+      [8, session.id],
+    );
+    first.raw.execute(
+      "DELETE FROM settings WHERE key = 'attendance_balance_migration_v1'",
+    );
+    first.close();
+
+    final second = Database.open(_config(path));
+    expect(Repo(second).findUser(8)!.attendanceBalance, 1);
+    expect(Repo(second).findUser(8)!.lastAttendedDate, DateTime(2026, 8, 15));
+    second.raw.execute('UPDATE users SET attendance_balance = 9 WHERE id = 8');
+    second.close();
+
+    final third = Database.open(_config(path));
+    expect(Repo(third).findUser(8)!.attendanceBalance, 9);
+    third.close();
+    tmp.deleteSync(recursive: true);
+  });
+
   test('a legacy cycle-keyed database migrates to the weekend-keyed model', () {
     final tmp = Directory.systemTemp.createTempSync('sdsc_mig_');
     final path = '${tmp.path}/old.db';

@@ -152,8 +152,12 @@ Future<void> main() async {
   // /setdate and /synccalendar wizards hand the typed input to Console.
   flows.onBroadcastText = admin.onBroadcastText;
   flows.onAddUserText = admin.onAddUserText;
+  flows.onManualAttendanceText = admin.onManualAttendanceText;
   flows.onRemoveUserText = console.onRemoveUserText;
   flows.onPendingInputCleared = (userId, command) {
+    if (command.startsWith('manualattendance')) {
+      admin.onManualAttendanceInputCleared(userId);
+    }
     if (command == 'removeuser') console.onRemoveUserInputCleared(userId);
     if (command == 'assigngroup-members') {
       console.onAssignGroupInputCleared(userId);

@@ -117,6 +117,8 @@ extension FlowsCallbacks on Flows {
     switch (command) {
       case 'broadcast':
         await onBroadcastText?.call(ctx, userId, text);
+      case 'manualattendance':
+        await onManualAttendanceText?.call(ctx, userId, text);
       case 'adduser':
         await onAddUserText?.call(ctx, userId, text);
       case 'removeuser':

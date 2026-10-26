@@ -19,7 +19,10 @@ CREATE TABLE IF NOT EXISTS users (
   school_email TEXT NOT NULL DEFAULT '',
   member_tier TEXT NOT NULL DEFAULT 'member',
   notification_preference TEXT NOT NULL DEFAULT 'weekly',
-  last_prompt_state TEXT NOT NULL DEFAULT 'none'
+  last_prompt_state TEXT NOT NULL DEFAULT 'none',
+  attendance_balance INTEGER NOT NULL DEFAULT 0,
+  last_attended_date TEXT,
+  manual_last_attended_date TEXT
 );
 CREATE TABLE IF NOT EXISTS sessions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -92,6 +95,8 @@ CREATE TABLE IF NOT EXISTS sent_messages (
   kind TEXT NOT NULL,
   day TEXT NOT NULL,
   sent_at TEXT NOT NULL,
+  telegram_message_id INTEGER,
+  message_id_update_attempted INTEGER NOT NULL DEFAULT 0,
   UNIQUE(user_id, kind, day)
 );
 CREATE TABLE IF NOT EXISTS calendar_years (
@@ -280,6 +285,9 @@ END;
     for (final (column, definition) in [
       ('notification_preference', "TEXT NOT NULL DEFAULT 'weekly'"),
       ('last_prompt_state', "TEXT NOT NULL DEFAULT 'none'"),
+      ('attendance_balance', 'INTEGER NOT NULL DEFAULT 0'),
+      ('last_attended_date', 'TEXT'),
+      ('manual_last_attended_date', 'TEXT'),
     ]) {
       if (!userColumns.contains(column)) {
         db.execute('ALTER TABLE users ADD COLUMN $column $definition');
@@ -315,24 +323,17 @@ END;
         "TEXT NOT NULL DEFAULT 'weekly'",
       );
     }
-    // Exact send time is audit data, not part of the daily deduplication key.
-    // Historical rows predate this column, so their timestamp remains unknown.
-    final sentMessageColumns = db
-        .select('PRAGMA table_info(sent_messages)')
-        .map((row) => row['name'] as String)
-        .toSet();
-    if (!sentMessageColumns.contains('sent_at')) {
-      db.execute('ALTER TABLE sent_messages ADD COLUMN sent_at TEXT');
-    }
+    _migrateSentMessageColumns(db);
     // Groups are now numeric (1, 2, ...) and led by admins. One-time data
     // migration from the legacy letter groups; idempotent.
     db.execute("UPDATE users SET group_id = '1' WHERE group_id = 'A'");
     db.execute("UPDATE users SET group_id = '2' WHERE group_id = 'B'");
-    // Rolling-model migration: databases created before the weekend-keyed
-    // sessions/availability/allocations/attendance must be rebuilt.
+    // Convert pre-weekend sessions/availability/allocations/attendance.
     DatabaseSeeds._migrateWeekendModel(db);
-    // Dynamic locations (added in v3): seed the two built-in ones once, with
-    // their common aliases. A console can add more later (with aliases).
+    _createAttendanceBalanceTriggers(db);
+    // Run after conversion because pre-weekend attendance used another shape.
+    _migrateAttendanceSummary(db);
+    // Seed the built-in dynamic locations once; a console can add more later.
     for (final (key, name, aliases) in [
       ('ocbc', 'OCBC', '["ocbc arena","arena"]'),
       ('pasirRis', 'Pasir Ris', '["pr","pasir","pasir ris","pasir-ris"]'),

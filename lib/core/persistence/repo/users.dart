@@ -88,6 +88,8 @@ extension RepoUsers on Repo {
       'member_tier',
       'notification_preference',
       'last_prompt_state',
+      'attendance_balance',
+      'last_attended_date',
     ];
     final values = <Object?>[
       user.id,
@@ -104,6 +106,8 @@ extension RepoUsers on Repo {
       _storedTier(user.memberTier),
       _notificationPreferenceValue(user.notificationPreference),
       user.lastPromptState.name,
+      user.attendanceBalance,
+      user.lastAttendedDate == null ? null : _dayKey(user.lastAttendedDate!),
     ];
     if (user.registeredAt != null) {
       columns.add('created_at');

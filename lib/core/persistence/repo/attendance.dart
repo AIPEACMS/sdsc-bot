@@ -1,7 +1,6 @@
 part of '../../repo.dart';
 
 extension RepoAttendance on Repo {
-
   /// Per-weekend allocation flags (in settings) so a weekend is allocated
   /// exactly once even if the scheduler ticks repeatedly.
   bool weekendAllocated(DateTime sat) =>
@@ -20,23 +19,39 @@ extension RepoAttendance on Repo {
   /// Sets an explicit mark: `attended = true` for present, `false` for not
   /// participated. Recoverable: [clearAttendance] removes the mark.
   void setAttendanceState(int userId, int sessionId, {required bool attended}) {
-    raw.execute(
-      '''
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      tx.execute(
+        '''
 INSERT INTO attendance (user_id, session_id, attended)
 VALUES (?, ?, ?)
 ON CONFLICT(user_id, session_id) DO UPDATE SET
   attended = excluded.attended,
   confirmed_at = CURRENT_TIMESTAMP
 ''',
-      [userId, sessionId, attended ? 1 : 0],
-    );
+        [userId, sessionId, attended ? 1 : 0],
+      );
+      tx.execute('COMMIT');
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
   }
 
   void clearAttendance(int userId, int sessionId) {
-    raw.execute(
-      'DELETE FROM attendance WHERE user_id = ? AND session_id = ?',
-      [userId, sessionId],
-    );
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      tx.execute(
+        'DELETE FROM attendance WHERE user_id = ? AND session_id = ?',
+        [userId, sessionId],
+      );
+      tx.execute('COMMIT');
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
   }
 
   /// The leader of [groupId] (the admin owning that group), or null.
@@ -51,23 +66,22 @@ ON CONFLICT(user_id, session_id) DO UPDATE SET
   }
 
   bool hasAttendedInPastDays(int userId, int days) {
-    // attendance.confirmed_at is stored as UTC (SQLite CURRENT_TIMESTAMP),
-    // so compare against a UTC cutoff. Using the config clock keeps this
-    // consistent with /set_date debugging. Only positive marks count.
-    final since = Config.nowUtc()
-        .subtract(Duration(days: days))
-        .toIso8601String();
-    final rows = raw.select(
-      '''
-SELECT COUNT(*) AS c FROM attendance
-WHERE user_id = ? AND attended = 1 AND confirmed_at >= ?
-''',
-      [userId, since],
-    );
-    return (rows.first['c'] as int) > 0;
+    // Recency uses the persisted local calendar date, not when the mark was
+    // recorded, so manual corrections and session marks share one predicate.
+    final last = findUser(userId)?.lastAttendedDate;
+    if (last == null) return false;
+    final localNow = Config.nowUtc().add(const Duration(hours: 8));
+    final since = DateTime(
+      localNow.year,
+      localNow.month,
+      localNow.day,
+    ).subtract(Duration(days: days));
+    return !last.isBefore(since);
   }
 
   DateTime? lastAttendedDate(int userId) {
+    final manual = findUser(userId)?.lastAttendedDate;
+    if (manual != null) return manual;
     final rows = raw.select(
       '''
 SELECT MAX(s.start_at) AS last_attended
@@ -103,8 +117,18 @@ WHERE a.user_id = ? AND a.attended = 1
           'WHERE a.user_id = ? AND a.attended = 1',
           [userId],
         )
-        .map((r) => DateTime.parse(r['weekend_start'] as String))
+        .map((r) => r['weekend_start'] as String)
         .toSet();
+    final lastAttended = findUser(userId)?.lastAttendedDate;
+    if (lastAttended != null) {
+      final day = DateTime(
+        lastAttended.year,
+        lastAttended.month,
+        lastAttended.day,
+      );
+      final saturday = day.subtract(Duration(days: (day.weekday + 1) % 7));
+      attended.add(_dayKey(saturday));
+    }
 
     final registeredAt = findUser(userId)?.registeredAt;
 
@@ -113,7 +137,7 @@ WHERE a.user_id = ? AND a.attended = 1
       // A week the member had no chance to attend (before they joined).
       if (registeredAt != null && !sat.isAfter(registeredAt)) break;
       // Attended → the streak ends here.
-      if (attended.contains(sat)) break;
+      if (attended.contains(_dayKey(sat))) break;
       // Holiday weeks neither count nor reset the streak.
       if (holidayOn(sat) != null) continue;
       streak++;
@@ -121,18 +145,66 @@ WHERE a.user_id = ? AND a.attended = 1
     return streak;
   }
 
+  /// Applies a persistent correction after rechecking role and scope under
+  /// the same write transaction as the balance/date update. The explicit
+  /// manual date is a baseline; a later actual session date takes precedence.
+  bool applyManualAttendance(
+    int adminId,
+    int targetId,
+    int delta, {
+    required bool allMembers,
+    String? lastAttendedDate,
+  }) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      final admin = findUser(adminId);
+      final target = findUser(targetId);
+      final permitted =
+          admin != null &&
+          target != null &&
+          (allMembers
+              ? admin.isGlobalAdmin
+              : (admin.isAdmin || admin.isGlobalAdmin) &&
+                    admin.group.isNotEmpty &&
+                    target.group == admin.group) &&
+          target.memberTier == MemberTier.member;
+      if (!permitted || (!allMembers && delta < 0)) {
+        tx.execute('ROLLBACK');
+        return false;
+      }
+      tx.execute(
+        'UPDATE users SET attendance_balance = attendance_balance + ?, '
+        'manual_last_attended_date = COALESCE(?, manual_last_attended_date), '
+        'last_attended_date = NULLIF(MAX('
+        'COALESCE(?, manual_last_attended_date, \'\'), '
+        'COALESCE((SELECT MAX(substr(s.start_at, 1, 10)) '
+        'FROM attendance a JOIN sessions s ON s.id = a.session_id '
+        'WHERE a.user_id = users.id AND a.attended = 1), \'\')), \'\') '
+        'WHERE id = ?',
+        [delta, lastAttendedDate, lastAttendedDate, targetId],
+      );
+      tx.execute('COMMIT');
+      return true;
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
   List<Attendance> attendanceForSession(int sessionId) {
-    final rows = raw.select(
-      'SELECT * FROM attendance WHERE session_id = ?',
-      [sessionId],
-    );
+    final rows = raw.select('SELECT * FROM attendance WHERE session_id = ?', [
+      sessionId,
+    ]);
     return rows
-        .map((r) => Attendance(
-              userId: r['user_id'] as int,
-              sessionId: sessionId,
-              attended: (r['attended'] as int) == 1,
-              confirmedAt: DateTime.parse(r['confirmed_at'] as String),
-            ))
+        .map(
+          (r) => Attendance(
+            userId: r['user_id'] as int,
+            sessionId: sessionId,
+            attended: (r['attended'] as int) == 1,
+            confirmedAt: DateTime.parse(r['confirmed_at'] as String),
+          ),
+        )
         .toList();
   }
 
@@ -146,20 +218,21 @@ WHERE a.user_id = ? AND a.attended = 1
   }
 
   void removeHoliday(DateTime weekMonday) {
-    raw.execute('DELETE FROM holidays WHERE week_start = ?', [_fmt(weekMonday)]);
+    raw.execute('DELETE FROM holidays WHERE week_start = ?', [
+      _fmt(weekMonday),
+    ]);
   }
 
-  List<Holiday> allHolidays() =>
-      raw.select('SELECT * FROM holidays ORDER BY week_start')
-          .map(Holiday.fromRow)
-          .toList();
+  List<Holiday> allHolidays() => raw
+      .select('SELECT * FROM holidays ORDER BY week_start')
+      .map(Holiday.fromRow)
+      .toList();
 
   /// Returns the contiguous holiday period containing [target].
   List<Holiday> holidayPeriod(Holiday target) {
-    final sameKind = allHolidays()
-        .where((holiday) => holiday.kind == target.kind)
-        .toList()
-      ..sort((a, b) => a.weekStart.compareTo(b.weekStart));
+    final sameKind =
+        allHolidays().where((holiday) => holiday.kind == target.kind).toList()
+          ..sort((a, b) => a.weekStart.compareTo(b.weekStart));
     final index = sameKind.indexWhere(
       (holiday) => holiday.weekStart == target.weekStart,
     );
@@ -182,10 +255,9 @@ WHERE a.user_id = ? AND a.attended = 1
   /// Returns the holiday covering the given date, if any.
   Holiday? holidayOn(DateTime date) {
     final monday = WeekMath.mondayOf(date);
-    final rows = raw.select(
-      'SELECT * FROM holidays WHERE week_start = ?',
-      [_fmt(monday)],
-    );
+    final rows = raw.select('SELECT * FROM holidays WHERE week_start = ?', [
+      _fmt(monday),
+    ]);
     return rows.isEmpty ? null : Holiday.fromRow(rows.first);
   }
 
@@ -268,5 +340,4 @@ ON CONFLICT(academic_year) DO UPDATE SET
       return null;
     }
   }
-
 }

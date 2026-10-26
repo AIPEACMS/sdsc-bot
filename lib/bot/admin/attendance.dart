@@ -35,9 +35,19 @@ extension AdminAttendance on Admin {
         parts[0] == 'att_sess' ||
         parts[0] == 'att_toggle' ||
         parts[0] == 'att_done' ||
-        parts[0] == 'att_cancel';
+        parts[0] == 'att_cancel' ||
+        parts[0] == 'manualatt' ||
+        parts[0] == 'manualattconfirm';
     if (attendance) await ctx.answerCallbackQuery();
-    if (!_isAdmin(ctx)) return;
+    if (!_isAdmin(ctx)) {
+      if (parts[0] == 'manualatt' || parts[0] == 'manualattconfirm') {
+        await ctx.editMessageText(
+          'You are not authorized to use this command.',
+          replyMarkup: null,
+        );
+      }
+      return;
+    }
     switch (parts[0]) {
       case 'att_sess':
         final id = int.tryParse(parts.length > 1 ? parts[1] : '');
@@ -87,7 +97,7 @@ extension AdminAttendance on Admin {
           await _pickUserFor(ctx, kind, value);
         }
       case 'mpick':
-         await _onMemberPick(ctx, parts);
+        await _onMemberPick(ctx, parts);
       case 'bcast':
         final yes = parts.length > 1 && parts[1] == 'yes';
         await ctx.answerCallbackQuery();
@@ -119,9 +129,7 @@ extension AdminAttendance on Admin {
         final tier = _pendingAddTier.remove(ctx.from!.id) ?? MemberTier.member;
         if (handles == null) return;
         await ctx.editMessageText(
-          handles
-              .map((handle) => _addOutcome(handle, tier: tier))
-              .join('\n'),
+          handles.map((handle) => _addOutcome(handle, tier: tier)).join('\n'),
           replyMarkup: null,
         );
       case 'prompt':
@@ -148,6 +156,10 @@ extension AdminAttendance on Admin {
         _pendingAddTier.remove(ctx.from!.id);
         state.clearInteractiveMessages(ctx.from!.id);
         await ctx.editMessageText('Cancelled.', replyMarkup: null);
+      case 'manualatt':
+        await _onManualAttendanceCallback(ctx, parts);
+      case 'manualattconfirm':
+        await _onManualAttendanceConfirm(ctx, parts);
     }
   }
 
@@ -175,7 +187,7 @@ extension AdminAttendance on Admin {
         );
         return;
       }
-       final memberId = int.tryParse(target);
+      final memberId = int.tryParse(target);
       if (memberId != null) {
         await _askPick(ctx, memberId);
       } else {
