@@ -75,6 +75,65 @@ void main() {
     expect(() => repo.writeSchedule(outOfOrder), throwsArgumentError);
   });
 
+  test('new schedule events persist independently on all weekdays', () {
+    const schedule = ScheduleTimes(
+      prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(9, 0)),
+      reminder: ScheduleEvent(weekday: 'tue', time: LocalWallClock(10, 0)),
+      lock: ScheduleEvent(weekday: 'wed', time: LocalWallClock(11, 0)),
+      checker: ScheduleEvent(weekday: 'thu', time: LocalWallClock(12, 0)),
+      attendanceInitial: ScheduleEvent(
+        weekday: 'sat',
+        time: LocalWallClock(21, 15),
+      ),
+      attendanceFollowup: ScheduleEvent(
+        weekday: 'sun',
+        time: LocalWallClock(7, 45),
+      ),
+      absence: ScheduleEvent(weekday: 'wed', time: LocalWallClock(8, 30)),
+    );
+
+    repo.writeSchedule(schedule);
+
+    expect(repo.readSchedule(), schedule);
+    expect(repo.getSetting(ScheduleTimes.attendanceInitialWeekdayKey), 'sat');
+    expect(repo.getSetting(ScheduleTimes.attendanceFollowupWeekdayKey), 'sun');
+    expect(repo.getSetting(ScheduleTimes.absenceWeekdayKey), 'wed');
+    for (final weekday in scheduleWeekdays) {
+      final allWeekdayEvents = ScheduleTimes(
+        prompt: schedule.prompt,
+        reminder: schedule.reminder,
+        lock: schedule.lock,
+        checker: schedule.checker,
+        attendanceInitial: ScheduleEvent(
+          weekday: weekday,
+          time: schedule.attendanceInitial.time,
+        ),
+        attendanceFollowup: ScheduleEvent(
+          weekday: weekday,
+          time: schedule.attendanceFollowup.time,
+        ),
+        absence: ScheduleEvent(weekday: weekday, time: schedule.absence.time),
+      );
+      expect(() => allWeekdayEvents.validate(), returnsNormally);
+    }
+  });
+
+  test('rolling-window lock deadlines use the configured weekday and time', () {
+    const schedule = ScheduleTimes(
+      prompt: ScheduleEvent(weekday: 'mon', time: LocalWallClock(9, 0)),
+      reminder: ScheduleEvent(weekday: 'mon', time: LocalWallClock(10, 0)),
+      lock: ScheduleEvent(weekday: 'tue', time: LocalWallClock(17, 45)),
+      checker: ScheduleEvent(weekday: 'wed', time: LocalWallClock(19, 0)),
+    );
+    final window = RollingWindow.forDate(
+      DateTime(2026, 8, 10),
+      schedule: schedule,
+    );
+
+    expect(window.deadlineFor(window.sat0), DateTime(2026, 8, 11, 17, 45));
+    expect(window.deadlineFor(window.sat1), DateTime(2026, 8, 18, 17, 45));
+  });
+
   test('a weekend locks at its Friday deadline', () {
     final w = RollingWindow.forDate(DateTime(2026, 8, 10));
     expect(w.locked(w.sat0, DateTime(2026, 8, 13, 12)), false);
@@ -206,35 +265,38 @@ void main() {
     expect(repo.isQuiet(3, sat), true);
   });
 
-  test('prompt targets exclude current responders and mark previous as quiet', () {
-    addUser(1);
-    addUser(2);
-    addUser(3);
-    final sat = DateTime(2026, 8, 15);
-    repo.setAvailability(
-      Availability(
-        weekendStart: sat,
-        userId: 2,
-        bundleStart: sat,
-        slots: const {},
-        available: false,
-        updatedAt: DateTime(2026, 8, 11),
-      ),
-    );
-    repo.setAvailability(
-      Availability(
-        weekendStart: sat.subtract(const Duration(days: 7)),
-        userId: 3,
-        bundleStart: sat.subtract(const Duration(days: 7)),
-        slots: const {},
-        available: false,
-        updatedAt: DateTime(2026, 8, 4),
-      ),
-    );
+  test(
+    'prompt targets exclude current responders and mark previous as quiet',
+    () {
+      addUser(1);
+      addUser(2);
+      addUser(3);
+      final sat = DateTime(2026, 8, 15);
+      repo.setAvailability(
+        Availability(
+          weekendStart: sat,
+          userId: 2,
+          bundleStart: sat,
+          slots: const {},
+          available: false,
+          updatedAt: DateTime(2026, 8, 11),
+        ),
+      );
+      repo.setAvailability(
+        Availability(
+          weekendStart: sat.subtract(const Duration(days: 7)),
+          userId: 3,
+          bundleStart: sat.subtract(const Duration(days: 7)),
+          slots: const {},
+          available: false,
+          updatedAt: DateTime(2026, 8, 4),
+        ),
+      );
 
-    final targets = repo.promptTargets(sat);
-    expect(targets.map((user) => user.id), [1, 3]);
-    expect(repo.isQuiet(3, sat), isTrue);
-    expect(repo.reminderTargets(sat).map((user) => user.id), [1]);
-  });
+      final targets = repo.promptTargets(sat);
+      expect(targets.map((user) => user.id), [1, 3]);
+      expect(repo.isQuiet(3, sat), isTrue);
+      expect(repo.reminderTargets(sat).map((user) => user.id), [1]);
+    },
+  );
 }

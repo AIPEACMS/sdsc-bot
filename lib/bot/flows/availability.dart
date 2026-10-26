@@ -168,14 +168,10 @@ extension FlowsAvailability on Flows {
     if (want.isNotEmpty || avail.isNotEmpty) {
       sb.writeln('\n<b>Indicated</b> — 🔒 booked · 🟢 backup:');
       if (want.isNotEmpty) {
-        sb.writeln(
-          want.map((s) => '🔒 ${_slotLabel(s, w, repo)}').join('\n'),
-        );
+        sb.writeln(want.map((s) => '🔒 ${_slotLabel(s, w, repo)}').join('\n'));
       }
       if (avail.isNotEmpty) {
-        sb.writeln(
-          avail.map((s) => '🟢 ${_slotLabel(s, w, repo)}').join('\n'),
-        );
+        sb.writeln(avail.map((s) => '🟢 ${_slotLabel(s, w, repo)}').join('\n'));
       }
     } else if (unavailableDates.isNotEmpty) {
       sb.writeln(
@@ -198,8 +194,9 @@ extension FlowsAvailability on Flows {
       sb.writeln('\n<b>Allocated</b>:\n$allocated');
     } else {
       sb.writeln(
-        '\n<b>Allocated</b>: not yet — this weekend locks Friday '
-        '18:00, next weekend the Friday after.',
+        '\n<b>Allocated</b>: not yet — this weekend locks '
+        '${messages.lockDeadlineLabel(w, w.sat0)}, next weekend locks '
+        '${messages.lockDeadlineLabel(w, w.sat1)}.',
       );
     }
 

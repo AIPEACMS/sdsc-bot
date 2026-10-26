@@ -23,8 +23,11 @@ extension AdminApiSessionSchedules on AdminApi {
   }
 
   bool _weekLocked(DateTime saturday, DateTime now) {
-    final monday = saturday.subtract(const Duration(days: 5));
-    return !now.isBefore(scheduleRuntime.schedule.lock.on(monday));
+    final deadline = RollingWindow.fromSat0(
+      saturday,
+      schedule: scheduleRuntime.schedule,
+    ).deadlineFor(saturday);
+    return !now.isBefore(deadline);
   }
 
   Future<(int, Object)> _readSelectedSchedule(String text) async {

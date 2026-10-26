@@ -259,8 +259,11 @@ extension SetTimeValidation on SetTime {
     DateTime now,
   ) {
     final saturday = draft.targetSaturday!;
-    final monday = saturday.subtract(const Duration(days: 5));
-    final locked = !now.isBefore(scheduleRuntime.schedule.lock.on(monday));
+    final deadline = RollingWindow.fromSat0(
+      saturday,
+      schedule: scheduleRuntime.schedule,
+    ).deadlineFor(saturday);
+    final locked = !now.isBefore(deadline);
     if (locked) return const [];
     if (draft.action == _SetTimeAction.remove ||
         window.weekends.contains(saturday)) {

@@ -9,7 +9,7 @@ import '../../support/test_helpers.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
 
-/// Tests for the Friday-evening checklist: the backend pushes the current
+/// Tests for the scheduled checklist: the backend pushes the current
 /// weekend's full allocation to every `check`-tier user (a final
 /// confirmation list, independent of their on-demand status button).
 void main() {

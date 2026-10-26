@@ -98,8 +98,14 @@ for path in "${!changed[@]}"; do
       select_tests 'test/bot/settime/settime_schedule_test.dart'
       select_tests 'test/bot/settime/temporary_schedule_override_test.dart'
       ;;
-    lib/bot/admin_api.dart|lib/bot/admin_api/routing.dart|lib/bot/admin_api/removals.dart)
+    lib/bot/admin_api.dart|lib/bot/admin_api/routing.dart)
       select_tests 'test/bot/admin_api/admin_api_allocation_removal_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_operations_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_session_schedule_test.dart'
+      ;;
+    lib/bot/admin_api/removals.dart|lib/bot/admin_api/session_schedules.dart)
+      select_tests 'test/bot/admin_api/admin_api_allocation_removal_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_session_schedule_test.dart'
       ;;
     lib/bot/admin_api/attendance.dart|lib/bot/admin_api/part_05.dart)
       select_tests 'test/bot/admin_api/admin_api_attendance_test.dart'
@@ -108,6 +114,7 @@ for path in "${!changed[@]}"; do
       select_tests 'test/bot/admin_api/admin_api_users_test.dart'
       select_tests 'test/bot/admin_api/admin_api_roles_test.dart'
       select_tests 'test/bot/admin_api/admin_api_registration_removal_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_operations_test.dart'
       ;;
     lib/bot/admin_api/operations.dart)
       select_tests 'test/bot/admin_api/admin_api_operations_test.dart'
@@ -125,6 +132,7 @@ for path in "${!changed[@]}"; do
     lib/bot/flows/presentation.dart|lib/bot/flows/registration.dart)
       select_tests 'test/bot/admin/grid_operations_test.dart'
       select_tests 'test/bot/user/repick_profile_test.dart'
+      select_tests 'test/bot/user/repick_availability_test.dart'
       ;;
     lib/bot/flows/availability.dart|lib/bot/flows/callbacks.dart)
       select_tests 'test/bot/user/grid_member_test.dart'
@@ -167,6 +175,7 @@ for path in "${!changed[@]}"; do
       select_tests 'test/core/persistence/repo_user_flow_test.dart'
       select_tests 'test/core/persistence/migration_test.dart'
       select_tests 'test/bot/settime/settime_schedule_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_operations_test.dart'
       ;;
     lib/core/db.dart)
       select_tests 'test/core/persistence/migration_test.dart'
@@ -174,11 +183,33 @@ for path in "${!changed[@]}"; do
       select_tests 'test/core/persistence/repo_roles_test.dart'
       select_tests 'test/core/persistence/repo_schedule_test.dart'
       select_tests 'test/core/persistence/repo_user_flow_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_operations_test.dart'
       ;;
     lib/core/schedule.dart|lib/core/domain/rolling_window.dart|lib/core/week.dart)
       select_tests 'test/core/schedule/week_test.dart'
       select_tests 'test/core/schedule/scheduler_test.dart'
+      select_tests 'test/core/schedule/scheduler_events_test.dart'
       select_tests 'test/core/persistence/repo_schedule_test.dart'
+      ;;
+    lib/bot/scheduler.dart)
+      select_tests 'test/core/schedule/scheduler_test.dart'
+      select_tests 'test/core/schedule/scheduler_events_test.dart'
+      select_tests 'test/bot/user/absent_reminder_test.dart'
+      ;;
+    lib/bot/service/allocation.dart|lib/bot/service/prompts.dart)
+      select_tests 'test/core/schedule/scheduler_events_test.dart'
+      select_tests 'test/bot/user/absent_reminder_test.dart'
+      select_tests 'test/bot/user/repick_availability_test.dart'
+      ;;
+    lib/core/domain/session_models.dart|lib/core/domain/slot_model.dart|lib/core/domain/window_model.dart)
+      select_tests 'test/core/persistence/migration_test.dart'
+      select_tests 'test/core/persistence/repo_schedule_test.dart'
+      select_tests 'test/bot/admin_api/admin_api_operations_test.dart'
+      select_tests 'test/core/schedule/scheduler_test.dart'
+      select_tests 'test/core/schedule/scheduler_events_test.dart'
+      ;;
+    lib/core/messages.dart)
+      select_tests 'test/bot/user/repick_availability_test.dart'
       ;;
     tool/*.sh|README.md|CHANGELOG.md|pubspec.yaml|pubspec.lock|.github/workflows/*.yml)
       ;;

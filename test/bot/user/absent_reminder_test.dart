@@ -73,12 +73,12 @@ void main() {
         }
       });
 
-      // Four consecutive session weekends: Aug 1, 8, 15, 22 2026.
+      // Four completed session weekends before Mon Aug 24: Jul 25, Aug 1, 8, 15.
       for (final sat in [
+        DateTime(2026, 7, 25),
         DateTime(2026, 8, 1),
         DateTime(2026, 8, 8),
         DateTime(2026, 8, 15),
-        DateTime(2026, 8, 22),
       ]) {
         repo.ensureSessionsForWeekend(sat, defaultTemplate(), tzOffsetHours: 8);
       }
@@ -124,7 +124,8 @@ void main() {
       );
 
       final monday = DateTime(2026, 8, 24);
-      await service.remindAbsentMembers(monday);
+      final anchor = latestCompletedSessionBlockStart(monday);
+      await service.remindAbsentMembers(anchor, monday);
 
       // Exactly one message, to the group-1 admin, about member 3 only.
       expect(sent.length, 1);
@@ -138,11 +139,15 @@ void main() {
       expect(text, isNot(contains('Member 6')));
 
       // Same Monday: deduped, no second message.
-      await service.remindAbsentMembers(monday);
+      await service.remindAbsentMembers(anchor, monday);
       expect(sent.length, 1);
 
       // Next Monday: the streak still holds, so it repeats.
-      await service.remindAbsentMembers(monday.add(const Duration(days: 7)));
+      final nextMonday = monday.add(const Duration(days: 7));
+      await service.remindAbsentMembers(
+        latestCompletedSessionBlockStart(nextMonday),
+        nextMonday,
+      );
       expect(sent.length, 2);
 
       await server.close(force: true);

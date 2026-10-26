@@ -28,8 +28,11 @@ extension SetTimePersistence on SetTime {
         );
         return;
       }
-      final monday = sat.subtract(const Duration(days: 5));
-      final locked = !now.isBefore(scheduleRuntime.schedule.lock.on(monday));
+      final deadline = RollingWindow.fromSat0(
+        sat,
+        schedule: scheduleRuntime.schedule,
+      ).deadlineFor(sat);
+      final locked = !now.isBefore(deadline);
       if (locked) {
         await ctx.editMessageText(
           '⚠️ That week is already locked. The activity list is unchanged.',

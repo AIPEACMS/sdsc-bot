@@ -1,4 +1,5 @@
 part of '../db.dart';
+
 extension DatabaseMigrations on Database {
   static void _applySchema(sqlite.Database db, Config config) {
     db.execute('''
@@ -145,9 +146,8 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
 );
 ''');
     // Schedule settings are durable and seeded once. The transaction keeps a
-    // restart from exposing only part of the schedule. The four historical
-    // time keys are deliberately retained; weekday keys are additive so old
-    // databases keep their custom times.
+    // restart from exposing only part of the schedule. The six attendance and
+    // absence defaults are additive, so existing values always take precedence.
     db.execute('BEGIN IMMEDIATE');
     try {
       String hour(int value) => '${value.toString().padLeft(2, '0')}:00';
@@ -176,7 +176,11 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
       rethrow;
     }
     // Column migrations for databases created before session max limits existed.
-    for (final table in ['sessions', 'schedule_template', 'schedule_overrides']) {
+    for (final table in [
+      'sessions',
+      'schedule_template',
+      'schedule_overrides',
+    ]) {
       try {
         db.execute('ALTER TABLE $table ADD COLUMN max_people INTEGER');
       } catch (_) {
@@ -231,13 +235,15 @@ END;
     // Explicit one-time v2 bootstrap: only the configured console's
     // pre-existing normal-admin role is converted automatically. The marker
     // prevents a later restart from inferring a replacement after removal.
-    final migrationDone = db.select(
-      "SELECT 1 FROM settings WHERE key = 'global_admin_migration_v2'",
-    ).isNotEmpty;
+    final migrationDone = db
+        .select(
+          "SELECT 1 FROM settings WHERE key = 'global_admin_migration_v2'",
+        )
+        .isNotEmpty;
     if (!migrationDone) {
-      final hasGlobalAdmin = db.select(
-        'SELECT 1 FROM users WHERE is_global_admin = 1 LIMIT 1',
-      ).isNotEmpty;
+      final hasGlobalAdmin = db
+          .select('SELECT 1 FROM users WHERE is_global_admin = 1 LIMIT 1')
+          .isNotEmpty;
       if (!hasGlobalAdmin) {
         db.execute(
           'UPDATE users SET is_admin = 0, is_global_admin = 1 '
@@ -263,7 +269,9 @@ END;
       'school_email',
     ]) {
       if (!userColumns.contains(col)) {
-        db.execute("ALTER TABLE users ADD COLUMN $col TEXT NOT NULL DEFAULT ''");
+        db.execute(
+          "ALTER TABLE users ADD COLUMN $col TEXT NOT NULL DEFAULT ''",
+        );
         userColumns.add(col);
       }
     }
@@ -274,9 +282,7 @@ END;
       ('last_prompt_state', "TEXT NOT NULL DEFAULT 'none'"),
     ]) {
       if (!userColumns.contains(column)) {
-        db.execute(
-          'ALTER TABLE users ADD COLUMN $column $definition',
-        );
+        db.execute('ALTER TABLE users ADD COLUMN $column $definition');
         userColumns.add(column);
       }
     }
@@ -284,14 +290,18 @@ END;
     // from the ones they can attend if needed (availability.slots). Databases
     // created before the split only have `slots`.
     try {
-      db.execute("ALTER TABLE availability ADD COLUMN want_slots TEXT NOT NULL DEFAULT '[]'");
+      db.execute(
+        "ALTER TABLE availability ADD COLUMN want_slots TEXT NOT NULL DEFAULT '[]'",
+      );
     } catch (_) {
       // column already present
     }
     // Pending users can be queued directly as a tier (e.g. `check` from the
     // console's "Add check"), not only as plain members.
     try {
-      db.execute("ALTER TABLE pending_users ADD COLUMN tier TEXT NOT NULL DEFAULT 'member'");
+      db.execute(
+        "ALTER TABLE pending_users ADD COLUMN tier TEXT NOT NULL DEFAULT 'member'",
+      );
     } catch (_) {
       // column already present
     }

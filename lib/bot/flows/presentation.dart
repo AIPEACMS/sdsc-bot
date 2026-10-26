@@ -83,9 +83,11 @@ extension FlowsPresentation on Flows {
     } catch (_) {
       // message may be gone; ignore
     }
+    final window = _windowFor(config.toLocal(Config.nowUtc()));
     await ctx.reply(
       'Your previous availability is kept. '
-      'Changed your mind? Send re-pick to update by Friday.',
+      'Changed your mind? Send re-pick before availability locks '
+      '${messages.lockDeadlines(window)}.',
     );
   }
 
@@ -168,12 +170,13 @@ extension FlowsPresentation on Flows {
     }
     await ctx.reply(
       unavailable
-          ? messages.msg6()
+          ? messages.msg6(lockDeadlines: messages.lockDeadlines(w))
           : messages.msg3(
               want,
               available,
               immediate: true,
               label: (s) => _slotLabel(s, w, repo),
+              lockDeadlines: messages.lockDeadlines(w),
             ),
       parseMode: ParseMode.html,
     );

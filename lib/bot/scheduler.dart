@@ -16,7 +16,7 @@ import '../core/schedule.dart';
 ///  - the configured reminder weekday/time reminds non-responders
 ///  - the configured lock weekday/time locks availability
 ///  - the configured checker weekday/time pushes the allocation list
-///  - Sunday 20:00 / Monday 08:00 attendance-marking reminders to admins
+///  - configured attendance and absence reminders
 ///
 /// New availability indications allocate immediately. The deprecated
 /// [scheduleDynamicAllocation] sharp-hour path remains for compatibility; the
@@ -69,7 +69,6 @@ class Scheduler {
     try {
       final now = config.toLocal(Config.nowUtc());
       final w = _window(now);
-      final monday = WeekMath.mondayOf(now);
       final today = DateTime(now.year, now.month, now.day);
 
       // The window's sessions must exist before anything touches them.
@@ -105,23 +104,29 @@ class Scheduler {
       // members are notified.
       await _runDynamicAllocation();
 
-      // Configured checker event: push the current weekend's full allocation to the
-      // `check` tier — a final confirmation list, independent of their
-      // on-demand status button.
+      // Configured checker event: push the current weekend's full allocation
+      // to the `check` tier, independent of their on-demand status button.
       if (_sameDay(today, w.checkerDay) && !now.isBefore(w.checkerDay)) {
         await service.sendCheckList(w.sat0);
       }
 
-      // Attendance-marking reminders for the weekend just finished:
-      // Sunday evening and again Monday morning.
-      final weekendSat = monday.subtract(const Duration(days: 2));
-      final sunday = monday.subtract(const Duration(days: 1));
-      if (_sameDay(today, sunday) && now.hour >= 20) {
-        await service.remindAttendanceMarking(weekendSat, today);
-      }
-      if (_sameDay(today, monday) && now.hour >= 8) {
-        await service.remindAttendanceMarking(weekendSat, today);
-        await service.remindAbsentMembers(today);
+      for (final occurrence in _configuredEventOccurrences(now)) {
+        if (!_sameDay(today, occurrence.at) || now.isBefore(occurrence.at)) {
+          continue;
+        }
+        final eventDay = DateTime(
+          occurrence.at.year,
+          occurrence.at.month,
+          occurrence.at.day,
+        );
+        final anchor = latestCompletedSessionBlockStart(occurrence.at);
+        switch (occurrence.kind) {
+          case _ConfiguredEvent.attendanceInitial:
+          case _ConfiguredEvent.attendanceFollowup:
+            await service.remindAttendanceMarking(anchor, eventDay);
+          case _ConfiguredEvent.absence:
+            await service.remindAbsentMembers(anchor, eventDay);
+        }
       }
     } catch (e) {
       // Scheduling failures should not kill the bot.
@@ -132,14 +137,27 @@ class Scheduler {
 
   RollingWindow _window(DateTime now) => scheduleRuntime.window(now);
 
+  List<_ConfiguredOccurrence> _configuredEventOccurrences(DateTime now) {
+    final monday = WeekMath.mondayOf(now);
+    final schedule = scheduleRuntime.schedule;
+    final events = [
+      (_ConfiguredEvent.attendanceInitial, schedule.attendanceInitial),
+      (_ConfiguredEvent.attendanceFollowup, schedule.attendanceFollowup),
+      (_ConfiguredEvent.absence, schedule.absence),
+    ];
+    return [
+      for (final week in [monday, monday.add(const Duration(days: 7))])
+        for (final (kind, event) in events)
+          _ConfiguredOccurrence(kind, event.on(week)),
+    ];
+  }
+
   /// Arms a one-shot timer for the next upcoming milestone so it fires on
   /// the sharp scheduled hour instead of on the next 12h tick.
   void _scheduleNext() {
     final now = config.toLocal(Config.nowUtc());
     final w = _window(now);
-    final monday = WeekMath.mondayOf(now);
     final nextWindow = _window(now.add(const Duration(days: 7)));
-    final nextMonday = monday.add(const Duration(days: 7));
 
     final due = <DateTime>[
       // This week's milestones, if still in the future.
@@ -148,15 +166,12 @@ class Scheduler {
       w.lock0,
       w.lock1,
       w.checkerDay,
-      monday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
       nextWindow.promptDay,
       nextWindow.reminderDay,
       nextWindow.lock0,
       nextWindow.lock1,
       nextWindow.checkerDay,
-      nextMonday.add(const Duration(days: 6, hours: 20)), // Sunday 20:00
-      monday.add(const Duration(hours: 8)), // Monday 08:00
-      nextMonday.add(const Duration(hours: 8)), // Monday 08:00
+      ..._configuredEventOccurrences(now).map((event) => event.at),
     ];
     DateTime? next;
     for (final d in due) {
@@ -214,4 +229,13 @@ class Scheduler {
 
   static bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+enum _ConfiguredEvent { attendanceInitial, attendanceFollowup, absence }
+
+class _ConfiguredOccurrence {
+  final _ConfiguredEvent kind;
+  final DateTime at;
+
+  const _ConfiguredOccurrence(this.kind, this.at);
 }

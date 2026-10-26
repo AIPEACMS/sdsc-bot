@@ -1,7 +1,6 @@
 part of '../admin_api.dart';
 
 extension AdminApiUsers on AdminApi {
-
   Future<(int, Object)> _removeUsers(String bodyText) async {
     final Map<String, dynamic> body;
     try {
@@ -10,7 +9,8 @@ extension AdminApiUsers on AdminApi {
       return (400, {'ok': false, 'error': 'expected a JSON object'});
     }
     final rawHandles = body['handles'];
-    if (rawHandles is! List || rawHandles.isEmpty ||
+    if (rawHandles is! List ||
+        rawHandles.isEmpty ||
         rawHandles.any((handle) => handle is! String)) {
       return (
         400,
@@ -71,6 +71,12 @@ extension AdminApiUsers on AdminApi {
       'reminderWeekday',
       'lockWeekday',
       'checkerWeekday',
+      'attendanceInitial',
+      'attendanceInitialWeekday',
+      'attendanceFollowup',
+      'attendanceFollowupWeekday',
+      'absence',
+      'absenceWeekday',
       // Kept for clients that POST the complete GET response. The timezone is
       // configured by the server and is not mutable through this endpoint.
       'timezoneOffset',
@@ -83,12 +89,16 @@ extension AdminApiUsers on AdminApi {
     }
     if (nested.containsKey('timezoneOffset')) {
       final offset = nested['timezoneOffset'];
-      if (offset is! num || offset.toInt() != offset ||
+      if (offset is! num ||
+          offset.toInt() != offset ||
           offset.toInt() != config.timezoneOffsetHours) {
-        return (400, {
-          'ok': false,
-          'error': 'timezoneOffset is controlled by server configuration',
-        });
+        return (
+          400,
+          {
+            'ok': false,
+            'error': 'timezoneOffset is controlled by server configuration',
+          },
+        );
       }
     }
 
@@ -105,36 +115,79 @@ extension AdminApiUsers on AdminApi {
         throw FormatException('$key: ${e.message}');
       }
     }
-    String parseWeekday(String key, String fallback) {
+
+    String parseWeekday(
+      String key,
+      String fallback, {
+      bool weekdaysOnly = false,
+    }) {
       if (!nested.containsKey(key)) return fallback;
       final raw = nested[key];
-      if (raw is! String || scheduleWeekdayNumber(raw) == null) {
+      final weekday = raw is String ? scheduleWeekdayNumber(raw) : null;
+      if (weekday == null || (weekdaysOnly && weekday > DateTime.friday)) {
+        final expected = weekdaysOnly
+            ? 'mon, tue, wed, thu, fri'
+            : 'mon, tue, wed, thu, fri, sat, sun';
         throw FormatException(
           '${key.replaceAll('Weekday', ' weekday')}: '
-          'expected one of mon, tue, wed, thu, fri',
+          'expected one of $expected',
         );
       }
-      return raw;
+      return raw as String;
     }
 
     final ScheduleTimes next;
     try {
       next = ScheduleTimes(
         prompt: ScheduleEvent(
-          weekday: parseWeekday('promptWeekday', current.prompt.weekday),
+          weekday: parseWeekday(
+            'promptWeekday',
+            current.prompt.weekday,
+            weekdaysOnly: true,
+          ),
           time: parse('prompt', current.prompt.time),
         ),
         reminder: ScheduleEvent(
-          weekday: parseWeekday('reminderWeekday', current.reminder.weekday),
+          weekday: parseWeekday(
+            'reminderWeekday',
+            current.reminder.weekday,
+            weekdaysOnly: true,
+          ),
           time: parse('reminder', current.reminder.time),
         ),
         lock: ScheduleEvent(
-          weekday: parseWeekday('lockWeekday', current.lock.weekday),
+          weekday: parseWeekday(
+            'lockWeekday',
+            current.lock.weekday,
+            weekdaysOnly: true,
+          ),
           time: parse('lock', current.lock.time),
         ),
         checker: ScheduleEvent(
-          weekday: parseWeekday('checkerWeekday', current.checker.weekday),
+          weekday: parseWeekday(
+            'checkerWeekday',
+            current.checker.weekday,
+            weekdaysOnly: true,
+          ),
           time: parse('checker', current.checker.time),
+        ),
+        attendanceInitial: ScheduleEvent(
+          weekday: parseWeekday(
+            'attendanceInitialWeekday',
+            current.attendanceInitial.weekday,
+          ),
+          time: parse('attendanceInitial', current.attendanceInitial.time),
+        ),
+        attendanceFollowup: ScheduleEvent(
+          weekday: parseWeekday(
+            'attendanceFollowupWeekday',
+            current.attendanceFollowup.weekday,
+          ),
+          time: parse('attendanceFollowup', current.attendanceFollowup.time),
+        ),
+        absence: ScheduleEvent(
+          weekday: parseWeekday('absenceWeekday', current.absence.weekday),
+          time: parse('absence', current.absence.time),
         ),
       )..validate();
     } on FormatException catch (e) {
@@ -144,11 +197,7 @@ extension AdminApiUsers on AdminApi {
     }
     scheduleRuntime.update(next);
     LogRing.log('admin API: schedule updated');
-    return (200, {
-      'ok': true,
-      ..._scheduleJson(),
-      'schedule': _scheduleJson(),
-    });
+    return (200, {'ok': true, ..._scheduleJson(), 'schedule': _scheduleJson()});
   }
 
   /// The user's full set of groups, most significant first. The console and
@@ -222,10 +271,10 @@ extension AdminApiUsers on AdminApi {
       return (400, {'ok': false, 'error': 'bad tier'});
     }
     if (tier == MemberTier.admin && user.memberTier == MemberTier.outMember) {
-      return (400, {
-        'ok': false,
-        'error': 'out-members cannot be promoted to admin',
-      });
+      return (
+        400,
+        {'ok': false, 'error': 'out-members cannot be promoted to admin'},
+      );
     }
     final preference = _notificationFromBody(body);
     if ((body.containsKey('notificationPreference') ||
@@ -258,10 +307,7 @@ extension AdminApiUsers on AdminApi {
     );
   }
 
-  Future<(int, Object)> _setUserNotification(
-    int id,
-    String bodyText,
-  ) async {
+  Future<(int, Object)> _setUserNotification(int id, String bodyText) async {
     final user = repo.findUser(id);
     if (user == null) return (404, {'ok': false, 'error': 'no such user'});
     final body = _jsonBody(bodyText);
@@ -271,8 +317,7 @@ extension AdminApiUsers on AdminApi {
         400,
         {
           'ok': false,
-          'error':
-              'expected {"preference": "weekly"|"every-other"|"never"}',
+          'error': 'expected {"preference": "weekly"|"every-other"|"never"}',
         },
       );
     }
@@ -303,5 +348,4 @@ extension AdminApiUsers on AdminApi {
       },
     );
   }
-
 }

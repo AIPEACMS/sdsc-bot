@@ -1,7 +1,6 @@
 part of '../service.dart';
 
 extension CycleServicePrompts on CycleService {
-
   /// Picks the right prompt for [user] for [window]: holiday variant first,
   /// then the "you did not attend" variant for lapsed members. Returns null
   /// when the member opted out of the holiday.
@@ -90,7 +89,9 @@ extension CycleServicePrompts on CycleService {
       }
     }
     if (failures > 0) LogRing.log('prompt: $failures members unreachable');
-    if (suppressed > 0) LogRing.log('prompt: suppressed $suppressed members (route disabled)');
+    if (suppressed > 0) {
+      LogRing.log('prompt: suppressed $suppressed members (route disabled)');
+    }
   }
 
   /// Reminds the bundle's non-responders (and not the quiet).
@@ -115,7 +116,9 @@ extension CycleServicePrompts on CycleService {
       }
     }
     if (failures > 0) LogRing.log('remind: $failures members unreachable');
-    if (suppressed > 0) LogRing.log('remind: suppressed $suppressed members (route disabled)');
+    if (suppressed > 0) {
+      LogRing.log('remind: suppressed $suppressed members (route disabled)');
+    }
   }
 
   /// Every-other preference uses the durable prompt state as a two-cycle
@@ -127,9 +130,7 @@ extension CycleServicePrompts on CycleService {
     NotificationPreference.everyOther =>
       user.lastPromptState != LastPromptState.prompted &&
           user.lastPromptState != LastPromptState.responded,
-  }
-
-;
+  };
 
   bool _shouldRemind(User user) => switch (user.notificationPreference) {
     NotificationPreference.weekly => true,
@@ -137,9 +138,7 @@ extension CycleServicePrompts on CycleService {
     NotificationPreference.everyOther =>
       user.lastPromptState == LastPromptState.prompted ||
           user.lastPromptState == LastPromptState.responded,
-  }
-
-;
+  };
 
   /// Whether this window's weekends fall on a holiday week.
   static bool isHolidayWindow(Repo repo, RollingWindow w) =>
@@ -149,8 +148,7 @@ extension CycleServicePrompts on CycleService {
     final result = <Holiday>[];
     for (final sat in [w.sat0, w.sat1]) {
       final holiday = repo.holidayOn(sat);
-      if (holiday != null &&
-          !result.any((old) => old.kind == holiday.kind)) {
+      if (holiday != null && !result.any((old) => old.kind == holiday.kind)) {
         result.add(holiday);
       }
     }
@@ -158,12 +156,10 @@ extension CycleServicePrompts on CycleService {
   }
 
   static String holidayName(HolidayKind kind) => switch (kind) {
-        HolidayKind.middle => 'recess week',
-        HolidayKind.winter => 'winter holiday',
-        HolidayKind.summer => 'summer holiday',
-      }
-
-;
+    HolidayKind.middle => 'recess week',
+    HolidayKind.winter => 'winter holiday',
+    HolidayKind.summer => 'summer holiday',
+  };
 
   /// Allocates both weekends of [window] as one bundle. Every booked pick is
   /// honored, but a member receives at most one backup pick across both dates.
@@ -227,7 +223,7 @@ extension CycleServicePrompts on CycleService {
       repo.markWeekendAllocated(sat);
     }
 
-    // Before the weekend's Friday deadline the member can still re-pick;
+    // Before the weekend's configured lock the member can still re-pick;
     // after it they must message the contact instead.
     final now = config.toLocal(Config.nowUtc());
     // Notify only the newly allocated — locked members were notified when
@@ -255,7 +251,10 @@ extension CycleServicePrompts on CycleService {
             label,
             time,
             deadlinePassed: deadlinePassed,
-            deadlineLabel: 'Friday ${_fmt12h(deadline)}',
+            deadlineLabel: messages.lockDeadlineLabel(
+              window,
+              session.weekendStart,
+            ),
           ),
           parseMode: ParseMode.html,
         );
@@ -266,21 +265,15 @@ extension CycleServicePrompts on CycleService {
       }
     }
     if (failures > 0) LogRing.log('allocate: $failures msg4 sends failed');
-    if (suppressed > 0) LogRing.log('allocate: suppressed $suppressed notices (route disabled)');
+    if (suppressed > 0) {
+      LogRing.log('allocate: suppressed $suppressed notices (route disabled)');
+    }
   }
 
   bool _matches(Session session, Slot slot) =>
       session.day == slot.day &&
       session.slot == slot.slot &&
       session.location == slot.location;
-
-  /// 12h "H:MM AM/PM" for human-facing deadlines (e.g. "6:00 PM").
-  String _fmt12h(DateTime dt) {
-    final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
-    final m = dt.minute.toString().padLeft(2, '0');
-    final ampm = dt.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $ampm';
-  }
 
   /// Marks attendance and updates the OCBC streak: a present OCBC session
   /// extends the run, a present PR session resets it. The streak counts
@@ -294,5 +287,4 @@ extension CycleServicePrompts on CycleService {
     final streak = session.location == Locations.ocbc ? user.ocbcStreak + 1 : 0;
     repo.setOcbcStreak(userId, streak);
   }
-
 }

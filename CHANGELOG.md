@@ -4,6 +4,20 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.10.0] - 2026-10-26
+
+### Added
+
+- Added configurable initial/follow-up attendance reminders and absence
+  reminders, each with an independent weekday and local time.
+- Anchored attendance and absence reminders to the latest completed Saturday
+  through Friday session block.
+
+### Changed
+
+- Availability guidance now reports each weekend's configured lock weekday,
+  date, and time.
+
 ## [4.9.1] - 2026-10-23
 
 ### Fixed
