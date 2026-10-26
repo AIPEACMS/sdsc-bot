@@ -1,4 +1,3 @@
-
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 import '../../support/admin_api_harness.dart';
@@ -59,8 +58,10 @@ void main() {
       body: {'handle': '@quiet', 'tier': 'out-member'},
     );
     expect(queuedStatus, 200);
-    expect(repo.pendingRole('quiet')!.notificationPreference,
-        NotificationPreference.never);
+    expect(
+      repo.pendingRole('quiet')!.notificationPreference,
+      NotificationPreference.never,
+    );
 
     repo.upsertSeenUser(404, 'seenquiet');
     final (addedStatus, _) = await call(
@@ -69,8 +70,10 @@ void main() {
       body: {'handle': '@seenquiet', 'tier': 'out-member'},
     );
     expect(addedStatus, 200);
-    expect(repo.findUser(404)!.notificationPreference,
-        NotificationPreference.never);
+    expect(
+      repo.findUser(404)!.notificationPreference,
+      NotificationPreference.never,
+    );
   });
 
   test('POST /api/users adds a user directly as check tier', () async {
@@ -110,158 +113,196 @@ void main() {
     expect(bad, 400);
   });
 
-  test('POST /api/users restores old users by registered handle without /start',
-      () async {
-    repo.upsertUser(
-      const User(
-        id: 505,
-        name: '@former',
-        experience: Experience.newbie,
-        group: '',
-        memberTier: MemberTier.old,
-      ),
-    );
-    repo.addPendingUser('former', isAdmin: false, tier: MemberTier.check);
+  test(
+    'POST /api/users restores old users by registered handle without /start',
+    () async {
+      repo.upsertUser(
+        const User(
+          id: 505,
+          name: '@former',
+          experience: Experience.newbie,
+          group: '',
+          memberTier: MemberTier.old,
+        ),
+      );
+      repo.addPendingUser('former', isAdmin: false, tier: MemberTier.check);
 
-    final (memberStatus, _) = await call(
-      'POST',
-      '/api/users',
-      body: {'handle': '@former'},
-    );
-    expect(memberStatus, 200);
-    expect(repo.findUser(505)!.memberTier, MemberTier.member);
-    expect(repo.isPendingUser('former'), false);
+      final (memberStatus, _) = await call(
+        'POST',
+        '/api/users',
+        body: {'handle': '@former'},
+      );
+      expect(memberStatus, 200);
+      expect(repo.findUser(505)!.memberTier, MemberTier.member);
+      expect(repo.isPendingUser('former'), false);
 
-    final (removeStatus, _) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {'handles': ['@former']},
-    );
-    expect(removeStatus, 200);
+      final (removeStatus, _) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@former'],
+        },
+      );
+      expect(removeStatus, 200);
 
-    final (outStatus, _) = await call(
-      'POST',
-      '/api/users',
-      body: {'handle': '@former', 'tier': 'out-member'},
-    );
-    expect(outStatus, 200);
-    expect(repo.findUser(505)!.memberTier, MemberTier.outMember);
-  });
+      final (outStatus, _) = await call(
+        'POST',
+        '/api/users',
+        body: {'handle': '@former', 'tier': 'out-member'},
+      );
+      expect(outStatus, 200);
+      expect(repo.findUser(505)!.memberTier, MemberTier.outMember);
+    },
+  );
 
-  test('POST /api/users/remove validates registered and pending batches atomically',
-      () async {
-    repo.upsertSeenUser(501, 'alice');
-    repo.upsertUser(
-      User(id: 501, name: '@alice', experience: Experience.newbie, group: '2'),
-    );
-    repo.addPendingUser('never_started', isAdmin: false);
+  test(
+    'POST /api/users/remove validates registered and pending batches atomically',
+    () async {
+      repo.upsertSeenUser(501, 'alice');
+      repo.upsertUser(
+        User(
+          id: 501,
+          name: '@alice',
+          experience: Experience.newbie,
+          group: '2',
+        ),
+      );
+      repo.addPendingUser('never_started', isAdmin: false);
 
-    final (invalidStatus, invalidBody) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {
-        'handles': ['@alice', '@unknown'],
-      },
-    );
-    expect(invalidStatus, 404);
-    expect((invalidBody as Map<String, dynamic>)['error'], '@unknown is not found');
-    expect(repo.findUser(501)!.memberTier, MemberTier.member);
-    expect(repo.isPendingUser('never_started'), true);
+      final (invalidStatus, invalidBody) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@alice', '@unknown'],
+        },
+      );
+      expect(invalidStatus, 404);
+      expect(
+        (invalidBody as Map<String, dynamic>)['error'],
+        '@unknown is not found',
+      );
+      expect(repo.findUser(501)!.memberTier, MemberTier.member);
+      expect(repo.isPendingUser('never_started'), true);
 
-    final (status, body) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {
-        'handles': ['@alice', '@never_started'],
-      },
-    );
-    expect(status, 200);
-    expect((body as Map<String, dynamic>)['removed'], ['@alice', '@never_started']);
-    expect(repo.findUser(501)!.memberTier, MemberTier.old);
-    expect(repo.findUser(501)!.group, isEmpty);
-    expect(repo.isPendingUser('never_started'), false);
+      final (status, body) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@alice', '@never_started'],
+        },
+      );
+      expect(status, 200);
+      expect((body as Map<String, dynamic>)['removed'], [
+        '@alice',
+        '@never_started',
+      ]);
+      expect(repo.findUser(501)!.memberTier, MemberTier.old);
+      expect(repo.findUser(501)!.group, isEmpty);
+      expect(repo.isPendingUser('never_started'), false);
 
-    repo.addPendingUser('alice', isAdmin: false);
-    final (oldStatus, _) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {
-        'handles': ['@alice'],
-      },
-    );
-    expect(oldStatus, 404);
-    expect(repo.isPendingUser('alice'), true);
-  });
+      repo.addPendingUser('alice', isAdmin: false);
+      final (oldStatus, _) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@alice'],
+        },
+      );
+      expect(oldStatus, 404);
+      expect(repo.isPendingUser('alice'), true);
+    },
+  );
 
-  test('POST /api/users/remove protects admins and keeps no pending endpoint',
-      () async {
-    repo.upsertSeenUser(502, 'admin');
-    repo.upsertUser(
-      User(
-        id: 502,
-        name: '@admin',
-        experience: Experience.newbie,
-        group: '1',
-        isAdmin: true,
-      ),
-    );
-    repo.addPendingUser('pending_admin', isAdmin: true);
-    final (registeredStatus, _) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {
-        'handles': ['@admin'],
-      },
-    );
-    expect(registeredStatus, 409);
-    final (pendingStatus, _) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {
-        'handles': ['@pending_admin'],
-      },
-    );
-    expect(pendingStatus, 409);
-    expect(repo.pendingIsAdmin('pending_admin'), true);
-    expect((await call('GET', '/api/users/pending')).$1, 404);
-  });
+  test(
+    'POST /api/users/remove protects admins and pending API lists them',
+    () async {
+      repo.upsertSeenUser(502, 'admin');
+      repo.upsertUser(
+        User(
+          id: 502,
+          name: '@admin',
+          experience: Experience.newbie,
+          group: '1',
+          isAdmin: true,
+        ),
+      );
+      repo.addPendingUser('pending_admin', isAdmin: true);
+      final (registeredStatus, _) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@admin'],
+        },
+      );
+      expect(registeredStatus, 409);
+      final (pendingStatus, _) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@pending_admin'],
+        },
+      );
+      expect(pendingStatus, 409);
+      expect(repo.pendingIsAdmin('pending_admin'), true);
+      final (pendingListStatus, pendingListBody) = await call(
+        'GET',
+        '/api/users/pending',
+      );
+      expect(pendingListStatus, 200);
+      final pending =
+          (pendingListBody as Map<String, dynamic>)['pending'] as List;
+      expect(pending.single['username'], 'pending_admin');
+      expect(pending.single['isAdmin'], true);
+    },
+  );
 
-  test('POST /api/users/remove protects global admins and preserves console identity',
-      () async {
-    repo.upsertSeenUser(504, 'global');
-    repo.upsertUser(
-      User(id: 504, name: '@global', experience: Experience.newbie, group: '1'),
-    );
-    expect(repo.appointGlobalAdmin(504), GlobalAdminResult.success);
-    final (globalStatus, _) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {
-        'handles': ['@global'],
-      },
-    );
-    expect(globalStatus, 409);
+  test(
+    'POST /api/users/remove protects global admins and preserves console identity',
+    () async {
+      repo.upsertSeenUser(504, 'global');
+      repo.upsertUser(
+        User(
+          id: 504,
+          name: '@global',
+          experience: Experience.newbie,
+          group: '1',
+        ),
+      );
+      expect(repo.appointGlobalAdmin(504), GlobalAdminResult.success);
+      final (globalStatus, _) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@global'],
+        },
+      );
+      expect(globalStatus, 409);
 
-    repo.upsertSeenUser(1, 'console');
-    repo.upsertUser(
-      const User(id: 1, name: '@console', experience: Experience.newbie, group: '3'),
-    );
-    final (consoleStatus, _) = await call(
-      'POST',
-      '/api/users/remove',
-      body: {
-        'handles': ['@console'],
-      },
-    );
-    expect(consoleStatus, 200);
-    expect(repo.findUser(1)!.memberTier, MemberTier.old);
-    final (_, usersBody) = await call('GET', '/api/users');
-    final users = ((usersBody as Map<String, dynamic>)['users'] as List)
-        .cast<Map<String, dynamic>>();
-    expect(
-      users.firstWhere((user) => user['id'] == 1)['groups'],
-      contains('console'),
-    );
-  });
-
+      repo.upsertSeenUser(1, 'console');
+      repo.upsertUser(
+        const User(
+          id: 1,
+          name: '@console',
+          experience: Experience.newbie,
+          group: '3',
+        ),
+      );
+      final (consoleStatus, _) = await call(
+        'POST',
+        '/api/users/remove',
+        body: {
+          'handles': ['@console'],
+        },
+      );
+      expect(consoleStatus, 200);
+      expect(repo.findUser(1)!.memberTier, MemberTier.old);
+      final (_, usersBody) = await call('GET', '/api/users');
+      final users = ((usersBody as Map<String, dynamic>)['users'] as List)
+          .cast<Map<String, dynamic>>();
+      expect(
+        users.firstWhere((user) => user['id'] == 1)['groups'],
+        contains('console'),
+      );
+    },
+  );
 }

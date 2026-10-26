@@ -161,6 +161,7 @@ void main() {
       '/prompt - send availability prompts now',
       '/remind - remind non-responders now',
       '/set_exp - change a member\'s experience',
+      '/view_pend_member - list pending members and out-members',
     ]);
     final gadmin = CommandCatalog.commands(
       isConsole: false,
@@ -177,6 +178,7 @@ void main() {
       '/rm_allocate_entry',
       '/rm_user',
       '/sync_calendar',
+      '/view_pend_user',
       ...admin.map((entry) => entry.command),
     ]);
     expect(gadmin.map((entry) => entry.command), isNot(contains('/hold')));
@@ -285,6 +287,7 @@ void main() {
       '/prompt',
       '/remind',
       '/set_exp',
+      '/view_pend_member',
     ]);
 
     final gadmin = CommandCatalog.sections(
@@ -307,6 +310,7 @@ void main() {
         '/rm_allocate_entry',
         '/rm_user',
         '/sync_calendar',
+        '/view_pend_user',
         '/all_users',
         '/allocate',
         '/group_user',
@@ -314,6 +318,7 @@ void main() {
         '/prompt',
         '/remind',
         '/set_exp',
+        '/view_pend_member',
       ],
     );
 

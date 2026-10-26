@@ -170,6 +170,45 @@ extension AdminUsers on Admin {
     await _users(ctx, group: group);
   }
 
+  Future<void> _viewPendingUsers(Context ctx) =>
+      _showPendingUsers(ctx, membersOnly: false);
+
+  Future<void> _viewPendingMembers(Context ctx) =>
+      _showPendingUsers(ctx, membersOnly: true);
+
+  Future<void> _showPendingUsers(
+    Context ctx, {
+    required bool membersOnly,
+  }) async {
+    final pending = repo.pendingUsers().where((entry) {
+      if (!membersOnly) return true;
+      return !entry.role.isAdmin &&
+          (entry.role.tier == MemberTier.member ||
+              entry.role.tier == MemberTier.outMember);
+    }).toList();
+    if (pending.isEmpty) {
+      await ctx.reply(
+        membersOnly
+            ? 'There are no pending member or out-member registrations.'
+            : 'There are no pending registrations.',
+      );
+      return;
+    }
+    final lines = pending.map((entry) {
+      final queuedRole = entry.role.effectiveTier;
+      final detail = entry.role.tier == MemberTier.outMember
+          ? '$queuedRole, notifications '
+                '${_notificationLabel(entry.role.notificationPreference)}'
+          : queuedRole;
+      return '• <b>@${_html(entry.username)}</b> — ${_html(detail)}';
+    });
+    await ctx.reply(
+      '<b>${membersOnly ? 'Pending members' : 'All pending registrations'} '
+      '(${pending.length})</b>\n${lines.join('\n')}',
+      parseMode: ParseMode.html,
+    );
+  }
+
   String _displayName(User user) {
     final human = user.preferredName;
     if (human.isEmpty) return _html(user.name);
@@ -179,7 +218,9 @@ extension AdminUsers on Admin {
   String _html(String text) => text
       .replaceAll('&', '&amp;')
       .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;');
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
 
   // ------------------------------------------------- /prompt /remind confirm
 

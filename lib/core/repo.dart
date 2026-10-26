@@ -18,6 +18,7 @@ part 'persistence/repo/attendance_corrections.dart';
 part 'persistence/repo/holidays.dart';
 part 'persistence/repo/groups.dart';
 part 'persistence/repo/console_keys.dart';
+part 'persistence/repo/pending_users.dart';
 
 /// A registered Ed25519 public key that the desktop console app uses to sign
 /// admin API requests. The value is the base64 of the raw 32-byte key.
@@ -32,6 +33,13 @@ class ConsoleKey {
     required this.createdAt,
     this.actorUserId,
   });
+}
+
+class PendingUser {
+  final String username;
+  final PendingRole role;
+
+  const PendingUser({required this.username, required this.role});
 }
 
 enum AttendanceCorrectionApplyResult { applied, stale, expired, forbidden }

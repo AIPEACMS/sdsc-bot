@@ -292,7 +292,8 @@ void main() {
         '/manual_mark_group_attend - correct an attendance balance in your group\n'
         '/prompt - send availability prompts now\n'
         '/remind - remind non-responders now\n'
-        '/set_exp - change a member\'s experience',
+        '/set_exp - change a member\'s experience\n'
+        '/view_pend_member - list pending members and out-members',
       );
       expect(adminCommands, isNot(contains('<b>Member</b>')));
       expect(adminCommands, isNot(contains('/groupstatus')));

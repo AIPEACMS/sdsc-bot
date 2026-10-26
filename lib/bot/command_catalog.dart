@@ -38,6 +38,7 @@ class CommandCatalog {
       '/manual_mark_group_attend',
       'correct an attendance balance in your group',
     ),
+    CommandHelp('/view_pend_member', 'list pending members and out-members'),
   ];
   static const List<CommandHelp> _globalAdmin = [
     CommandHelp('/add_admin', 'promote a registered user', usage: '@handle'),
@@ -49,6 +50,7 @@ class CommandCatalog {
       usage: '[@handle ...]',
     ),
     CommandHelp('/sync_calendar', 'push the calendar YAML'),
+    CommandHelp('/view_pend_user', 'list all pending registrations'),
     CommandHelp('/assign_group', 'assign members to admin-led groups'),
     CommandHelp(
       '/rm_allocate_entry',

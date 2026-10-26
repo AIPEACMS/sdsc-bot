@@ -179,6 +179,9 @@ extension AdminApiRouting on AdminApi {
           return _sessionScheduleCommit(bodyText);
         }
       case 'users':
+        if (method == 'GET' && segs.length == 3 && segs[2] == 'pending') {
+          return (200, {'ok': true, 'pending': _pendingUsersJson()});
+        }
         if (method == 'GET' && segs.length == 2) {
           return (200, {'ok': true, 'users': _usersJson()});
         }
