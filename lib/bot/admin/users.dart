@@ -124,19 +124,17 @@ extension AdminUsers on Admin {
     final lines = users.map((u) {
       final tier = _displayTier(u);
       final outMember = u.memberTier == MemberTier.outMember;
+      final member = u.memberTier == MemberTier.member;
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
-      final stats = outMember ? null : repo.attendanceStats(u.id);
-      final byLoc =
-          stats?.byLocation.entries
-              .where((e) => e.value > 0)
-              .map((e) => '${e.value} ${repo.locationName(e.key)}')
-              .join(', ') ??
-          '';
       final detail = outMember
           ? 'notifications ${_notificationLabel(u.notificationPreference)}'
-          : '$exp${byLoc.isEmpty ? '' : ', $byLoc'}';
-      return '• <b>${_displayName(u)}</b>\n   ($tier, '
-          'group ${u.group.isEmpty ? 'none' : u.group}, $detail)';
+          : member
+          ? '$exp, attended ${u.attendanceBalance} sessions'
+          : exp;
+      final roleAndGroup = outMember
+          ? tier
+          : '$tier, group ${u.group.isEmpty ? 'none' : u.group}';
+      return '• <b>${_displayName(u)}</b>\n   ($roleAndGroup, $detail)';
     });
     await ctx.reply(
       '<b>${group == null ? 'All users' : 'Group $group users'} '
