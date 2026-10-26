@@ -20,3 +20,14 @@ void commandBoth(
   bot.command(command, handler);
   bot.hears(label ?? command, handler);
 }
+
+/// Registers a slash-only compatibility spelling without advertising it.
+void commandAlias(
+  Bot bot,
+  BotState state,
+  String alias,
+  UpdateHandler handler,
+) {
+  state.registerCommand(alias);
+  bot.command(alias, handler);
+}

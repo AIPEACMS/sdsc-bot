@@ -2,11 +2,11 @@ import 'package:test/test.dart';
 import 'package:sdsc_bot/bot/keyboards.dart';
 
 void main() {
-
   test('gadmin adds only hold controls to the normal admin grid', () {
     final member = RoleKeyboard.memberButtons.map((b) => b.command).toSet();
-    final outMember =
-        RoleKeyboard.outMemberButtons.map((b) => b.command).toSet();
+    final outMember = RoleKeyboard.outMemberButtons
+        .map((b) => b.command)
+        .toSet();
     final admin = RoleKeyboard.adminButtons.map((b) => b.command).toSet();
     final gadmin = RoleKeyboard.globalAdminButtons
         .map((b) => b.command)
@@ -126,8 +126,9 @@ void main() {
     for (final b in globalAdminOnly) {
       expect(b.color, RoleColor.globalAdmin, reason: b.label);
     }
-    for (final b in RoleKeyboard.globalAdminButtons
-        .where(RoleKeyboard.adminButtons.contains)) {
+    for (final b in RoleKeyboard.globalAdminButtons.where(
+      RoleKeyboard.adminButtons.contains,
+    )) {
       expect(
         b.color == RoleColor.admin || b.color == RoleColor.member,
         isTrue,
@@ -144,7 +145,10 @@ void main() {
   test('roleFor picks the highest role', () {
     expect(RoleKeyboard.roleFor(isConsole: false, isAdmin: false), 'member');
     expect(RoleKeyboard.roleFor(isConsole: false, isAdmin: true), 'admin');
-    expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: false), 'console-only');
+    expect(
+      RoleKeyboard.roleFor(isConsole: true, isAdmin: false),
+      'console-only',
+    );
     expect(RoleKeyboard.roleFor(isConsole: true, isAdmin: true), 'admin');
     expect(
       RoleKeyboard.roleFor(
@@ -185,11 +189,11 @@ void main() {
   });
 
   test('gridButtons resolves each role', () {
-    expect(RoleKeyboard.gridButtons('console-only'), RoleKeyboard.consoleButtons);
     expect(
-      RoleKeyboard.gridButtons('gadmin'),
-      RoleKeyboard.globalAdminButtons,
+      RoleKeyboard.gridButtons('console-only'),
+      RoleKeyboard.consoleButtons,
     );
+    expect(RoleKeyboard.gridButtons('gadmin'), RoleKeyboard.globalAdminButtons);
     expect(RoleKeyboard.gridButtons('admin'), RoleKeyboard.adminButtons);
     expect(RoleKeyboard.gridButtons('member'), RoleKeyboard.memberButtons);
     expect(RoleKeyboard.gridButtons('check'), RoleKeyboard.checkButtons);
@@ -199,8 +203,8 @@ void main() {
   test('console commands remain command-only', () {
     final commands = RoleKeyboard.consoleButtons.map((b) => b.command);
     expect(commands, isEmpty);
-    expect(commands, isNot(contains('/addkey')));
-    expect(commands, isNot(contains('/addg')));
+    expect(commands, isNot(contains('/add_key')));
+    expect(commands, isNot(contains('/add_global_admin')));
     expect(commands, isNot(contains('/grid')));
   });
 
@@ -211,20 +215,23 @@ void main() {
     );
   });
 
-  test('experience remains command-only while absent from both admin grids', () {
-    expect(
-      RoleKeyboard.adminButtons.map((b) => b.command),
-      isNot(contains('/setexp')),
-    );
-    expect(
-      RoleKeyboard.globalAdminButtons.map((b) => b.command),
-      isNot(contains('/setexp')),
-    );
-  });
+  test(
+    'experience remains command-only while absent from both admin grids',
+    () {
+      expect(
+        RoleKeyboard.adminButtons.map((b) => b.command),
+        isNot(contains('/set_exp')),
+      );
+      expect(
+        RoleKeyboard.globalAdminButtons.map((b) => b.command),
+        isNot(contains('/set_exp')),
+      );
+    },
+  );
 
   test('check grid is a single button', () {
     expect(RoleKeyboard.checkButtons, hasLength(1));
-    expect(RoleKeyboard.checkButtons.single.command, '/checkstatus');
+    expect(RoleKeyboard.checkButtons.single.command, '/check_status');
   });
 
   test('built keyboard is persistent, resized, and buttons are styled', () {
@@ -256,7 +263,8 @@ void main() {
       );
       final keyboard = RoleKeyboard.build(role);
       final flattened = [
-        for (final row in keyboard.keyboard) ...row.map((button) => button.text),
+        for (final row in keyboard.keyboard)
+          ...row.map((button) => button.text),
       ];
       expect(flattened, [
         'more-cmd',
@@ -264,11 +272,15 @@ void main() {
       ]);
       final first = keyboard.keyboard.first.first;
       expect(first.text, 'more-cmd');
-      expect(first.style?.name, color == RoleColor.admin ? 'primary' : 'danger');
+      expect(
+        first.style?.name,
+        color == RoleColor.admin ? 'primary' : 'danger',
+      );
     }
 
-    final consoleOnlyButton =
-        RoleKeyboard.build('console-only').keyboard.first.first;
+    final consoleOnlyButton = RoleKeyboard.build(
+      'console-only',
+    ).keyboard.first.first;
     expect(consoleOnlyButton.text, 'more-cmd');
     expect(consoleOnlyButton.style?.name, 'success');
   });
@@ -283,20 +295,14 @@ void main() {
     ];
 
     expect(buttons('console-only'), [('more-cmd', RoleColor.console)]);
-    expect(
-      buttons('admin'),
-      [
-        ('more-cmd', RoleColor.admin),
-        ...RoleKeyboard.adminButtons.map((b) => (b.label, b.color)),
-      ],
-    );
-    expect(
-      buttons('gadmin'),
-      [
-        ('more-cmd', RoleColor.globalAdmin),
-        ...RoleKeyboard.globalAdminButtons.map((b) => (b.label, b.color)),
-      ],
-    );
+    expect(buttons('admin'), [
+      ('more-cmd', RoleColor.admin),
+      ...RoleKeyboard.adminButtons.map((b) => (b.label, b.color)),
+    ]);
+    expect(buttons('gadmin'), [
+      ('more-cmd', RoleColor.globalAdmin),
+      ...RoleKeyboard.globalAdminButtons.map((b) => (b.label, b.color)),
+    ]);
     expect(
       buttons('member'),
       RoleKeyboard.memberButtons.map((b) => (b.label, b.color)).toList(),
@@ -313,17 +319,26 @@ void main() {
 
   test('console identity gets More Commands on lower-tier grids only', () {
     for (final role in ['member', 'out-member', 'check', 'old']) {
-      expect(RoleKeyboard.buttonsFor(role, consoleIdentity: true).first,
-          RoleKeyboard.moreCommandsButton);
-      expect(RoleKeyboard.buttonsFor(role).map((button) => button.label),
-          isNot(contains('more-cmd')));
+      expect(
+        RoleKeyboard.buttonsFor(role, consoleIdentity: true).first,
+        RoleKeyboard.moreCommandsButton,
+      );
+      expect(
+        RoleKeyboard.buttonsFor(role).map((button) => button.label),
+        isNot(contains('more-cmd')),
+      );
     }
     expect(RoleKeyboard.buttonsFor('console-only').first.label, 'more-cmd');
     expect(RoleKeyboard.buttonsFor('admin').first.label, 'more-cmd');
     expect(RoleKeyboard.buttonsFor('gadmin').first.label, 'more-cmd');
     for (final role in ['member', 'out-member', 'check', 'old']) {
-      expect(RoleKeyboard.build(role, consoleIdentity: true).keyboard.first.first.text,
-          'more-cmd');
+      expect(
+        RoleKeyboard.build(
+          role,
+          consoleIdentity: true,
+        ).keyboard.first.first.text,
+        'more-cmd',
+      );
     }
   });
 }

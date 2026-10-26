@@ -56,10 +56,10 @@ class _FlowsBase {
 
   final int _profileSteps = 1;
 
-  /// Set by main.dart: applies the typed date of the /setdate wizard.
+  /// Set by main.dart: applies the typed date of the /set_date wizard.
   Future<void> Function(Context ctx, int userId, String text)? onSetDateText;
 
-  /// Set by main.dart: applies the pasted YAML of the /synccalendar wizard.
+  /// Set by main.dart: applies the pasted YAML of the /sync_calendar wizard.
   Future<void> Function(Context ctx, int userId, String text)?
   onSyncCalendarText;
 
@@ -70,7 +70,7 @@ class _FlowsBase {
   Future<void> Function(Context ctx, int userId, String text)?
   onSetTimeNewNameText;
 
-  /// Set by main.dart: one alias typed in the console's /addalias wizard.
+  /// Set by main.dart: one alias typed in the console's /add_alias wizard.
   Future<void> Function(Context ctx, int userId, String text)? onAddAliasText;
   Future<void> Function(Context ctx, int userId, String text)?
       onAssignGroupText;

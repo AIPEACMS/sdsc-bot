@@ -24,12 +24,12 @@ void main() {
       ),
     );
 
-    await sendText(2, '/setexp');
+    await sendText(2, '/set_exp');
     await sendCallback(2, 'setval|setexp|experienced');
     expect(_inlineTexts(edited.last), contains('@newbie'));
     expect(_inlineTexts(edited.last), isNot(contains('@experienced')));
 
-    await sendText(2, '/setexp');
+    await sendText(2, '/set_exp');
     await sendCallback(2, 'setval|setexp|newbie');
     expect(_inlineTexts(edited.last), isNot(contains('@newbie')));
     expect(_inlineTexts(edited.last), contains('@experienced'));

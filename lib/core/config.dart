@@ -75,7 +75,7 @@ class Config {
     this.adminApiPort = 8738,
   });
 
-  /// Debug override for "now" (UTC). Set by the console via /setdate; lets
+  /// Debug override for "now" (UTC). Set by the console via /set_date; lets
   /// the console test whether prompts/reminders/allocations would fire.
   static DateTime? _debugNowUtc;
 

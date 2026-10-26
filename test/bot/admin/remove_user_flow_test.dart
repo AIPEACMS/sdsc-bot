@@ -220,7 +220,7 @@ void main() {
   );
 
   test('removeuser validates the batch then confirms and removes it', () async {
-    await sendText('/removeuser');
+    await sendText('/rm_user');
     await sendText('@alice\n@never_started');
     expect(sent.last['text'], contains('@alice'));
     expect(repo.findUser(2)!.memberTier, MemberTier.member);
@@ -238,7 +238,7 @@ void main() {
   test(
     'an unknown handle aborts the whole batch with the exact reply',
     () async {
-      await sendText('/removeuser');
+      await sendText('/rm_user');
       await sendText('@alice @missing');
       expect(sent.last['text'], '@missing is not found');
       expect(repo.findUser(2)!.memberTier, MemberTier.member);
@@ -249,7 +249,7 @@ void main() {
   test(
     'cancel clears the confirmation and demote clears pending admin role',
     () async {
-      await sendText('/removeuser');
+      await sendText('/rm_user');
       await sendText('@alice');
       await sendCallback('removeuser|no');
       expect(repo.findUser(2)!.memberTier, MemberTier.member);

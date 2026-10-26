@@ -50,7 +50,7 @@ void main() {
     expect(recipients, isNot(contains(4)));
   });
 
-  test('/groupstatus and /groupuser stay in the caller group', () async {
+  test('/groupstatus and /group_user stay in the caller group', () async {
     repo.updatePreferredName(2, 'Allen');
     final group = repo.findUser(2)!.group;
     final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
@@ -63,13 +63,16 @@ void main() {
     expect(sent.last['text'], isNot(contains('@out-member')));
     expect(sent.last['text'], isNot(contains('@checker')));
 
-    await sendText(2, '/groupuser');
+    await sendText(2, '/group_user');
     final text = sent.last['text'] as String;
     expect(text, contains('Group $group users'));
     expect(text, isNot(contains('@checker')));
 
+    await sendText(2, '/groupuser');
+    expect(sent.last['text'], contains('Group $group users'));
+
     final before = sent.length;
-    await sendText(2, '/groupusers');
+    await sendText(2, '/group_users');
     expect(sent, hasLength(before));
   });
 
@@ -87,7 +90,7 @@ void main() {
   test(
     'console can queue a checker without exposing addcheck in the grid',
     () async {
-      await sendText(1, '/addcheck @newchecker');
+      await sendText(1, '/add_check @newchecker');
 
       expect(sent.last['text'], contains('queued as a checker'));
       expect(repo.pendingTier('newchecker'), MemberTier.check);
@@ -98,7 +101,7 @@ void main() {
   test(
     'a queued checker receives one checker welcome and grid on /start',
     () async {
-      await sendText(1, '/addcheck @newchecker');
+      await sendText(1, '/add_check @newchecker');
       sent.clear();
 
       await sendText(4, '/start', username: 'newchecker');

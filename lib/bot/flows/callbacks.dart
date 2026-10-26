@@ -65,11 +65,11 @@ extension FlowsCallbacks on Flows {
       .replaceAll('<', '&lt;')
       .replaceAll('>', '&gt;');
 
-  // ---------------------------------------------------- /checkstatus
+  // ---------------------------------------------------- /check_status
 
   Future<void> _onCheckStatusCommand(Context ctx) async {
     if (!config.isConsole(ctx.from?.id ?? 0)) {
-      await ctx.reply('Only the console can use /checkstatus.');
+      await ctx.reply('Only the console can use /check_status.');
       return;
     }
     await _onCheckStatus(ctx);

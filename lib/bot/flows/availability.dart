@@ -5,7 +5,7 @@ extension FlowsAvailability on Flows {
 
   /// Console-only: cycle through the console/admin/check/member grids to
   /// preview what each role sees. Type /grid again to step to the next grid,
-  /// or /resetgrid to return to the console's own grid.
+  /// or /reset_grid to return to the console's own grid.
   Future<void> _onGrid(Context ctx) async {
     final userId = ctx.from!.id;
     await _recordSeen(ctx, userId);
@@ -42,7 +42,7 @@ extension FlowsAvailability on Flows {
     await ctx.reply(
       '👀 <b>Preview: $next grid</b>\n'
       'This is what a $next sees. Type /grid again to cycle to the next '
-      'grid, or /resetgrid to return to your own console grid.',
+      'grid, or /reset_grid to return to your own console grid.',
       parseMode: ParseMode.html,
       replyMarkup: RoleKeyboard.build(next),
     );

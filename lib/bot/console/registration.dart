@@ -8,26 +8,31 @@ extension ConsoleRegistration on Console {
     commandBoth(
       bot,
       state,
-      'addadmin',
+      'add_admin',
       _globalAdminGuard(_addAdmin),
       label: 'add-admin',
     );
-    state.registerCommand('addcheck');
-    bot.command('addcheck', _globalAdminGuard(_addCheck));
+    commandAlias(bot, state, 'addadmin', _globalAdminGuard(_addAdmin));
+    final addCheckHandler = _globalAdminGuard(_addCheck);
+    state.registerCommand('add_check');
+    bot.command('add_check', addCheckHandler);
+    commandAlias(bot, state, 'addcheck', addCheckHandler);
     commandBoth(
       bot,
       state,
-      'setdate',
+      'set_date',
       _consoleGuard(_setDate),
       label: 'set-date',
     );
+    commandAlias(bot, state, 'setdate', _consoleGuard(_setDate));
     commandBoth(
       bot,
       state,
-      'resetdate',
+      'reset_date',
       _consoleGuard(_resetDate),
       label: 'reset-date',
     );
+    commandAlias(bot, state, 'resetdate', _consoleGuard(_resetDate));
     commandBoth(
       bot,
       state,
@@ -35,15 +40,18 @@ extension ConsoleRegistration on Console {
       _globalAdminGuard(_demote),
       label: 'demote',
     );
-    state.registerCommand('removeuser');
-    bot.command('removeuser', _globalAdminGuard(_removeUser));
+    final removeUserHandler = _globalAdminGuard(_removeUser);
+    state.registerCommand('rm_user');
+    bot.command('rm_user', removeUserHandler);
+    commandAlias(bot, state, 'removeuser', removeUserHandler);
     commandBoth(
       bot,
       state,
-      'synccalendar',
+      'sync_calendar',
       _globalAdminGuard(_syncCalendar),
       label: 'sync-calendar',
     );
+    commandAlias(bot, state, 'synccalendar', _globalAdminGuard(_syncCalendar));
     commandBoth(
       bot,
       state,
@@ -61,32 +69,30 @@ extension ConsoleRegistration on Console {
     commandBoth(
       bot,
       state,
-      'addkey',
+      'add_key',
       _consoleGuard(_addKey),
       label: 'add-key',
     );
+    commandAlias(bot, state, 'addkey', _consoleGuard(_addKey));
     commandBoth(bot, state, 'keys', _consoleGuard(_keys), label: 'keys');
+    commandBoth(bot, state, 'rm_key', _consoleGuard(_rmKey), label: 'rm-key');
+    commandAlias(bot, state, 'rmkey', _consoleGuard(_rmKey));
     commandBoth(
       bot,
       state,
-      'rmkey',
-      _consoleGuard(_rmKey),
-      label: 'rm-key',
-    );
-    commandBoth(
-      bot,
-      state,
-      'addg',
+      'add_global_admin',
       _consoleGuard(_addGlobalAdminConfirm),
       label: 'addg',
     );
+    commandAlias(bot, state, 'addg', _consoleGuard(_addGlobalAdminConfirm));
     commandBoth(
       bot,
       state,
-      'rmg',
+      'rm_global_admin',
       _consoleGuard(_removeGlobalAdminConfirm),
       label: 'rmg',
     );
+    commandAlias(bot, state, 'rmg', _consoleGuard(_removeGlobalAdminConfirm));
     commandBoth(
       bot,
       state,
@@ -97,19 +103,23 @@ extension ConsoleRegistration on Console {
     commandBoth(
       bot,
       state,
-      'addlocation',
+      'add_location',
       _consoleGuard(_addLocation),
       label: 'add-location',
     );
+    commandAlias(bot, state, 'addlocation', _consoleGuard(_addLocation));
     commandBoth(
       bot,
       state,
-      'addalias',
+      'add_alias',
       _consoleGuard(_addAlias),
       label: 'add-alias',
     );
-    state.registerCommand('assigngroup');
-    bot.command('assigngroup', _globalAdminGuard(_assignGroup));
+    commandAlias(bot, state, 'addalias', _consoleGuard(_addAlias));
+    final assignGroupHandler = _globalAdminGuard(_assignGroup);
+    state.registerCommand('assign_group');
+    bot.command('assign_group', assignGroupHandler);
+    commandAlias(bot, state, 'assigngroup', assignGroupHandler);
 
     // Hold/unhold callbacks, console only.
     bot.use((ctx, next) async {
@@ -180,18 +190,18 @@ extension ConsoleRegistration on Console {
     };
   }
 
-  // --------------------------------------------------------- /addadmin
+  // --------------------------------------------------------- /add_admin
 
   /// Adds a checker directly when their handle is known, or queues them until
   /// their first contact with the bot.
   Future<void> _addCheck(Context ctx) async {
     if (ctx.args.length != 1) {
-      await ctx.reply('Usage: /addcheck @handle');
+      await ctx.reply('Usage: /add_check @handle');
       return;
     }
     final handle = ctx.args.single.replaceFirst('@', '').trim();
     if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(handle)) {
-      await ctx.reply('Usage: /addcheck @handle');
+      await ctx.reply('Usage: /add_check @handle');
       return;
     }
 
@@ -236,17 +246,17 @@ extension ConsoleRegistration on Console {
     await ctx.reply(
       previous == null
           ? '✅ @$handle queued as a checker. The moment they message this bot, '
-            'they are registered automatically.'
+                'they are registered automatically.'
           : '⚠️ @$handle is not registered. The pending role '
-            '(${previous.effectiveTier}) was replaced with checker; they will '
-            'be registered when they message the bot.',
+                '(${previous.effectiveTier}) was replaced with checker; they will '
+                'be registered when they message the bot.',
     );
   }
 
   Future<void> _addAdmin(Context ctx) async {
     final args = ctx.args;
     if (args.length != 1) {
-      await ctx.reply('Usage: /addadmin @handle');
+      await ctx.reply('Usage: /add_admin @handle');
       return;
     }
     final handle = args.first.replaceFirst('@', '');
@@ -260,10 +270,10 @@ extension ConsoleRegistration on Console {
       await ctx.reply(
         previous == null
             ? '⚠️ That handle is not a registered user. It was queued as an '
-              'admin and will be promoted when they message the bot.'
+                  'admin and will be promoted when they message the bot.'
             : '⚠️ That handle is not a registered user. The pending role '
-              '(${previous.effectiveTier}) was replaced with admin; they will '
-              'be promoted when they message the bot.',
+                  '(${previous.effectiveTier}) was replaced with admin; they will '
+                  'be promoted when they message the bot.',
       );
       return;
     }
@@ -289,11 +299,11 @@ extension ConsoleRegistration on Console {
     await ctx.reply('✅ @$handle is now an admin.');
   }
 
-  // -------------------------------------------------------- /addg /rmg
+  // -------------------------------------------------------- /add_global_admin /rm_global_admin
 
   Future<void> _addGlobalAdminConfirm(Context ctx) async {
     if (ctx.args.length != 1) {
-      await ctx.reply('Usage: /addg @handle');
+      await ctx.reply('Usage: /add_global_admin @handle');
       return;
     }
     final handle = ctx.args.single.replaceFirst('@', '').trim();

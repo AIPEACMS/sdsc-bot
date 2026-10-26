@@ -219,7 +219,7 @@ extension FlowsPresentation on Flows {
   }
 
   /// If [username] was added to the pending queue (via /adduser or
-  /// /addadmin) before the user ever messaged the bot, register them now.
+  /// /add_admin) before the user ever messaged the bot, register them now.
   Future<void> _autoRegisterPending(
     Context ctx,
     int userId,

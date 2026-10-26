@@ -101,7 +101,7 @@ ON CONFLICT(id) DO UPDATE SET username = excluded.username
   }
 
   /// Users the bot has seen in messages but who are not registered yet —
-  /// the candidates for the /adduser and /addadmin pickers.
+  /// the candidates for the /adduser and /add_admin pickers.
   List<User> unregisteredSeen() {
     final rows = raw.select('''
 SELECT s.id, s.username

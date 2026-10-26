@@ -2,7 +2,7 @@ part of '../console.dart';
 
 extension ConsoleUserRemoval on Console {
 
-  // ------------------------------------------------------- /removeuser
+  // ------------------------------------------------------- /rm_user
 
   /// Starts the global-admin-only batch removal wizard. This is deliberately
   /// registered as a slash command only, not as a reply-keyboard action.
@@ -26,7 +26,7 @@ extension ConsoleUserRemoval on Console {
     await _prepareUserRemoval(ctx, userId, handles);
   }
 
-  /// Entry point for the text step of the /removeuser wizard.
+  /// Entry point for the text step of the /rm_user wizard.
   Future<void> onRemoveUserText(Context ctx, int userId, String text) async {
     await _prepareUserRemoval(ctx, userId, _removeHandles(text));
   }

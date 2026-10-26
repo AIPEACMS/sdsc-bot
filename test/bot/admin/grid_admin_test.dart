@@ -12,7 +12,7 @@ void main() {
     expect(text.indexOf('@console'), lessThan(text.indexOf('@admin')));
 
     repo.setGroup(2, repo.findUser(1)!.group);
-    await sendText(2, '/groupuser');
+    await sendText(2, '/group_user');
     text = sent.last['text'] as String;
     expect(text, contains('@console</b>\n   (gadmin,'));
     expect(text, isNot(contains('console + gadmin')));
@@ -152,12 +152,12 @@ void main() {
   test(
     'setexp member picker and assigngroup selector can be cancelled',
     () async {
-      await sendText(2, '/setexp newbie');
+      await sendText(2, '/set_exp newbie');
       expect(_inlineTexts(sent.last), contains('❌ Cancel'));
       await sendCallback(2, 'admincancel|0');
       expect(edited.last['reply_markup'], isNull);
 
-      await sendText(1, '/assigngroup');
+      await sendText(1, '/assign_group');
       expect(_inlineTexts(sent.last), contains('❌ Cancel'));
       await sendCallback(1, 'assigngroup|cancel');
       expect(edited.last['reply_markup'], isNull);
@@ -167,12 +167,12 @@ void main() {
   test(
     'date and calendar typed wizard results dismiss their prompts',
     () async {
-      await sendText(1, '/setdate');
+      await sendText(1, '/set_date');
       await sendPlainText(1, 'not-a-date');
       expect(sent.last['text'], 'Invalid date. Use YYYY-MM-DD.');
       expect(edited.any((body) => body['reply_markup'] == null), isTrue);
 
-      await sendText(1, '/synccalendar');
+      await sendText(1, '/sync_calendar');
       await sendPlainText(1, 'not yaml');
       expect(sent.last['text'], startsWith('❌ Sync failed:'));
       expect(edited.any((body) => body['reply_markup'] == null), isTrue);
@@ -182,12 +182,12 @@ void main() {
   test(
     'console wizard Cancel buttons use the console cancellation path',
     () async {
-      await sendText(1, '/setdate');
+      await sendText(1, '/set_date');
       await sendCallback(1, 'cancel|0');
       expect(edited.last['text'], 'Cancelled.');
       expect(edited.last['reply_markup'], isNull);
 
-      await sendText(1, '/synccalendar');
+      await sendText(1, '/sync_calendar');
       await sendCallback(1, 'cancel|0');
       expect(edited.last['text'], 'Cancelled.');
       expect(edited.last['reply_markup'], isNull);
@@ -199,33 +199,33 @@ void main() {
     expect(sent.last['text'], contains('Only the console can preview'));
   });
 
-  test('/resetgrid returns the console to its own grid', () async {
+  test('/reset_grid returns the console to its own grid', () async {
     await sendText(1, '/grid'); // → admin preview
     await sendText(1, '/grid'); // → check preview
-    await sendText(1, '/resetgrid');
+    await sendText(1, '/reset_grid');
     expect(sent.last['text'], contains('Back to your console grid'));
     expect(keyboardTexts(sent.last), contains('hold'));
 
     // Non-console: rejected.
-    await sendText(2, '/resetgrid');
+    await sendText(2, '/reset_grid');
     expect(sent.last['text'], contains('Only the console can reset'));
   });
 
-  test('console can run /checkstatus (previewing the check grid)', () async {
-    await sendText(1, '/checkstatus');
+  test('console can run /check_status (previewing the check grid)', () async {
+    await sendText(1, '/check_status');
     expect(sent.last['text'], isNot(contains('Only checkers')));
     expect(sent.last['text'], contains('This week\'s allocation'));
     expect(sent.last['text'], contains('@admin'));
   });
 
-  test('a plain member is rejected from /checkstatus', () async {
+  test('a plain member is rejected from /check_status', () async {
     repo.upsertUser(
       User(id: 4, name: '@member', experience: Experience.newbie, group: '1'),
     );
-    await sendText(4, '/checkstatus');
+    await sendText(4, '/check_status');
     expect(
       sent.last['text'],
-      contains('Only the console can use /checkstatus'),
+      contains('Only the console can use /check_status'),
     );
   });
 
@@ -252,7 +252,7 @@ void main() {
 
       await sendText(2, '/allstatus');
       expect(sent.last['text'], contains('All members status'));
-      await sendText(2, '/allusers');
+      await sendText(2, '/all_users');
       expect(sent.last['text'], contains('All users'));
 
       await sendText(2, '/status');
@@ -275,20 +275,20 @@ void main() {
       expect(
         adminCommands,
         '<b>Admin</b>\n'
-        '/allusers - list registered members\n'
-        '/groupuser - show your group\'s member details\n'
+        '/all_users - list registered members\n'
+        '/group_user - show your group\'s member details\n'
         '/prompt - send availability prompts now\n'
         '/remind - remind non-responders now\n'
-        '/setexp - change a member\'s experience\n'
+        '/set_exp - change a member\'s experience\n'
         '/allocate - run the allocation now',
       );
       expect(adminCommands, isNot(contains('<b>Member</b>')));
       expect(adminCommands, isNot(contains('/groupstatus')));
       expect(
         adminCommands,
-        contains('/groupuser - show your group\'s member details'),
+        contains('/group_user - show your group\'s member details'),
       );
-      expect(adminCommands, isNot(contains('/groupusers')));
+      expect(adminCommands, isNot(contains('/group_users')));
       expect(adminCommands, isNot(contains('/ask')));
       expect(adminCommands, isNot(contains('/broadcast')));
       expect(adminCommands, isNot(contains('/repick')));
@@ -307,14 +307,17 @@ void main() {
         text.indexOf('<b>Global admin</b>'),
         lessThan(text.indexOf('<b>Admin</b>')),
       );
-      expect(text, contains('/addcheck @handle - add a checker'));
+      expect(text, contains('/add_check @handle - add a checker'));
       expect(
         text,
-        contains('/assigngroup - assign members to admin-led groups'),
+        contains('/assign_group - assign members to admin-led groups'),
       );
-      expect(text, contains('/groupuser - show your group\'s member details'));
+      expect(text, contains('/group_user - show your group\'s member details'));
       expect(text, isNot(contains('/allstatus')));
-      expect(text, contains('/checkstatus - test the checker\'s check-status'));
+      expect(
+        text,
+        contains('/check_status - test the checker\'s check-status'),
+      );
       expect(text, isNot(contains('/hold')));
       expect(text, isNot(contains('/start -')));
       expect(text, isNot(contains('/repick')));

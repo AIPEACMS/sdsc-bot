@@ -8,7 +8,7 @@ extension ConsoleUsers on Console {
       return;
     }
     if (ctx.args.length > 1) {
-      await ctx.reply('Usage: /rmg [@handle]');
+      await ctx.reply('Usage: /rm_global_admin [@handle]');
       return;
     }
     if (ctx.args.length == 1) {
@@ -79,7 +79,7 @@ extension ConsoleUsers on Console {
     );
   }
 
-  // --------------------------------------------------------- /setdate /resetdate
+  // --------------------------------------------------------- /set_date /reset_date
 
   /// Debug: pretend "now" is a fixed local date (and optional time), so the
   /// console can test whether prompts/reminders/allocations would fire.
@@ -128,7 +128,7 @@ extension ConsoleUsers on Console {
     await ctx.reply(
       '✅ Debug clock set to ${_fmt(local)} '
       '(local, offset ${config.timezoneOffsetHours}h). '
-      'Send /resetdate to go back to the real clock.',
+      'Send /reset_date to go back to the real clock.',
     );
   }
 
@@ -164,7 +164,7 @@ extension ConsoleUsers on Console {
     await ctx.reply('That handle is not a normal admin.');
   }
 
-  // ------------------------------------------------------ /synccalendar
+  // ------------------------------------------------------ /sync_calendar
 
   /// Manual trigger for the calendar sync. The cron script pushes YAML via
   /// IPC; this lets the console do the same by typing/pasting the YAML.
@@ -279,7 +279,7 @@ extension ConsoleUsers on Console {
         '${d.day.toString().padLeft(2, '0')} $h:$m';
   }
 
-  // ------------------------------------- /locations /addlocation /addalias
+  // ------------------------------------- /locations /add_location /add_alias
 
   Future<void> _locations(Context ctx) async {
     final approved = repo.approvedLocations();
@@ -294,7 +294,7 @@ extension ConsoleUsers on Console {
     }
     if (pending.isNotEmpty) {
       sb.writeln(
-        '\n🕓 <b>Pending</b> — approve with /addlocation &lt;name&gt;:',
+        '\n🕓 <b>Pending</b> — approve with /add_location &lt;name&gt;:',
       );
       for (final l in pending) {
         sb.writeln('• ${l.name}');
