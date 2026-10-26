@@ -224,6 +224,18 @@ extension AdminApiUsers on AdminApi {
     return repo.allUsers().map(_userJson).toList();
   }
 
+  List<Map<String, Object?>> _pendingUsersJson() => [
+    for (final pending in repo.pendingUsers())
+      {
+        'username': pending.username,
+        'isAdmin': pending.role.isAdmin,
+        'tier': pending.role.tier,
+        'notificationPreference': _notificationValue(
+          pending.role.notificationPreference,
+        ),
+      },
+  ];
+
   Map<String, Object?> _userJson(User u) {
     final attendance = u.memberTier == MemberTier.outMember
         ? <String, Object?>{

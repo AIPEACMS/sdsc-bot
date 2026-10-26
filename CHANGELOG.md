@@ -4,6 +4,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.13.0] - 2026-10-26
+
+### Added
+
+- Added role-scoped Telegram commands to list pending registrations and pending
+  members, plus a read-only authenticated API for console registration lists.
+
 ## [4.12.2] - 2026-10-26
 
 ### Fixed

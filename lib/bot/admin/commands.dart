@@ -30,6 +30,10 @@ extension AdminCommands on Admin {
     state.registerCommand('group_user');
     bot.command('group_user', groupUsersHandler);
     commandAlias(bot, state, 'groupuser', groupUsersHandler);
+    state.registerCommand('view_pend_user');
+    bot.command('view_pend_user', _guardGlobalAdmin(_viewPendingUsers));
+    state.registerCommand('view_pend_member');
+    bot.command('view_pend_member', _guard(_viewPendingMembers));
     commandBoth(bot, state, 'prompt', _guard(_promptConfirm), label: 'prompt');
     commandBoth(bot, state, 'remind', _guard(_remindConfirm), label: 'remind');
     commandBoth(
