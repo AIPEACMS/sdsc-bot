@@ -231,12 +231,23 @@ void main() {
 
   test('/status appends the allocation table for both weekends', () async {
     repo.updatePreferredName(2, 'Allen');
+    repo.upsertUser(
+      User(
+        id: 33,
+        name: '@statusdate',
+        experience: Experience.newbie,
+        group: '1',
+        lastAttendedDate: DateTime(2026, 9, 26),
+      ),
+    );
     await sendText(2, '/status');
     final text = sent.last['text'] as String;
     expect(text, contains('All members status'));
     expect(text, contains('Responded:'));
     expect(text, contains('Still to respond ('));
     expect(text, contains('Allocation · '));
+    expect(text, contains('@statusdate — last attend: 2026-Sept-26'));
+    expect(text, isNot(contains('@statusdate — last attend: 26/9/2026')));
     expect(text, contains('Allen @admin')); // sat0 allocation
     expect(text, contains('@checker')); // sat1 allocation
   });

@@ -27,6 +27,12 @@ void main() {
     expect(ManualAttendanceDate.canonical(DateTime(2025, 8, 12)), '2025-08-12');
   });
 
+  test('displays dates with four-digit year and abbreviated month', () {
+    expect(ManualAttendanceDate.display(DateTime(2026, 9, 26)), '2026-Sept-26');
+    expect(ManualAttendanceDate.display(DateTime(2026, 1, 2)), '2026-Jan-02');
+    expect(ManualAttendanceDate.display(null), 'never');
+  });
+
   test('rejects invalid, ambiguous, and future dates', () {
     expect(ManualAttendanceDate.parse('31 Feb', today: today), isNull);
     expect(ManualAttendanceDate.parse('25 Aug', today: today), isNull);

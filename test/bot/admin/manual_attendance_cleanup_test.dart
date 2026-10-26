@@ -91,7 +91,7 @@ void main() {
       expect(preview['text'], contains('Requested adjustment: 3'));
       expect(
         preview['text'],
-        contains('Proposed last-attended date: 2026-10-10'),
+        contains('Proposed last-attended date: 2026-Oct-10'),
       );
       expect(
         preview['text'],

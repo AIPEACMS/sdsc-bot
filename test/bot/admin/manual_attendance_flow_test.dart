@@ -95,6 +95,7 @@ void main() {
           name: '@manualtest',
           experience: Experience.newbie,
           group: '1',
+          lastAttendedDate: DateTime(2026, 9, 26),
         ),
       );
       await sendText(1, '/manual_mark_all_attend');
@@ -103,6 +104,13 @@ void main() {
           .expand((row) => row as List)
           .map((button) => button['callback_data'] as String)
           .firstWhere((data) => data.endsWith('|21'));
+      final pickerLabel = picker
+          .expand((row) => row as List)
+          .cast<Map<String, dynamic>>()
+          .firstWhere(
+            (button) => button['callback_data'] == targetCallback,
+          )['text'];
+      expect(pickerLabel, contains('last 2026-Sept-26'));
       const targetId = 21;
       final before = repo.attendanceStats(targetId).total;
       final initial = repo.findUser(targetId)!.attendanceBalance;
@@ -114,14 +122,19 @@ void main() {
       );
       expect(
         edited.last['text'],
-        contains('Current last-attended date: never'),
+        contains('Current last-attended date: 2026-Sept-26'),
       );
       expect(
         edited.last['text'],
         contains('Current persisted attendance balance: $initial'),
       );
+      expect(
+        edited.last['text'],
+        contains('Current last-attended date: 2026-Sept-26'),
+      );
+      expect(edited.last['text'], isNot(contains('2026-09-26')));
       expect(edited.last['text'], contains('example: <code>2 Aug 24</code>'));
-      await sendPlainText(1, '3 Aug 24');
+      await sendPlainText(1, '3 Sep 26');
       expect(repo.findUser(targetId)!.attendanceBalance, initial);
       expect(
         sent.last['text'],
@@ -130,8 +143,9 @@ void main() {
       expect(sent.last['text'], contains('Requested adjustment: 3'));
       expect(
         sent.last['text'],
-        contains('Proposed last-attended date: 2026-08-24'),
+        contains('Proposed last-attended date: 2026-Sept-26'),
       );
+      expect(sent.last['text'], isNot(contains('2026-09-26')));
       expect(
         sent.last['text'],
         contains('Proposed resulting balance: ${initial + 3}'),
@@ -142,9 +156,14 @@ void main() {
 
       final updated = repo.findUser(targetId)!;
       expect(updated.attendanceBalance, initial + 3);
-      expect(updated.lastAttendedDate, DateTime(2026, 8, 24));
+      expect(updated.lastAttendedDate, DateTime(2026, 9, 26));
       expect(repo.attendanceStats(targetId).total, before);
       expect(edited.last['text'], contains('Attendance updated'));
+      expect(
+        edited.last['text'],
+        contains('Last-attended date: 2026-Sept-26.'),
+      );
+      expect(edited.last['text'], isNot(contains('2026-09-26')));
       expect(edited.last['reply_markup'], isNull);
       await sendCallback(1, 'manualattconfirm|yes');
       expect(repo.findUser(targetId)!.attendanceBalance, initial + 3);

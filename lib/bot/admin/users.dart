@@ -46,7 +46,7 @@ extension AdminUsers on Admin {
         final last = repo.lastAttendedDate(user.id);
         sb.writeln(
           '• ${_displayName(user)} — last attend: '
-          '${last == null ? 'never' : _day(last)}',
+          '${ManualAttendanceDate.display(last)}',
         );
       }
     }
@@ -109,18 +109,18 @@ extension AdminUsers on Admin {
   Future<void> _users(Context ctx, {String? group}) async {
     final users =
         repo.allUsers().where((u) {
-      // Archived users are retained for recovery but not shown in Telegram
-      // roster views.
-      if (u.memberTier == MemberTier.old) return false;
-      if (group != null && u.group != group) return false;
-      return true;
+          // Archived users are retained for recovery but not shown in Telegram
+          // roster views.
+          if (u.memberTier == MemberTier.old) return false;
+          if (group != null && u.group != group) return false;
+          return true;
         }).toList()..sort((a, b) {
           final tierComparison = _displayTierRank(
             a,
           ).compareTo(_displayTierRank(b));
-        if (tierComparison != 0) return tierComparison;
-        return _displayName(a).compareTo(_displayName(b));
-      });
+          if (tierComparison != 0) return tierComparison;
+          return _displayName(a).compareTo(_displayName(b));
+        });
     final lines = users.map((u) {
       final tier = _displayTier(u);
       final outMember = u.memberTier == MemberTier.outMember;
