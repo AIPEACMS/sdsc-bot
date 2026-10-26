@@ -121,7 +121,7 @@ void main() {
               time: LocalWallClock(20, 0),
             ),
             attendanceFollowup: ScheduleEvent(
-              weekday: 'sun',
+              weekday: 'mon',
               time: LocalWallClock(20, 0),
             ),
             absence: ScheduleEvent(weekday: 'mon', time: LocalWallClock(8, 0)),
@@ -137,7 +137,7 @@ void main() {
         scheduler.start(interval: const Duration(days: 1));
 
         await firstSend.future.timeout(const Duration(seconds: 5));
-        await Future<void>.delayed(const Duration(milliseconds: 20));
+        await _waitForMessageMarker(repo, 1, 'attmark', DateTime(2026, 10, 25));
         expect(sent, hasLength(1));
         expect(sent.single['chat_id'], 1);
         expect(sent.single['text'], contains('@member'));
@@ -147,7 +147,7 @@ void main() {
         );
         expect(scheduler.nextMilestone, DateTime(2026, 10, 26, 8));
 
-        scheduler.stop();
+        await scheduler.stopAndWait();
         Config.setDebugNow(DateTime.utc(2026, 10, 25, 13));
         scheduler = Scheduler(
           repo: repo,
@@ -156,10 +156,10 @@ void main() {
           scheduleRuntime: ScheduleRuntime(repo: repo, config: config),
         );
         scheduler.start(interval: const Duration(days: 1));
-        await Future<void>.delayed(const Duration(milliseconds: 30));
+        await scheduler.stopAndWait();
         expect(sent, hasLength(1));
       } finally {
-        scheduler?.stop();
+        await scheduler?.stopAndWait();
         Config.setDebugNow(null);
         await server.close(force: true);
         db.close();
@@ -167,4 +167,17 @@ void main() {
       }
     },
   );
+}
+
+Future<void> _waitForMessageMarker(
+  Repo repo,
+  int userId,
+  String kind,
+  DateTime day,
+) async {
+  for (var attempt = 0; attempt < 100; attempt++) {
+    if (repo.messageSentOnDay(userId, kind, day)) return;
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+  expect(repo.messageSentOnDay(userId, kind, day), isTrue);
 }

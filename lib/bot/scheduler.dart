@@ -35,6 +35,7 @@ class Scheduler {
   Timer? _milestone;
   Timer? _allocTimer;
   DateTime? _nextMilestone;
+  final Set<Future<void>> _activeTicks = {};
 
   DateTime? get nextMilestone => _nextMilestone;
 
@@ -64,7 +65,17 @@ class Scheduler {
     _nextMilestone = null;
   }
 
-  Future<void> _tick() async {
+  Future<void> _tick() {
+    final tick = _runTick();
+    late final Future<void> trackedTick;
+    trackedTick = tick.whenComplete(() {
+      _activeTicks.remove(trackedTick);
+    });
+    _activeTicks.add(trackedTick);
+    return trackedTick;
+  }
+
+  Future<void> _runTick() async {
     _milestone?.cancel();
     try {
       final now = config.toLocal(Config.nowUtc());
@@ -132,7 +143,15 @@ class Scheduler {
       // Scheduling failures should not kill the bot.
       LogRing.log('scheduler error: $e');
     }
-    _scheduleNext();
+    if (_timer != null) _scheduleNext();
+  }
+
+  /// Cancels scheduled work and waits for the current tick to finish.
+  Future<void> stopAndWait() async {
+    stop();
+    while (_activeTicks.isNotEmpty) {
+      await Future.wait(_activeTicks.toList());
+    }
   }
 
   RollingWindow _window(DateTime now) => scheduleRuntime.window(now);
