@@ -22,6 +22,52 @@ Config _config(String path) => Config(
 );
 
 void main() {
+  test('console key ownership migration upgrades existing keys idempotently', () {
+    final tmp = Directory.systemTemp.createTempSync('sdsc_key_mig_');
+    final path = '${tmp.path}/keys.db';
+    final oldDb = sqlite.sqlite3.open(path);
+    oldDb.execute('''
+CREATE TABLE console_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pubkey TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+)''');
+    oldDb.execute(
+      "INSERT INTO console_keys (pubkey, name) VALUES ('legacy-key', 'legacy')",
+    );
+    oldDb.close();
+
+    final first = Database.open(_config(path));
+    final repo = Repo(first);
+    final columns = first.raw
+        .select('PRAGMA table_info(console_keys)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    expect(
+      columns,
+      containsAll([
+        'actor_user_id',
+        'bind_challenge_hash',
+        'bind_challenge_expires_at',
+      ]),
+    );
+    expect(repo.listConsoleKeys().single.actorUserId, isNull);
+    expect(
+      first.raw.select(
+        "SELECT name FROM sqlite_master WHERE type = 'table' "
+        "AND name = 'attendance_correction_previews'",
+      ),
+      isNotEmpty,
+    );
+    first.close();
+
+    final second = Database.open(_config(path));
+    expect(Repo(second).listConsoleKeys().single.actorUserId, isNull);
+    second.close();
+    tmp.deleteSync(recursive: true);
+  });
+
   test('schedule settings seed idempotently and round-trip atomically', () {
     final tmp = Directory.systemTemp.createTempSync('sdsc_schedule_mig_');
     final path = '${tmp.path}/schedule.db';

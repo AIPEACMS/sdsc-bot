@@ -133,6 +133,8 @@ extension FlowsCallbacks on Flows {
         await onSetTimeNewNameText?.call(ctx, userId, text);
       case 'addalias':
         await onAddAliasText?.call(ctx, userId, text);
+      case 'bindkey':
+        await onBindKeyText?.call(ctx, userId, text);
       case 'assigngroup-members':
         await onAssignGroupText?.call(ctx, userId, text);
       default:

@@ -8,6 +8,7 @@ import 'week.dart';
 
 part 'persistence/schema.dart';
 part 'persistence/migrations.dart';
+part 'persistence/console_key_migration.dart';
 part 'persistence/attendance_migration.dart';
 part 'persistence/seeds.dart';
 

@@ -4,6 +4,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.12.0] - 2026-10-26
+
+### Added
+
+- Added admin-bound console keys and server-authoritative attendance-correction
+  targets, previews, and one-time confirmed apply requests.
+
 ## [4.11.2] - 2026-10-26
 
 ### Fixed
@@ -207,6 +214,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   schedule-change re-prompts, allocation notices, checker lists, attendance and
   absence reminders, `/ask`, and broadcasts through the authenticated API and
   desktop console Schedule panel.
+
+### Fixed
+
+- Availability pickers now preserve session capacity metadata when reading
+  allocations, so allocated counts such as `1/4` are rendered correctly.
+
+## [4.3.7] - 2026-10-06
 
 ### Fixed
 
@@ -557,6 +571,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Role display.** Global admins appear above normal admins in roster views,
   and a console global admin is displayed as `gadmin` only.
 
+## [2.0.3] - 2026-09-14
+
+### Fixed
+
+- **Broadcast cancellation.** The broadcast wizard's Cancel button no longer
+  enters the member availability-cancellation flow.
+
+### Changed
+
+- **Role display.** Global admins appear above normal admins in roster views,
+  and a console global admin is displayed as `gadmin` only.
+
 ## [2.0.2] - 2026-09-14
 
 ### Changed
@@ -602,6 +628,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - **Cross-weekend allocation.** A booked session and a backup session at the
   same time on different weekends are now treated as separate allocations.
 
+## [1.14.1] - 2026-09-14
+
+### Fixed
+
+- **Cross-weekend allocation.** A booked session and a backup session at the
+  same time on different weekends are now treated as separate allocations.
+
 ## [1.14.0] - 2026-09-14
 
 ### Changed
@@ -619,6 +652,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   showing literal HTML tags.
 - **Broadcast confirmation previews.** Operator-supplied text is escaped before
   HTML rendering, so angle brackets cannot break the confirmation.
+
+## [1.13.3] - 2026-09-14
+
+### Changed
+
+- **Profile information.** `/setinfo` now collects only a member's preferred
+  name. Legacy full name, school email, and matriculation fields remain
+  deprecated for database and API compatibility but are no longer shown.
+- **Console controls.** Removed the console `full-info` command and grid button.
 
 ## [1.13.1] - 2026-09-09
 
@@ -714,6 +756,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   now dismisses the prior availability picker or input prompt instead of
   leaving it active-looking, and command labels are no longer saved as wizard
   answers.
+
+## [1.11.2] - 2026-09-07
+
+### Fixed
+
+- Re-pick delivery tests now use a fixed clock instead of depending on the
+  current date.
 
 ## [1.11.1] - 2026-09-07
 
@@ -827,6 +876,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 - **The /help command.** It was not a real help command (only a grid reset),
   and the button-grid hint pointing at it has been removed.
+
+### Fixed
+
+- **The profile wizard's Cancel button no longer appears mid-walk.** It
+  showed up as soon as the member typed their first answer; it is now only
+  offered when re-running /setinfo over already-saved profile data, where
+  cancelling actually protects something.
+
+## [1.8.9] - 2026-08-17
 
 ### Fixed
 
@@ -1413,3 +1471,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - `ADMIN_IDS` environment variable (admin promotion is now `/addadmin`).
 - Identifying information (handles, org names) from code, README, and git
   history.
+
+## [0.1.0] - 2026-08-08
+
+### Added
+
+- Initial SDSC volunteer-scheduling bot with two-week availability prompts,
+  session allocation, admin attendance marking, and SQLite-backed state.

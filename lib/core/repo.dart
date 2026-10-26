@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import 'calendar.dart';
@@ -14,8 +15,10 @@ part 'persistence/repo/locations.dart';
 part 'persistence/repo/sessions.dart';
 part 'persistence/repo/availability.dart';
 part 'persistence/repo/attendance.dart';
+part 'persistence/repo/attendance_corrections.dart';
 part 'persistence/repo/holidays.dart';
 part 'persistence/repo/groups.dart';
+part 'persistence/repo/console_keys.dart';
 
 /// A registered Ed25519 public key that the desktop console app uses to sign
 /// admin API requests. The value is the base64 of the raw 32-byte key.
@@ -23,19 +26,27 @@ class ConsoleKey {
   final String pubkey;
   final String name;
   final String createdAt;
+  final int? actorUserId;
   const ConsoleKey({
     required this.pubkey,
     required this.name,
     required this.createdAt,
+    this.actorUserId,
   });
 }
 
-enum GlobalAdminResult {
+enum ConsoleKeyBindingResult {
   success,
-  noSuchUser,
-  alreadyExists,
-  outMember,
+  missingKey,
+  alreadyBound,
+  invalidCode,
+  expiredCode,
+  notAdmin,
 }
+
+enum AttendanceCorrectionApplyResult { applied, stale, expired, forbidden }
+
+enum GlobalAdminResult { success, noSuchUser, alreadyExists, outMember }
 
 enum UserRemovalFailure { none, notFound, protectedAdmin }
 
@@ -46,11 +57,11 @@ class UserRemovalResult {
   final List<String> removedHandles;
 
   const UserRemovalResult.success(this.removedHandles)
-      : failure = UserRemovalFailure.none,
-        failedHandle = null;
+    : failure = UserRemovalFailure.none,
+      failedHandle = null;
 
   const UserRemovalResult.failure(this.failure, this.failedHandle)
-      : removedHandles = const [];
+    : removedHandles = const [];
 
   bool get succeeded => failure == UserRemovalFailure.none;
 }

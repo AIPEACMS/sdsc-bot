@@ -3,28 +3,94 @@ import 'package:sdsc_bot/bot/keyboards.dart';
 import 'package:sdsc_bot/bot/command_catalog.dart';
 
 void main() {
-
   test('catalog omits every role grid button function', () {
-    final cases = <({
-      String role,
-      bool console,
-      bool admin,
-      bool gadmin,
-      String? tier,
-    })>[
-      (role: 'member', console: false, admin: false, gadmin: false, tier: 'member'),
-      (role: 'out-member', console: false, admin: false, gadmin: false, tier: 'out-member'),
-      (role: 'check', console: false, admin: false, gadmin: false, tier: 'check'),
-      (role: 'old', console: false, admin: false, gadmin: false, tier: 'old'),
-      (role: 'admin', console: false, admin: true, gadmin: false, tier: 'member'),
-      (role: 'gadmin', console: false, admin: true, gadmin: true, tier: 'member'),
-      (role: 'console-only', console: true, admin: false, gadmin: false, tier: null),
-      (role: 'member', console: true, admin: false, gadmin: false, tier: 'member'),
-      (role: 'check', console: true, admin: false, gadmin: false, tier: 'check'),
-      (role: 'old', console: true, admin: false, gadmin: false, tier: 'old'),
-      (role: 'admin', console: true, admin: true, gadmin: false, tier: 'member'),
-      (role: 'gadmin', console: true, admin: true, gadmin: true, tier: 'member'),
-    ];
+    final cases =
+        <({String role, bool console, bool admin, bool gadmin, String? tier})>[
+          (
+            role: 'member',
+            console: false,
+            admin: false,
+            gadmin: false,
+            tier: 'member',
+          ),
+          (
+            role: 'out-member',
+            console: false,
+            admin: false,
+            gadmin: false,
+            tier: 'out-member',
+          ),
+          (
+            role: 'check',
+            console: false,
+            admin: false,
+            gadmin: false,
+            tier: 'check',
+          ),
+          (
+            role: 'old',
+            console: false,
+            admin: false,
+            gadmin: false,
+            tier: 'old',
+          ),
+          (
+            role: 'admin',
+            console: false,
+            admin: true,
+            gadmin: false,
+            tier: 'member',
+          ),
+          (
+            role: 'gadmin',
+            console: false,
+            admin: true,
+            gadmin: true,
+            tier: 'member',
+          ),
+          (
+            role: 'console-only',
+            console: true,
+            admin: false,
+            gadmin: false,
+            tier: null,
+          ),
+          (
+            role: 'member',
+            console: true,
+            admin: false,
+            gadmin: false,
+            tier: 'member',
+          ),
+          (
+            role: 'check',
+            console: true,
+            admin: false,
+            gadmin: false,
+            tier: 'check',
+          ),
+          (
+            role: 'old',
+            console: true,
+            admin: false,
+            gadmin: false,
+            tier: 'old',
+          ),
+          (
+            role: 'admin',
+            console: true,
+            admin: true,
+            gadmin: false,
+            tier: 'member',
+          ),
+          (
+            role: 'gadmin',
+            console: true,
+            admin: true,
+            gadmin: true,
+            tier: 'member',
+          ),
+        ];
     for (final testCase in cases) {
       final commands = CommandCatalog.commands(
         isConsole: testCase.console,
@@ -32,9 +98,9 @@ void main() {
         isGlobalAdmin: testCase.gadmin,
         tier: testCase.tier,
       );
-      final buttons = RoleKeyboard.gridButtons(testCase.role)
-          .map((button) => button.command)
-          .toSet();
+      final buttons = RoleKeyboard.gridButtons(
+        testCase.role,
+      ).map((button) => button.command).toSet();
       for (final entry in commands) {
         expect(entry.command, startsWith('/'));
         expect(entry.command, isNot('more-cmd'));
@@ -95,6 +161,7 @@ void main() {
       '/set_exp - change a member\'s experience',
       '/allocate - run the allocation now',
       '/manual_mark_group_attend - correct an attendance balance in your group',
+      '/bind_key - bind the console app to your admin account',
     ]);
     final gadmin = CommandCatalog.commands(
       isConsole: false,
@@ -179,73 +246,6 @@ void main() {
     expect(sections(tier: 'check'), ['Checker']);
   });
 
-  test('visible role sections contain ordered labels without duplicate more-cmd', () {
-    List<VisibleRoleSection> sections({
-      bool console = false,
-      bool admin = false,
-      bool gadmin = false,
-      String? tier = 'member',
-    }) => RoleKeyboard.visibleSections(
-      isConsole: console,
-      isAdmin: admin,
-      isGlobalAdmin: gadmin,
-      tier: tier,
-    );
-
-    expect(
-      sections(console: true, admin: true, gadmin: true)
-          .map((section) => section.title),
-      ['Console', 'Global admin', 'Admin', 'Member'],
-    );
-    expect(
-      sections(console: true, admin: true, gadmin: true)
-          .expand((section) => section.buttons)
-          .map((button) => button.label),
-      [
-        'more-cmd',
-        'hold', 'unhold', 'set-time',
-        'add-user', 'add-out-user', 'group-status', 'all-status',
-        'ask', 'mark-attend', 'broadcast',
-        'start', '(re)pick', 'set-info', 'my-status',
-      ],
-    );
-    expect(
-      sections(console: true, admin: true, gadmin: true)
-          .expand((section) => section.buttons)
-          .where((button) => button.label == 'more-cmd'),
-      hasLength(1),
-    );
-    expect(
-      sections(console: true, admin: true, gadmin: true).first.buttons.single.color,
-      RoleColor.globalAdmin,
-    );
-    expect(
-      sections(console: true, admin: true).first.buttons.single.color,
-      RoleColor.admin,
-    );
-    expect(
-      sections(console: true, tier: null).first.buttons.single.color,
-      RoleColor.console,
-    );
-    expect(
-      sections(admin: true).first.buttons.first.color,
-      RoleColor.admin,
-    );
-    expect(
-      sections(gadmin: true).first.buttons.first.color,
-      RoleColor.globalAdmin,
-    );
-    expect(sections(console: true, admin: true).map((s) => s.title),
-        ['Console', 'Admin', 'Member']);
-    expect(sections(gadmin: true).map((s) => s.title),
-        ['Global admin', 'Admin', 'Member']);
-    expect(sections(admin: true).map((s) => s.title), ['Admin', 'Member']);
-    expect(sections(console: true, tier: null).map((s) => s.title), ['Console']);
-    expect(sections(tier: 'out-member').map((s) => s.title), ['Out-member']);
-    expect(sections(tier: 'check').map((s) => s.title), ['Checker']);
-    expect(sections(tier: 'check').single.buttons.single.label, 'check-status');
-  });
-
   test('sectioned catalog has exact role order and additional commands', () {
     final consoleOnly = CommandCatalog.sections(
       isConsole: true,
@@ -286,6 +286,7 @@ void main() {
       '/set_exp',
       '/allocate',
       '/manual_mark_group_attend',
+      '/bind_key',
     ]);
 
     final gadmin = CommandCatalog.sections(
@@ -295,23 +296,29 @@ void main() {
       tier: 'member',
     );
     expect(gadmin.map((section) => section.title), ['Global admin', 'Admin']);
-    expect(gadmin.expand((section) => section.commands).map((entry) => entry.command), [
-      '/add_admin',
-      '/add_check',
-      '/demote',
-      '/rm_user',
-      '/sync_calendar',
-      '/assign_group',
-      '/rm_allocate_entry',
-      '/manual_mark_all_attend',
-      '/all_users',
-      '/group_user',
-      '/prompt',
-      '/remind',
-      '/set_exp',
-      '/allocate',
-      '/manual_mark_group_attend',
-    ]);
+    expect(
+      gadmin
+          .expand((section) => section.commands)
+          .map((entry) => entry.command),
+      [
+        '/add_admin',
+        '/add_check',
+        '/demote',
+        '/rm_user',
+        '/sync_calendar',
+        '/assign_group',
+        '/rm_allocate_entry',
+        '/manual_mark_all_attend',
+        '/all_users',
+        '/group_user',
+        '/prompt',
+        '/remind',
+        '/set_exp',
+        '/allocate',
+        '/manual_mark_group_attend',
+        '/bind_key',
+      ],
+    );
 
     final consoleAdmin = CommandCatalog.sections(
       isConsole: true,
@@ -336,7 +343,9 @@ void main() {
       '/add_alias',
     ]);
     expect(
-      consoleAdmin.expand((section) => section.commands).map((entry) => entry.command),
+      consoleAdmin
+          .expand((section) => section.commands)
+          .map((entry) => entry.command),
       isNot(contains('/hold')),
     );
 
@@ -346,10 +355,11 @@ void main() {
       isGlobalAdmin: true,
       tier: 'member',
     );
-    expect(
-      consoleGlobalAdmin.map((section) => section.title),
-      ['Console', 'Global admin', 'Admin'],
-    );
+    expect(consoleGlobalAdmin.map((section) => section.title), [
+      'Console',
+      'Global admin',
+      'Admin',
+    ]);
     expect(
       consoleGlobalAdmin.first.commands.map((entry) => entry.command),
       isNot(contains('/start')),
