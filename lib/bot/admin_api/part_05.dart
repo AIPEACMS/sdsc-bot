@@ -149,7 +149,7 @@ extension AdminApiHelpers on AdminApi {
   }
 
   /// Parses "YYYY-MM-DD [HH:MM]" into the debug "now" instant (UTC, offset
-  /// applied), mirroring the console /setdate behavior.
+  /// applied), mirroring the console /set_date behavior.
   DateTime? _parseDate(String input) {
     final parts = input.trim().split(RegExp(r'\s+'));
     final date = DateTime.tryParse(parts.first);

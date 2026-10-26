@@ -155,14 +155,15 @@ void main() {
         'console-gadmin',
         'old',
       ]) {
-        final commands =
-            RoleKeyboard.gridButtons(role).map((b) => b.command).toSet();
+        final commands = RoleKeyboard.gridButtons(
+          role,
+        ).map((b) => b.command).toSet();
         expect(
           commands.contains('/settime'),
           role == 'gadmin' || role == 'console-gadmin',
           reason: role,
         );
-        expect(commands.contains('/addalias'), isFalse, reason: role);
+        expect(commands.contains('/add_alias'), isFalse, reason: role);
       }
     });
   });

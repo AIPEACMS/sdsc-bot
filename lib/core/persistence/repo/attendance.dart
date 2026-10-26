@@ -53,7 +53,7 @@ ON CONFLICT(user_id, session_id) DO UPDATE SET
   bool hasAttendedInPastDays(int userId, int days) {
     // attendance.confirmed_at is stored as UTC (SQLite CURRENT_TIMESTAMP),
     // so compare against a UTC cutoff. Using the config clock keeps this
-    // consistent with /setdate debugging. Only positive marks count.
+    // consistent with /set_date debugging. Only positive marks count.
     final since = Config.nowUtc()
         .subtract(Duration(days: days))
         .toIso8601String();

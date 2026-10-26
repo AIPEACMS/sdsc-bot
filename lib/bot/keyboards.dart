@@ -60,27 +60,28 @@ class RoleKeyboard {
 
   static String descriptionFor(GridButton button, {bool outMember = false}) =>
       switch (button.label) {
-    'more-cmd' => 'show additional commands',
-    'hold' => 'pause outgoing messages',
-    'unhold' => 'resume outgoing messages',
-    'set-time' => 'set activity days, times and locations',
-    'add-user' => 'add members',
-    'add-out-user' => 'add out-members',
-    'all-status' => 'show cycle state and responders',
-    'group-status' => 'show your group\'s cycle state and responders',
-    'ask' => 'send one member an availability picker',
-    'mark-attend' => 'mark attendance',
-    'broadcast' => 'message all members',
-    'start' => 'show the welcome and role buttons',
-    '(re)pick' => 'update your availability',
-    'set-info' => 'update your preferred name',
-    'my-status' => outMember
-        ? 'show your picks and allocation'
-        : 'show your picks, allocation and attendance',
-    'notify' => 'choose prompt frequency',
-    'check-status' => 'show the current week\'s allocation',
-    _ => '',
-  };
+        'more-cmd' => 'show additional commands',
+        'hold' => 'pause outgoing messages',
+        'unhold' => 'resume outgoing messages',
+        'set-time' => 'set activity days, times and locations',
+        'add-user' => 'add members',
+        'add-out-user' => 'add out-members',
+        'all-status' => 'show cycle state and responders',
+        'group-status' => 'show your group\'s cycle state and responders',
+        'ask' => 'send one member an availability picker',
+        'mark-attend' => 'mark attendance',
+        'broadcast' => 'message all members',
+        'start' => 'show the welcome and role buttons',
+        '(re)pick' => 'update your availability',
+        'set-info' => 'update your preferred name',
+        'my-status' =>
+          outMember
+              ? 'show your picks and allocation'
+              : 'show your picks, allocation and attendance',
+        'notify' => 'choose prompt frequency',
+        'check-status' => 'show the current week\'s allocation',
+        _ => '',
+      };
 
   static const List<GridButton> memberButtons = [
     GridButton('start', '/start', RoleColor.member),
@@ -99,7 +100,7 @@ class RoleKeyboard {
   /// The `check` tier's single button: they are not members and only report
   /// on the current week's allocation.
   static const List<GridButton> checkButtons = [
-    GridButton('check-status', '/checkstatus', RoleColor.member),
+    GridButton('check-status', '/check_status', RoleColor.member),
   ];
 
   /// The `old` tier has no buttons at all — they are no longer members.
@@ -161,22 +162,24 @@ class RoleKeyboard {
     final moreButton = isGlobalAdmin
         ? moreGlobalAdminCommandsButton
         : isAdmin
-            ? moreAdminCommandsButton
-            : moreCommandsButton;
+        ? moreAdminCommandsButton
+        : moreCommandsButton;
     if (isConsole) {
-      sections.add(
-        VisibleRoleSection('Console', [moreButton]),
-      );
+      sections.add(VisibleRoleSection('Console', [moreButton]));
     }
 
-    final roleMore = !isConsole && (isGlobalAdmin || isAdmin) ? moreButton : null;
+    final roleMore = !isConsole && (isGlobalAdmin || isAdmin)
+        ? moreButton
+        : null;
     if (isGlobalAdmin) {
       sections.add(
         VisibleRoleSection('Global admin', [
           ?roleMore,
-          ...globalAdminButtons.where((button) =>
-              !adminButtons.contains(button) &&
-              button != moreGlobalAdminCommandsButton),
+          ...globalAdminButtons.where(
+            (button) =>
+                !adminButtons.contains(button) &&
+                button != moreGlobalAdminCommandsButton,
+          ),
         ]),
       );
     }
@@ -184,9 +187,7 @@ class RoleKeyboard {
       sections.add(
         VisibleRoleSection('Admin', [
           if (roleMore != null && isAdmin && !isGlobalAdmin) roleMore,
-          ...adminButtons.where(
-            (button) => !memberButtons.contains(button),
-          ),
+          ...adminButtons.where((button) => !memberButtons.contains(button)),
         ]),
       );
     }
@@ -276,9 +277,8 @@ class RoleKeyboard {
           .toList();
       rows.add(row);
     }
-    return Keyboard(keyboard: rows)
-        .resized()
-        .persistent()
-        .placeholder('Tap a button below, or type /start to see your options');
+    return Keyboard(keyboard: rows).resized().persistent().placeholder(
+      'Tap a button below, or type /start to see your options',
+    );
   }
 }

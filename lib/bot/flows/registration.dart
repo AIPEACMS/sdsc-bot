@@ -97,18 +97,15 @@ extension FlowsRegistration on Flows {
     commandBoth(bot, state, 'repick', _onRepick, label: '(re)pick');
     commandBoth(bot, state, 'setinfo', _onSetInfo, label: 'set-info');
     commandBoth(bot, state, 'mystatus', _onMyStatus, label: 'my-status');
+    state.registerCommand('check_status');
+    bot.command('check_status', _onCheckStatusCommand);
     state.registerCommand('checkstatus');
     bot.command('checkstatus', _onCheckStatusCommand);
     state.registerLabel('check-status');
     bot.hears('check-status', _onCheckStatus);
     commandBoth(bot, state, 'grid', _onGrid, label: 'grid');
-    commandBoth(
-      bot,
-      state,
-      'resetgrid',
-      _onResetGrid,
-      label: 'reset-grid',
-    );
+    commandBoth(bot, state, 'reset_grid', _onResetGrid, label: 'reset-grid');
+    commandAlias(bot, state, 'resetgrid', _onResetGrid);
     commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
     state.registerLabel('more-cmd');
     bot.hears('more-cmd', _onMoreCommands);

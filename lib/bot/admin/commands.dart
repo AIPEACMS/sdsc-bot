@@ -10,13 +10,7 @@ extension AdminCommands on Admin {
       _guard(_addOutUser),
       label: 'add-out-user',
     );
-    commandBoth(
-      bot,
-      state,
-      'allstatus',
-      _guard(_status),
-      label: 'all-status',
-    );
+    commandBoth(bot, state, 'allstatus', _guard(_status), label: 'all-status');
     state.registerCommand('status');
     bot.command('status', _guard(_status)); // Compatibility alias.
     commandBoth(
@@ -26,26 +20,18 @@ extension AdminCommands on Admin {
       _guard(_groupStatus),
       label: 'group-status',
     );
-    state.registerCommand('allusers');
-    bot.command('allusers', _guard(_users));
+    final usersHandler = _guard(_users);
+    state.registerCommand('all_users');
+    bot.command('all_users', usersHandler);
+    commandAlias(bot, state, 'allusers', usersHandler);
     state.registerCommand('users');
     bot.command('users', _guard(_users)); // Compatibility alias.
-    state.registerCommand('groupuser');
-    bot.command('groupuser', _guard(_groupUsers));
-    commandBoth(
-      bot,
-      state,
-      'prompt',
-      _guard(_promptConfirm),
-      label: 'prompt',
-    );
-    commandBoth(
-      bot,
-      state,
-      'remind',
-      _guard(_remindConfirm),
-      label: 'remind',
-    );
+    final groupUsersHandler = _guard(_groupUsers);
+    state.registerCommand('group_user');
+    bot.command('group_user', groupUsersHandler);
+    commandAlias(bot, state, 'groupuser', groupUsersHandler);
+    commandBoth(bot, state, 'prompt', _guard(_promptConfirm), label: 'prompt');
+    commandBoth(bot, state, 'remind', _guard(_remindConfirm), label: 'remind');
     commandBoth(
       bot,
       state,
@@ -58,19 +44,19 @@ extension AdminCommands on Admin {
       label: 'allocate',
     );
     commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
+    commandBoth(bot, state, 'confirm', _guard(_confirm), label: 'mark-attend');
     commandBoth(
       bot,
       state,
-      'confirm',
-      _guard(_confirm),
-      label: 'mark-attend',
+      'set_exp',
+      _guard((ctx) => _pickUser(ctx, 'setexp')),
+      label: 'set-exp',
     );
-    commandBoth(
+    commandAlias(
       bot,
       state,
       'setexp',
       _guard((ctx) => _pickUser(ctx, 'setexp')),
-      label: 'set-exp',
     );
     commandBoth(
       bot,

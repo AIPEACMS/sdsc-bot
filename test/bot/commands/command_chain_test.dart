@@ -9,7 +9,7 @@ import '../../support/bot_readiness.dart';
 /// Regression test: a bookkeeping `bot.use` middleware registered before
 /// command handlers must NOT swallow slash commands. (Real bug: the flows
 /// bookkeeping middleware returned early on `ctx.hasCommand`, so typed
-/// commands like /addkey never reached the console/admin handlers registered
+/// commands like /add_key never reached the console/admin handlers registered
 /// later in main.dart.)
 void main() {
   test(
@@ -65,7 +65,7 @@ void main() {
         }
         await next();
       });
-      bot.command('addkey', (ctx) async {
+      bot.command('add_key', (ctx) async {
         handled = true;
         await ctx.reply('ok ${ctx.args.first}');
       });
@@ -81,9 +81,9 @@ void main() {
             'date': 1,
             'chat': {'id': 6337440771, 'type': 'private'},
             'from': {'id': 6337440771, 'is_bot': false, 'first_name': 'op'},
-            'text': '/addkey uI0pd4X6aKMYDTilhGdxzlF476WoRlNR9jhUZFZupK4=',
+            'text': '/add_key uI0pd4X6aKMYDTilhGdxzlF476WoRlNR9jhUZFZupK4=',
             'entities': [
-              {'offset': 0, 'length': 7, 'type': 'bot_command'},
+              {'offset': 0, 'length': 8, 'type': 'bot_command'},
             ],
           },
         }),

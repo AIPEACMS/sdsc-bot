@@ -60,7 +60,7 @@ extension AdminApiOperations on AdminApi {
 ;
 
   /// Adds (or approves) a location by name. Used by the console app in place
-  /// of the chat `/addlocation`.
+  /// of the chat `/add_location`.
   Future<(int, Object)> _createLocation(String bodyText) async {
     final body = _jsonBody(bodyText);
     final name = (body['name'] as String?)?.trim() ?? '';
@@ -102,7 +102,7 @@ extension AdminApiOperations on AdminApi {
   }
 
   /// Appoints or removes the singleton global admin, the chat-side equivalent
-  /// of `/addg` / `/rmg`. The repo enforces the one-global-admin rule inside a
+  /// of `/add_global_admin` / `/rm_global_admin`. The repo enforces the one-global-admin rule inside a
   /// transaction: appointing fails while another global admin exists, and
   /// removing returns the target to a regular member and dissolves their
   /// group.

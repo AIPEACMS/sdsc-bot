@@ -234,7 +234,7 @@ void main() {
   test(
     'selector and auto preview are inline and confirmation applies exact preview',
     () async {
-      await text(2, '/assigngroup');
+      await text(2, '/assign_group');
       expect(
         sent.last['text'],
         'Which group do you want to assign the member(s) to?',
@@ -257,7 +257,7 @@ void main() {
   test(
     'manual input skips ineligible handles and dismisses entry markup',
     () async {
-      await text(2, '/assigngroup');
+      await text(2, '/assign_group');
       await callback(2, 'assigngroup|select|2');
       expect(sent.last['text'], contains('Please send me the handle(s)'));
       expect(sent.last['reply_markup'], isNotNull);
@@ -283,7 +283,7 @@ void main() {
   test(
     'unauthorized callback is answered and clears its inline keyboard',
     () async {
-      await text(2, '/assigngroup');
+      await text(2, '/assign_group');
       await callback(4, 'assigngroup|select|auto');
       expect(edited.last['reply_markup'], isNull);
       expect(edited.last['text'], 'You are not the global admin.');
@@ -292,7 +292,7 @@ void main() {
   );
 
   test('stale confirmation clears its keyboard and applies nothing', () async {
-    await text(2, '/assigngroup');
+    await text(2, '/assign_group');
     await callback(2, 'assigngroup|select|auto');
     repo.setGroup(4, '99');
     await callback(2, 'assigngroup|yes');

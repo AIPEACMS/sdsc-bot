@@ -234,12 +234,12 @@ extension AdminBroadcast on Admin {
     );
   }
 
-  // ----------------------------------------------------------- /setexp
+  // ----------------------------------------------------------- /set_exp
 
   Future<void> _pickUser(Context ctx, String kind) async {
     final args = ctx.args;
     if (args.length > 1) {
-      await ctx.reply('Usage: /setexp');
+      await ctx.reply('Usage: /set_exp');
       return;
     }
     if (args.isEmpty) {
@@ -248,7 +248,7 @@ extension AdminBroadcast on Admin {
     }
     final value = args.first.toLowerCase();
     if (kind != 'setexp' || !_isValidValue(kind, value)) {
-      await ctx.reply('Usage: /setexp');
+      await ctx.reply('Usage: /set_exp');
       return;
     }
     await _pickUserFor(ctx, kind, value);
@@ -261,7 +261,7 @@ extension AdminBroadcast on Admin {
     return value == 'a' || value == 'b';
   }
 
-  /// Arg-less /setexp: pick the value first, then the member.
+  /// Arg-less /set_exp: pick the value first, then the member.
   Future<void> _pickValue(Context ctx, String kind) async {
     final choices = kind == 'setexp'
         ? [('Experienced', 'experienced'), ('Newbie', 'newbie')]

@@ -7,12 +7,12 @@ extension ConsoleSchedule on Console {
 
   Future<void> _addLocation(Context ctx) async {
     if (ctx.args.isEmpty) {
-      await ctx.reply('Usage: /addlocation <name>');
+      await ctx.reply('Usage: /add_location <name>');
       return;
     }
     final name = ctx.args.join(' ').trim();
     if (name.isEmpty) {
-      await ctx.reply('Usage: /addlocation <name>');
+      await ctx.reply('Usage: /add_location <name>');
       return;
     }
     final pending = repo
@@ -30,14 +30,14 @@ extension ConsoleSchedule on Console {
     await setTime?.onLocationApproved(loc);
     await ctx.reply(
       '✅ <b>${loc.name}</b> is now an approved location.\n'
-      'Add aliases with <code>/addalias ${loc.name}</code>.',
+      'Add aliases with <code>/add_alias ${loc.name}</code>.',
       parseMode: ParseMode.html,
     );
   }
 
   Future<void> _addAlias(Context ctx) async {
     if (ctx.args.isEmpty) {
-      await ctx.reply('Usage: /addalias <location>');
+      await ctx.reply('Usage: /add_alias <location>');
       return;
     }
     final token = ctx.args.join(' ').trim();
@@ -57,7 +57,7 @@ extension ConsoleSchedule on Console {
     );
   }
 
-  /// Entry point for the /addalias wizard: the console typed an alias.
+  /// Entry point for the /add_alias wizard: the console typed an alias.
   Future<void> onAddAliasText(Context ctx, int userId, String text) async {
     final flow = _aliasFlow[userId];
     if (flow == null) return;
@@ -94,7 +94,7 @@ extension ConsoleSchedule on Console {
   String _norm(String s) =>
       s.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), ' ').trim();
 
-  // ------------------------------------------- /addkey /keys /rmkey
+  // ------------------------------------------- /add_key /keys /rm_key
 
   /// Registers the desktop console app's Ed25519 public key so it can talk to
   /// the admin API. The app generates a keypair on first run and displays its
@@ -105,7 +105,7 @@ extension ConsoleSchedule on Console {
     if (args.isEmpty) {
       await ctx.reply(
         '🔑 Send the console app\'s public key to register it:\n'
-        '<code>/addkey &lt;base64 public key&gt; [name]</code>',
+        '<code>/add_key &lt;base64 public key&gt; [name]</code>',
         parseMode: ParseMode.html,
       );
       return;
@@ -149,7 +149,7 @@ extension ConsoleSchedule on Console {
   Future<void> _rmKey(Context ctx) async {
     final args = ctx.args;
     if (args.isEmpty) {
-      await ctx.reply('Usage: /rmkey &lt;1|base64 public key&gt;');
+      await ctx.reply('Usage: /rm_key &lt;1|base64 public key&gt;');
       return;
     }
     final keys = repo.listConsoleKeys();

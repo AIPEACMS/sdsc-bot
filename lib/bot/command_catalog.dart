@@ -28,41 +28,56 @@ class CommandCatalog {
   CommandCatalog._();
 
   static const List<CommandHelp> _admin = [
-    CommandHelp('/allusers', 'list registered members'),
-    CommandHelp('/groupuser', 'show your group\'s member details'),
+    CommandHelp('/all_users', 'list registered members'),
+    CommandHelp('/group_user', 'show your group\'s member details'),
     CommandHelp('/prompt', 'send availability prompts now'),
     CommandHelp('/remind', 'remind non-responders now'),
-    CommandHelp('/setexp', 'change a member\'s experience'),
+    CommandHelp('/set_exp', 'change a member\'s experience'),
     CommandHelp('/allocate', 'run the allocation now'),
   ];
   static const List<CommandHelp> _globalAdmin = [
-    CommandHelp('/addadmin', 'promote a registered user', usage: '@handle'),
-    CommandHelp('/addcheck', 'add a checker', usage: '@handle'),
+    CommandHelp('/add_admin', 'promote a registered user', usage: '@handle'),
+    CommandHelp('/add_check', 'add a checker', usage: '@handle'),
     CommandHelp('/demote', 'demote an admin', usage: '@handle'),
     CommandHelp(
-      '/removeuser',
+      '/rm_user',
       'remove active users or pending registrations',
       usage: '[@handle ...]',
     ),
-    CommandHelp('/synccalendar', 'push the calendar YAML'),
-    CommandHelp('/assigngroup', 'assign members to admin-led groups'),
-    CommandHelp('/rm_allocate_entry', 'remove selected current-window allocations'),
+    CommandHelp('/sync_calendar', 'push the calendar YAML'),
+    CommandHelp('/assign_group', 'assign members to admin-led groups'),
+    CommandHelp(
+      '/rm_allocate_entry',
+      'remove selected current-window allocations',
+    ),
   ];
   static const List<CommandHelp> _console = [
-    CommandHelp('/checkstatus', 'test the checker\'s check-status'),
+    CommandHelp('/check_status', 'test the checker\'s check-status'),
     CommandHelp('/start', 'show the welcome and role buttons'),
     CommandHelp('/grid', 'preview role grids'),
-    CommandHelp('/resetgrid', 'return to your console grid'),
-    CommandHelp('/setdate', 'set a custom or calendar date', usage: '[date]'),
-    CommandHelp('/resetdate', 'return to the real date'),
-    CommandHelp('/addkey', 'register a console app key'),
+    CommandHelp('/reset_grid', 'return to your console grid'),
+    CommandHelp('/set_date', 'set a custom or calendar date', usage: '[date]'),
+    CommandHelp('/reset_date', 'return to the real date'),
+    CommandHelp('/add_key', 'register a console app key'),
     CommandHelp('/keys', 'list console app keys'),
-    CommandHelp('/rmkey', 'remove a console app key', usage: '[key]'),
-    CommandHelp('/addg', 'appoint the global admin', usage: '@handle'),
-    CommandHelp('/rmg', 'remove the global admin', usage: '[@handle]'),
+    CommandHelp('/rm_key', 'remove a console app key', usage: '[key]'),
+    CommandHelp(
+      '/add_global_admin',
+      'appoint the global admin',
+      usage: '@handle',
+    ),
+    CommandHelp(
+      '/rm_global_admin',
+      'remove the global admin',
+      usage: '[@handle]',
+    ),
     CommandHelp('/locations', 'list locations and their aliases'),
-    CommandHelp('/addlocation', 'approve or add a location', usage: '[name]'),
-    CommandHelp('/addalias', 'add location aliases; send done to finish', usage: '[location]'),
+    CommandHelp('/add_location', 'approve or add a location', usage: '[name]'),
+    CommandHelp(
+      '/add_alias',
+      'add location aliases; send done to finish',
+      usage: '[location]',
+    ),
   ];
 
   /// Returns the role headings shown by `/start`, in presentation order.
@@ -103,10 +118,7 @@ class CommandCatalog {
     final buttonFunctions = RoleKeyboard.buttonsFor(
       role,
       consoleIdentity: isConsole,
-    )
-        .map((button) => button.command)
-        .whereType<String>()
-        .toSet();
+    ).map((button) => button.command).whereType<String>().toSet();
     List<CommandHelp> additional(List<CommandHelp> commands) => commands
         .where((entry) => !buttonFunctions.contains(entry.command))
         .toList(growable: false);
@@ -115,8 +127,7 @@ class CommandCatalog {
       if (isConsole) CommandSection('Console', additional(_console)),
       if (isGlobalAdmin)
         CommandSection('Global admin', additional(_globalAdmin)),
-      if (isAdmin || isGlobalAdmin)
-        CommandSection('Admin', additional(_admin)),
+      if (isAdmin || isGlobalAdmin) CommandSection('Admin', additional(_admin)),
     ];
     return result.where((section) => section.commands.isNotEmpty).toList();
   }

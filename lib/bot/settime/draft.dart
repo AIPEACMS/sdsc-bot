@@ -193,15 +193,15 @@ extension SetTimeDraft on SetTime {
     state.pendingArg.remove(userId);
 
     // Tell the console on the trusted channel, so it can approve and add
-    // aliases (chat: /addlocation + /addalias, or the desktop console app).
+    // aliases (chat: /add_location + /add_alias, or the desktop console app).
     LogRing.log('settime: new location requested: ${loc.name}');
     try {
       await bot.api.sendMessage(
         ChatID(config.consoleId),
         '🆕 <b>New location requested</b>\n\n'
         'The global admin asked to add <b>${_html(loc.name)}</b>.\n'
-        'Approve it with <code>/addlocation ${_html(loc.name)}</code> '
-        '(optionally /addalias afterwards), or from the console app.',
+        'Approve it with <code>/add_location ${_html(loc.name)}</code> '
+        '(optionally /add_alias afterwards), or from the console app.',
         parseMode: ParseMode.html,
       );
     } catch (_) {
