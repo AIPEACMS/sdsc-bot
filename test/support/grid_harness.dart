@@ -32,6 +32,10 @@ late Console console;
 late HoldGate holdGate;
 late List<Map<String, dynamic>> sent;
 late List<Map<String, dynamic>> edited;
+late List<int> sentMessageIds;
+late Map<(int chatId, int messageId), Object?> fakeMessageMarkups;
+bool useUniqueTelegramMessageIds = false;
+int _nextFakeMessageId = 0;
 bool failNextSendMessage = false;
 bool failNextEditMessageText = false;
 late HttpServer server;
@@ -63,6 +67,10 @@ Future<void> setUpGrid() async {
   state = BotState();
   sent = <Map<String, dynamic>>[];
   edited = <Map<String, dynamic>>[];
+  sentMessageIds = <int>[];
+  fakeMessageMarkups = <(int, int), Object?>{};
+  useUniqueTelegramMessageIds = false;
+  _nextFakeMessageId = 0;
   failNextSendMessage = false;
   failNextEditMessageText = false;
   final readiness = BotReadiness();
@@ -85,6 +93,10 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/sendMessage')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       sent.add(body as Map<String, dynamic>);
+      final messageId = useUniqueTelegramMessageIds ? ++_nextFakeMessageId : 1;
+      sentMessageIds.add(messageId);
+      fakeMessageMarkups[(body['chat_id'] as int, messageId)] =
+          body['reply_markup'];
       if (failNextSendMessage) {
         failNextSendMessage = false;
         await _json(req, {
@@ -97,7 +109,7 @@ Future<void> setUpGrid() async {
       await _json(req, {
         'ok': true,
         'result': {
-          'message_id': 1,
+          'message_id': messageId,
           'date': 1,
           'chat': {'id': 1, 'type': 'private'},
           'text': body['text'],
@@ -106,10 +118,12 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/editMessageReplyMarkup')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       edited.add(body as Map<String, dynamic>);
+      fakeMessageMarkups[(body['chat_id'] as int, body['message_id'] as int)] =
+          null;
       await _json(req, {
         'ok': true,
         'result': {
-          'message_id': 1,
+          'message_id': body['message_id'],
           'date': 1,
           'chat': {'id': 1, 'type': 'private'},
           'text': '',
@@ -120,6 +134,13 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/editMessageText')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       edited.add(body as Map<String, dynamic>);
+      if (body.containsKey('reply_markup')) {
+        fakeMessageMarkups[(
+              body['chat_id'] as int,
+              body['message_id'] as int,
+            )] =
+            body['reply_markup'];
+      }
       if (failNextEditMessageText) {
         failNextEditMessageText = false;
         await _json(req, {
@@ -132,7 +153,7 @@ Future<void> setUpGrid() async {
       await _json(req, {
         'ok': true,
         'result': {
-          'message_id': 1,
+          'message_id': body['message_id'],
           'date': 1,
           'chat': {'id': 1, 'type': 'private'},
           'text': body['text'],
@@ -283,22 +304,23 @@ Future<void> sendPlainText(int userId, String text) => bot.handleUpdate(
   }),
 );
 
-Future<void> sendCallback(int userId, String data) => bot.handleUpdate(
-  Update.fromJson({
-    'update_id': 2,
-    'callback_query': {
-      'id': 'callback-$userId-$data',
-      'from': {'id': userId, 'is_bot': false, 'first_name': 'u'},
-      'chat_instance': 'test-chat-instance',
-      'message': {
-        'message_id': 1,
-        'date': 1,
-        'chat': {'id': userId, 'type': 'private'},
-      },
-      'data': data,
-    },
-  }),
-);
+Future<void> sendCallback(int userId, String data, {int messageId = 1}) =>
+    bot.handleUpdate(
+      Update.fromJson({
+        'update_id': 2,
+        'callback_query': {
+          'id': 'callback-$userId-$data',
+          'from': {'id': userId, 'is_bot': false, 'first_name': 'u'},
+          'chat_instance': 'test-chat-instance',
+          'message': {
+            'message_id': messageId,
+            'date': 1,
+            'chat': {'id': userId, 'type': 'private'},
+          },
+          'data': data,
+        },
+      }),
+    );
 
 List<String> keyboardTexts(Map<String, dynamic> body) {
   final kb = (body['reply_markup'] as Map<String, dynamic>?)?['keyboard'];

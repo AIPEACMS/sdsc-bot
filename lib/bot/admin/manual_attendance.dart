@@ -77,7 +77,17 @@ extension AdminManualAttendance on Admin {
         ? 'Choose an active member for a global attendance correction.'
         : 'Choose a member in your group for an attendance correction.';
     if (ctx.callbackQuery != null) {
-      await ctx.editMessageText(text, replyMarkup: keyboard);
+      try {
+        await ctx.editMessageText(text, replyMarkup: keyboard);
+      } catch (error, stackTrace) {
+        developer.log(
+          'manual attendance picker update failed',
+          name: 'sdsc-bot.admin.manual-attendance',
+          error: error,
+          stackTrace: stackTrace,
+        );
+        await _removeManualButtons(ctx);
+      }
     } else {
       final message = await ctx.reply(text, replyMarkup: keyboard);
       state.trackInteractiveMessage(
@@ -96,12 +106,8 @@ extension AdminManualAttendance on Admin {
     final actor = actorId == null ? null : repo.findUser(actorId);
     final scope = parts.length > 1 ? parts[1] : '';
     if (scope == 'cancel') {
-      if (actorId != null) {
-        _manualAttendanceDrafts.remove(actorId);
-        _manualAttendanceConfirmations.remove(actorId);
-        state.pendingArg.remove(actorId);
-      }
-      await ctx.editMessageText('Cancelled.', replyMarkup: null);
+      if (actorId != null) _clearManualAttendanceState(actorId);
+      await _finishManualInteraction(ctx, actorId, 'Cancelled.');
       return;
     }
     final allMembers = scope == 'all';
@@ -109,9 +115,11 @@ extension AdminManualAttendance on Admin {
         (allMembers
             ? !actor.isGlobalAdmin
             : !actor.isAdmin && !actor.isGlobalAdmin)) {
-      await ctx.editMessageText(
+      if (actorId != null) _clearManualAttendanceState(actorId);
+      await _finishManualInteraction(
+        ctx,
+        actorId,
         'You are not authorized to use this command.',
-        replyMarkup: null,
       );
       return;
     }
@@ -133,9 +141,11 @@ extension AdminManualAttendance on Admin {
         repo.activeUsers().any((user) => user.id == target.id) &&
         (allMembers || (actor.group.isNotEmpty && target.group == actor.group));
     if (!active || targetId == null) {
-      await ctx.editMessageText(
+      _clearManualAttendanceState(actorId!);
+      await _finishManualInteraction(
+        ctx,
+        actorId,
         'That member is no longer eligible.',
-        replyMarkup: null,
       );
       return;
     }
@@ -145,12 +155,18 @@ extension AdminManualAttendance on Admin {
     final warning = allMembers
         ? '\n\n<b>Warning:</b> zero leaves the balance unchanged; a negative adjustment reduces it.'
         : '\n\n<b>Warning:</b> zero leaves the balance unchanged; negative adjustments are not allowed.';
-    await ctx.editMessageText(
-      'Send a whole-number adjustment, optionally followed by the last-attended '
-      'date (example: <code>2 Aug 24</code>; use <code>0</code> to leave the balance unchanged).'
-      '$warning\n\nCurrent balance: ${target.attendanceBalance}',
-      parseMode: ParseMode.html,
-      replyMarkup: null,
+    final stats = repo.attendanceStats(targetId);
+    await _editManualPrompt(
+      ctx,
+      '<b>Attendance correction for ${_manualHtml(target.name)}</b>\n'
+      'Current session-attendance count: ${stats.total}\n'
+      'Current last-attended date: ${_manualDate(target.lastAttendedDate)}\n'
+      'Current persisted attendance balance: ${target.attendanceBalance}\n\n'
+      'Send a whole-number adjustment, optionally followed by a last-attended '
+      'date (example: <code>2 Aug 24</code>; date formats include '
+      '<code>Aug 24</code>, <code>24 Aug</code>, <code>12/08</code>, or '
+      '<code>12-08</code>). Use <code>0</code> to leave the balance unchanged.'
+      '$warning',
     );
   }
 
@@ -168,6 +184,7 @@ extension AdminManualAttendance on Admin {
             : !actor.isAdmin && !actor.isGlobalAdmin)) {
       state.pendingArg.remove(userId);
       _manualAttendanceDrafts.remove(userId);
+      await _removeTrackedManualKeyboards(userId);
       await ctx.reply('You are no longer authorized. Start the command again.');
       return;
     }
@@ -175,7 +192,10 @@ extension AdminManualAttendance on Admin {
     final delta = match == null ? null : int.tryParse(match.group(1)!);
     if (delta == null || (!draft.$2 && delta < 0)) {
       state.pendingArg[userId] = PendingArg('manualattendance');
-      await ctx.reply(
+      await _replyManualPrompt(
+        ctx,
+        userId,
+        draft,
         'Send a whole signed integer${draft.$2 ? '' : ' (zero or positive)'} and an optional date. No change was made.',
       );
       return;
@@ -187,54 +207,84 @@ extension AdminManualAttendance on Admin {
       final date = ManualAttendanceDate.parse(dateText, today: today);
       if (date == null) {
         state.pendingArg[userId] = PendingArg('manualattendance');
-        await ctx.reply(
+        await _replyManualPrompt(
+          ctx,
+          userId,
+          draft,
           'Invalid or future date. Try Aug 24, 24 Aug, 12/08, or 12-08. No change was made.',
         );
         return;
       }
       dateValue = ManualAttendanceDate.canonical(date);
     }
-    state.pendingArg.remove(userId);
     _manualAttendanceDrafts.remove(userId);
-    if (delta <= 0) {
-      _manualAttendanceConfirmations[userId] = (
-        draft.$1,
-        draft.$2,
-        delta,
-        dateValue,
-      );
-      state.pendingArg[userId] = PendingArg('manualattendance-confirm');
-      final current = repo.findUser(draft.$1)!;
-      final outcome = current.attendanceBalance + delta;
-      final warning = outcome <= 0
-          ? 'This will leave the resulting balance at $outcome.'
-          : 'The resulting balance will be $outcome.';
-      await ctx.reply(
-        '⚠️ <b>Confirm attendance correction</b>\n'
-        'Adjustment: $delta. $warning\n'
-        'Per-session attendance history will not change.'
-        '${dateValue == null ? '' : '\nLast-attended date: $dateValue'}',
-        parseMode: ParseMode.html,
-        replyMarkup: InlineKeyboard()
-            .text('⚠️ Apply correction', 'manualattconfirm|yes')
-            .row()
-            .text('Cancel', 'manualattconfirm|no'),
-      );
+    final target = repo.findUser(draft.$1);
+    if (target == null) {
+      await _removeTrackedManualKeyboards(userId);
+      await ctx.reply('That member is no longer available.');
       return;
     }
-    await _applyManualAttendance(
-      userId,
+    _manualAttendanceConfirmations[userId] = (
       draft.$1,
       draft.$2,
       delta,
       dateValue,
-      ctx,
     );
+    state.pendingArg[userId] = PendingArg('manualattendance-confirm');
+    final stats = repo.attendanceStats(draft.$1);
+    final proposedDate = dateValue ?? _manualDate(target.lastAttendedDate);
+    final balance = target.attendanceBalance + delta;
+    final message = await ctx.reply(
+      '<b>Attendance correction preview for ${_manualHtml(target.name)}</b>\n'
+      'Current session-attendance count: ${stats.total}\n'
+      'Current last-attended date: ${_manualDate(target.lastAttendedDate)}\n'
+      'Current persisted attendance balance: ${target.attendanceBalance}\n'
+      'Requested adjustment: $delta\n'
+      'Proposed last-attended date: $proposedDate${dateValue == null ? ' (unchanged)' : ''}\n'
+      'Proposed resulting balance: $balance\n\n'
+      'Per-session attendance history will not change.',
+      parseMode: ParseMode.html,
+      replyMarkup: InlineKeyboard()
+          .text('Confirm', 'manualattconfirm|yes')
+          .row()
+          .text('Cancel', 'manualattconfirm|no'),
+    );
+    state.trackInteractiveMessage(userId, userId, message.messageId);
   }
 
   void onManualAttendanceInputCleared(int userId) {
     _manualAttendanceDrafts.remove(userId);
     _manualAttendanceConfirmations.remove(userId);
+  }
+
+  void _clearManualAttendanceState(int userId) {
+    state.pendingArg.remove(userId);
+    onManualAttendanceInputCleared(userId);
+  }
+
+  Future<void> _replyManualPrompt(
+    Context ctx,
+    int userId,
+    (int, bool) draft,
+    String message,
+  ) async {
+    final target = repo.findUser(draft.$1);
+    final text = target == null
+        ? 'The selected member is no longer available.'
+        : '<b>Attendance correction for ${_manualHtml(target.name)}</b>\n'
+              'Current session-attendance count: ${repo.attendanceStats(target.id).total}\n'
+              'Current last-attended date: ${_manualDate(target.lastAttendedDate)}\n'
+              'Current persisted attendance balance: ${target.attendanceBalance}\n\n'
+              '$message\n'
+              'Input: a whole-number adjustment and optional date, for example '
+              '<code>3 Oct 10</code>. Dates: <code>Aug 24</code>, '
+              '<code>24 Aug</code>, <code>12/08</code>, or <code>12-08</code>.';
+    final reply = await ctx.reply(
+      text,
+      parseMode: ParseMode.html,
+      replyMarkup: InlineKeyboard().text('Cancel', 'manualatt|cancel|0|cancel'),
+    );
+    state.trackInteractiveMessage(userId, userId, reply.messageId);
   }
 
   Future<void> _onManualAttendanceConfirm(
@@ -251,11 +301,12 @@ extension AdminManualAttendance on Admin {
         pending == null ||
         pending.command != 'manualattendance-confirm' ||
         pending.isExpired) {
-      await ctx.editMessageText(
+      await _finishManualInteraction(
+        ctx,
+        userId,
         confirmation == null || pending == null || pending.isExpired
             ? 'This correction is no longer available.'
             : 'Cancelled. No change was made.',
-        replyMarkup: null,
       );
       return;
     }
@@ -290,7 +341,7 @@ extension AdminManualAttendance on Admin {
       const failure =
           'The member or your authorization changed. No change was made.';
       if (edit) {
-        await ctx.editMessageText(failure, replyMarkup: null);
+        await _finishManualInteraction(ctx, adminId, failure);
       } else {
         await ctx.reply(failure);
       }
@@ -302,10 +353,19 @@ extension AdminManualAttendance on Admin {
         'Balance: ${updated.attendanceBalance}.'
         '${dateValue == null ? '' : ' Last-attended date: $dateValue.'}';
     if (edit) {
-      await ctx.editMessageText(result, replyMarkup: null);
+      await _finishManualInteraction(ctx, adminId, result);
     } else {
       await ctx.reply(result);
     }
     await service.reconcileAttendanceCorrection(updated);
   }
+
+  String _manualDate(DateTime? date) =>
+      date == null ? 'never' : '${date.day}/${date.month}/${date.year}';
+
+  String _manualHtml(String value) => value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;');
 }

@@ -1,6 +1,95 @@
 part of '../admin.dart';
 
 extension AdminAttendance on Admin {
+  Future<void> _removeTrackedManualKeyboards(int userId) async {
+    for (final (chatId, messageId) in state.takeInteractiveMessages(userId)) {
+      try {
+        await bot.api.editMessageReplyMarkup(
+          ChatID(chatId),
+          messageId,
+          replyMarkup: null,
+        );
+      } catch (error, stackTrace) {
+        developer.log(
+          'manual attendance tracked keyboard cleanup failed',
+          name: 'sdsc-bot.admin.manual-attendance',
+          error: error,
+          stackTrace: stackTrace,
+        );
+      }
+    }
+  }
+
+  Future<void> _finishManualInteraction(
+    Context ctx,
+    int? userId,
+    String text,
+  ) async {
+    if (userId != null) await _removeTrackedManualKeyboards(userId);
+    await _editManualResult(ctx, text);
+  }
+
+  Future<void> _editManualResult(Context ctx, String text) async {
+    try {
+      await ctx.editMessageText(text, replyMarkup: null);
+    } catch (error, stackTrace) {
+      developer.log(
+        'manual attendance result edit failed',
+        name: 'sdsc-bot.admin.manual-attendance',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      await _removeManualButtons(ctx);
+    }
+  }
+
+  Future<void> _editManualPrompt(Context ctx, String text) async {
+    try {
+      await ctx.editMessageText(
+        text,
+        parseMode: ParseMode.html,
+        replyMarkup: InlineKeyboard().text(
+          'Cancel',
+          'manualatt|cancel|0|cancel',
+        ),
+      );
+    } catch (error, stackTrace) {
+      developer.log(
+        'manual attendance prompt edit failed',
+        name: 'sdsc-bot.admin.manual-attendance',
+        error: error,
+        stackTrace: stackTrace,
+      );
+      final userId = ctx.from?.id;
+      if (userId != null) {
+        state.pendingArg.remove(userId);
+        _manualAttendanceDrafts.remove(userId);
+        _manualAttendanceConfirmations.remove(userId);
+        await _removeTrackedManualKeyboards(userId);
+      }
+      await _removeManualButtons(ctx);
+    }
+  }
+
+  Future<void> _removeManualButtons(Context ctx) async {
+    final message = ctx.callbackQuery?.message;
+    if (message == null) return;
+    try {
+      await bot.api.editMessageReplyMarkup(
+        ChatID(message.chat.id),
+        message.messageId,
+        replyMarkup: null,
+      );
+    } catch (error, stackTrace) {
+      developer.log(
+        'manual attendance keyboard cleanup failed',
+        name: 'sdsc-bot.admin.manual-attendance',
+        error: error,
+        stackTrace: stackTrace,
+      );
+    }
+  }
+
   Future<void> _doBroadcast(Context ctx, String text) async {
     if (!repo.activeOutreachEnabled('broadcast')) {
       final recipients = repo
@@ -41,9 +130,15 @@ extension AdminAttendance on Admin {
     if (attendance) await ctx.answerCallbackQuery();
     if (!_isAdmin(ctx)) {
       if (parts[0] == 'manualatt' || parts[0] == 'manualattconfirm') {
-        await ctx.editMessageText(
+        final userId = ctx.from?.id;
+        if (userId != null) {
+          state.pendingArg.remove(userId);
+          onManualAttendanceInputCleared(userId);
+        }
+        await _finishManualInteraction(
+          ctx,
+          userId,
           'You are not authorized to use this command.',
-          replyMarkup: null,
         );
       }
       return;

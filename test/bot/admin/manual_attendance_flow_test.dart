@@ -8,6 +8,11 @@ void main() {
   setUp(() async {
     await setUpGrid();
     flows.onManualAttendanceText = admin.onManualAttendanceText;
+    flows.onPendingInputCleared = (userId, command) {
+      if (command.startsWith('manualattendance')) {
+        admin.onManualAttendanceInputCleared(userId);
+      }
+    };
   });
 
   test(
@@ -60,15 +65,23 @@ void main() {
       await sendCallback(2, callback);
       expect(
         edited.last['text'],
-        contains('zero leaves the balance unchanged'),
+        contains('Current persisted attendance balance'),
+      );
+      expect(edited.last['text'], contains('Current session-attendance count'));
+      expect(
+        edited.last['reply_markup']['inline_keyboard'].last.first['text'],
+        'Cancel',
       );
       await sendPlainText(2, '0');
-      expect(sent.last['text'], contains('Confirm attendance correction'));
-      expect(sent.last['text'], contains('resulting balance'));
+      expect(sent.last['text'], contains('Attendance correction preview'));
+      expect(sent.last['text'], contains('Proposed resulting balance'));
+      expect(sent.last['text'], contains('Requested adjustment: 0'));
       expect(repo.findUser(targetId)!.attendanceBalance, originalBalance);
       await sendCallback(2, 'manualattconfirm|no');
       expect(repo.findUser(targetId)!.attendanceBalance, originalBalance);
       expect(edited.last['text'], contains('Cancelled'));
+      expect(edited.last['reply_markup'], isNull);
+      expect(state.interactiveMessages[2], isNull);
     },
   );
 
@@ -94,14 +107,139 @@ void main() {
       final before = repo.attendanceStats(targetId).total;
       final initial = repo.findUser(targetId)!.attendanceBalance;
       await sendCallback(1, targetCallback);
+      expect(edited.last['text'], contains('@manualtest'));
+      expect(
+        edited.last['text'],
+        contains('Current session-attendance count: $before'),
+      );
+      expect(
+        edited.last['text'],
+        contains('Current last-attended date: never'),
+      );
+      expect(
+        edited.last['text'],
+        contains('Current persisted attendance balance: $initial'),
+      );
+      expect(edited.last['text'], contains('example: <code>2 Aug 24</code>'));
       await sendPlainText(1, '3 Aug 24');
+      expect(repo.findUser(targetId)!.attendanceBalance, initial);
+      expect(
+        sent.last['text'],
+        contains('Attendance correction preview for @manualtest'),
+      );
+      expect(sent.last['text'], contains('Requested adjustment: 3'));
+      expect(
+        sent.last['text'],
+        contains('Proposed last-attended date: 2026-08-24'),
+      );
+      expect(
+        sent.last['text'],
+        contains('Proposed resulting balance: ${initial + 3}'),
+      );
+      expect(state.interactiveMessages[1], contains((1, 1)));
+
+      await sendCallback(1, 'manualattconfirm|yes');
 
       final updated = repo.findUser(targetId)!;
       expect(updated.attendanceBalance, initial + 3);
       expect(updated.lastAttendedDate, DateTime(2026, 8, 24));
       expect(repo.attendanceStats(targetId).total, before);
+      expect(edited.last['text'], contains('Attendance updated'));
+      expect(edited.last['reply_markup'], isNull);
+      await sendCallback(1, 'manualattconfirm|yes');
+      expect(repo.findUser(targetId)!.attendanceBalance, initial + 3);
     },
   );
+
+  test(
+    'prompt Cancel replaces the prompt and clears tracked controls',
+    () async {
+      useUniqueTelegramMessageIds = true;
+      await sendText(2, '/manual_mark_group_attend');
+      final picker = sent.last['reply_markup']['inline_keyboard'] as List;
+      final callback = picker.first.first['callback_data'] as String;
+      await sendCallback(2, callback, messageId: sentMessageIds.last);
+      expect(state.interactiveMessages[2], contains((2, 1)));
+
+      final messageIds = sentMessageIds.toList();
+      await sendCallback(
+        2,
+        'manualatt|cancel|0|cancel',
+        messageId: messageIds.last,
+      );
+
+      expect(edited.last['text'], 'Cancelled.');
+      expect(edited.last['reply_markup'], isNull);
+      expect(state.pendingArg, isNot(contains(2)));
+      expect(state.interactiveMessages[2], isNull);
+      for (final messageId in messageIds) {
+        expect(fakeMessageMarkups[(2, messageId)], isNull);
+      }
+    },
+  );
+
+  test(
+    'positive preview Cancel never changes balance and removes buttons',
+    () async {
+      useUniqueTelegramMessageIds = true;
+      repo.upsertUser(
+        User(
+          id: 22,
+          name: '@cancelpreview',
+          experience: Experience.newbie,
+          group: '1',
+        ),
+      );
+      await sendText(1, '/manual_mark_all_attend');
+      final picker = sent.last['reply_markup']['inline_keyboard'] as List;
+      final targetCallback = picker
+          .expand((row) => row as List)
+          .map((button) => button['callback_data'] as String)
+          .firstWhere((data) => data.endsWith('|22'));
+      await sendCallback(1, targetCallback, messageId: sentMessageIds.last);
+      final balance = repo.findUser(22)!.attendanceBalance;
+      await sendPlainText(1, '3 Oct 10');
+      expect(sent.last['text'], contains('Requested adjustment: 3'));
+      expect(repo.findUser(22)!.attendanceBalance, balance);
+
+      final messageIds = sentMessageIds.toList();
+      await sendCallback(1, 'manualattconfirm|no', messageId: messageIds.last);
+
+      expect(repo.findUser(22)!.attendanceBalance, balance);
+      expect(edited.last['text'], contains('Cancelled'));
+      expect(edited.last['reply_markup'], isNull);
+      expect(state.interactiveMessages[1], isNull);
+      for (final messageId in messageIds) {
+        expect(fakeMessageMarkups[(1, messageId)], isNull);
+      }
+    },
+  );
+
+  test('valid command interrupts input and preview stages cleanly', () async {
+    await sendText(2, '/manual_mark_group_attend');
+    var picker = sent.last['reply_markup']['inline_keyboard'] as List;
+    await sendCallback(2, picker.first.first['callback_data'] as String);
+    final inputBefore = repo.findUser(2)!.attendanceBalance;
+
+    await sendText(2, '/status');
+
+    expect(state.pendingArg, isNot(contains(2)));
+    expect(state.interactiveMessages[2], isNull);
+    expect(edited.any((message) => message['reply_markup'] == null), isTrue);
+    expect(repo.findUser(2)!.attendanceBalance, inputBefore);
+
+    await sendText(2, '/manual_mark_group_attend');
+    picker = sent.last['reply_markup']['inline_keyboard'] as List;
+    await sendCallback(2, picker.first.first['callback_data'] as String);
+    await sendPlainText(2, '2');
+    final previewBefore = repo.findUser(2)!.attendanceBalance;
+
+    await sendText(2, '/status');
+
+    expect(state.pendingArg, isNot(contains(2)));
+    expect(state.interactiveMessages[2], isNull);
+    expect(repo.findUser(2)!.attendanceBalance, previewBefore);
+  });
 
   test(
     'stale selection callback is rejected after the global-admin role changes',
@@ -113,6 +251,16 @@ void main() {
       await sendCallback(1, callback);
 
       expect(edited.last['text'], contains('not authorized'));
+      expect(edited.last['reply_markup'], isNull);
+      expect(
+        edited.any(
+          (body) =>
+              body.containsKey('message_id') &&
+              !body.containsKey('text') &&
+              !body.containsKey('reply_markup'),
+        ),
+        isTrue,
+      );
       expect(state.pendingArg, isEmpty);
     },
   );
