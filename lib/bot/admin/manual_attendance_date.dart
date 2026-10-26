@@ -66,4 +66,25 @@ class ManualAttendanceDate {
       '${date.year.toString().padLeft(4, '0')}-'
       '${date.month.toString().padLeft(2, '0')}-'
       '${date.day.toString().padLeft(2, '0')}';
+
+  static String display(DateTime? date) {
+    if (date == null) return 'never';
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sept',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${months[date.month - 1]}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
 }

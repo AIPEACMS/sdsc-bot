@@ -46,10 +46,7 @@ extension AdminManualAttendance on Admin {
     final current = page.clamp(0, pageCount - 1);
     var keyboard = InlineKeyboard();
     for (final member in members.skip(current * pageSize).take(pageSize)) {
-      final date = member.lastAttendedDate;
-      final last = date == null
-          ? 'never'
-          : '${date.day}/${date.month}/${date.year}';
+      final last = ManualAttendanceDate.display(member.lastAttendedDate);
       keyboard = keyboard
           .text(
             '${member.name} · balance ${member.attendanceBalance} · last $last',
@@ -160,7 +157,7 @@ extension AdminManualAttendance on Admin {
       ctx,
       '<b>Attendance correction for ${_manualHtml(target.name)}</b>\n'
       'Current session-attendance count: ${stats.total}\n'
-      'Current last-attended date: ${_manualDate(target.lastAttendedDate)}\n'
+      'Current last-attended date: ${ManualAttendanceDate.display(target.lastAttendedDate)}\n'
       'Current persisted attendance balance: ${target.attendanceBalance}\n\n'
       'Send a whole-number adjustment, optionally followed by a last-attended '
       'date (example: <code>2 Aug 24</code>; date formats include '
@@ -232,12 +229,14 @@ extension AdminManualAttendance on Admin {
     );
     state.pendingArg[userId] = PendingArg('manualattendance-confirm');
     final stats = repo.attendanceStats(draft.$1);
-    final proposedDate = dateValue ?? _manualDate(target.lastAttendedDate);
+    final proposedDate = dateValue == null
+        ? ManualAttendanceDate.display(target.lastAttendedDate)
+        : ManualAttendanceDate.display(DateTime.parse(dateValue));
     final balance = target.attendanceBalance + delta;
     final message = await ctx.reply(
       '<b>Attendance correction preview for ${_manualHtml(target.name)}</b>\n'
       'Current session-attendance count: ${stats.total}\n'
-      'Current last-attended date: ${_manualDate(target.lastAttendedDate)}\n'
+      'Current last-attended date: ${ManualAttendanceDate.display(target.lastAttendedDate)}\n'
       'Current persisted attendance balance: ${target.attendanceBalance}\n'
       'Requested adjustment: $delta\n'
       'Proposed last-attended date: $proposedDate${dateValue == null ? ' (unchanged)' : ''}\n'
@@ -273,7 +272,7 @@ extension AdminManualAttendance on Admin {
         ? 'The selected member is no longer available.'
         : '<b>Attendance correction for ${_manualHtml(target.name)}</b>\n'
               'Current session-attendance count: ${repo.attendanceStats(target.id).total}\n'
-              'Current last-attended date: ${_manualDate(target.lastAttendedDate)}\n'
+              'Current last-attended date: ${ManualAttendanceDate.display(target.lastAttendedDate)}\n'
               'Current persisted attendance balance: ${target.attendanceBalance}\n\n'
               '$message\n'
               'Input: a whole-number adjustment and optional date, for example '
@@ -351,7 +350,7 @@ extension AdminManualAttendance on Admin {
     final result =
         'Attendance updated for ${updated.name}. '
         'Balance: ${updated.attendanceBalance}.'
-        '${dateValue == null ? '' : ' Last-attended date: $dateValue.'}';
+        '${dateValue == null ? '' : ' Last-attended date: ${ManualAttendanceDate.display(DateTime.parse(dateValue))}.'}';
     if (edit) {
       await _finishManualInteraction(ctx, adminId, result);
     } else {
@@ -359,9 +358,6 @@ extension AdminManualAttendance on Admin {
     }
     await service.reconcileAttendanceCorrection(updated);
   }
-
-  String _manualDate(DateTime? date) =>
-      date == null ? 'never' : '${date.day}/${date.month}/${date.year}';
 
   String _manualHtml(String value) => value
       .replaceAll('&', '&amp;')
