@@ -75,8 +75,6 @@ extension ConsoleRegistration on Console {
     );
     commandAlias(bot, state, 'addkey', _consoleGuard(_addKey));
     commandBoth(bot, state, 'keys', _consoleGuard(_keys), label: 'keys');
-    state.registerCommand('bind_key');
-    bot.command('bind_key', _bindKey);
     commandBoth(bot, state, 'rm_key', _consoleGuard(_rmKey), label: 'rm-key');
     commandAlias(bot, state, 'rmkey', _consoleGuard(_rmKey));
     commandBoth(

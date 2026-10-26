@@ -44,19 +44,14 @@ CREATE TABLE console_keys (
         .select('PRAGMA table_info(console_keys)')
         .map((row) => row['name'] as String)
         .toSet();
-    expect(
-      columns,
-      containsAll([
-        'actor_user_id',
-        'bind_challenge_hash',
-        'bind_challenge_expires_at',
-      ]),
-    );
+    expect(columns, contains('actor_user_id'));
+    expect(columns, isNot(contains('bind_challenge_hash')));
+    expect(columns, isNot(contains('bind_challenge_expires_at')));
     expect(repo.listConsoleKeys().single.actorUserId, isNull);
     expect(
       first.raw.select(
         "SELECT name FROM sqlite_master WHERE type = 'table' "
-        "AND name = 'attendance_correction_previews'",
+        "AND name = 'attendance_correction_previews_v2'",
       ),
       isNotEmpty,
     );
@@ -65,6 +60,37 @@ CREATE TABLE console_keys (
     final second = Database.open(_config(path));
     expect(Repo(second).listConsoleKeys().single.actorUserId, isNull);
     second.close();
+    tmp.deleteSync(recursive: true);
+  });
+
+  test('migration retains old key-binding columns without using them', () {
+    final tmp = Directory.systemTemp.createTempSync('sdsc_key_legacy_');
+    final path = '${tmp.path}/keys.db';
+    final oldDb = sqlite.sqlite3.open(path);
+    oldDb.execute('''
+CREATE TABLE console_keys (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  pubkey TEXT NOT NULL UNIQUE,
+  name TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  actor_user_id INTEGER REFERENCES users(id),
+  bind_challenge_hash TEXT,
+  bind_challenge_expires_at TEXT
+)''');
+    oldDb.execute(
+      "INSERT INTO console_keys (pubkey, bind_challenge_hash) "
+      "VALUES ('legacy-key', 'expired-hash')",
+    );
+    oldDb.close();
+
+    final db = Database.open(_config(path));
+    final columns = db.raw
+        .select('PRAGMA table_info(console_keys)')
+        .map((row) => row['name'] as String)
+        .toSet();
+    expect(columns, containsAll(['actor_user_id', 'bind_challenge_hash']));
+    expect(Repo(db).listConsoleKeys().single.actorUserId, isNull);
+    db.close();
     tmp.deleteSync(recursive: true);
   });
 

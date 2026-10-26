@@ -155,13 +155,12 @@ void main() {
     );
     expect(admin.map((entry) => entry.display), [
       '/all_users - list registered members',
+      '/allocate - run the allocation now',
       '/group_user - show your group\'s member details',
+      '/manual_mark_group_attend - correct an attendance balance in your group',
       '/prompt - send availability prompts now',
       '/remind - remind non-responders now',
       '/set_exp - change a member\'s experience',
-      '/allocate - run the allocation now',
-      '/manual_mark_group_attend - correct an attendance balance in your group',
-      '/bind_key - bind the console app to your admin account',
     ]);
     final gadmin = CommandCatalog.commands(
       isConsole: false,
@@ -172,12 +171,12 @@ void main() {
     expect(gadmin.map((entry) => entry.command), [
       '/add_admin',
       '/add_check',
+      '/assign_group',
       '/demote',
+      '/manual_mark_all_attend',
+      '/rm_allocate_entry',
       '/rm_user',
       '/sync_calendar',
-      '/assign_group',
-      '/rm_allocate_entry',
-      '/manual_mark_all_attend',
       ...admin.map((entry) => entry.command),
     ]);
     expect(gadmin.map((entry) => entry.command), isNot(contains('/hold')));
@@ -190,20 +189,20 @@ void main() {
       tier: null,
     );
     expect(consoleOnly.map((entry) => entry.command), [
-      '/check_status',
-      '/start',
-      '/grid',
-      '/reset_grid',
-      '/set_date',
-      '/reset_date',
-      '/add_key',
-      '/keys',
-      '/rm_key',
-      '/add_global_admin',
-      '/rm_global_admin',
-      '/locations',
-      '/add_location',
       '/add_alias',
+      '/add_global_admin',
+      '/add_key',
+      '/add_location',
+      '/check_status',
+      '/grid',
+      '/keys',
+      '/locations',
+      '/reset_date',
+      '/reset_grid',
+      '/rm_global_admin',
+      '/rm_key',
+      '/set_date',
+      '/start',
     ]);
     expect(
       consoleOnly.map((entry) => entry.command),
@@ -255,20 +254,20 @@ void main() {
     );
     expect(consoleOnly.map((section) => section.title), ['Console']);
     expect(consoleOnly.single.commands.map((entry) => entry.command), [
-      '/check_status',
-      '/start',
-      '/grid',
-      '/reset_grid',
-      '/set_date',
-      '/reset_date',
-      '/add_key',
-      '/keys',
-      '/rm_key',
-      '/add_global_admin',
-      '/rm_global_admin',
-      '/locations',
-      '/add_location',
       '/add_alias',
+      '/add_global_admin',
+      '/add_key',
+      '/add_location',
+      '/check_status',
+      '/grid',
+      '/keys',
+      '/locations',
+      '/reset_date',
+      '/reset_grid',
+      '/rm_global_admin',
+      '/rm_key',
+      '/set_date',
+      '/start',
     ]);
 
     final admin = CommandCatalog.sections(
@@ -280,13 +279,12 @@ void main() {
     expect(admin.map((section) => section.title), ['Admin']);
     expect(admin.single.commands.map((entry) => entry.command), [
       '/all_users',
+      '/allocate',
       '/group_user',
+      '/manual_mark_group_attend',
       '/prompt',
       '/remind',
       '/set_exp',
-      '/allocate',
-      '/manual_mark_group_attend',
-      '/bind_key',
     ]);
 
     final gadmin = CommandCatalog.sections(
@@ -303,20 +301,19 @@ void main() {
       [
         '/add_admin',
         '/add_check',
+        '/assign_group',
         '/demote',
+        '/manual_mark_all_attend',
+        '/rm_allocate_entry',
         '/rm_user',
         '/sync_calendar',
-        '/assign_group',
-        '/rm_allocate_entry',
-        '/manual_mark_all_attend',
         '/all_users',
+        '/allocate',
         '/group_user',
+        '/manual_mark_group_attend',
         '/prompt',
         '/remind',
         '/set_exp',
-        '/allocate',
-        '/manual_mark_group_attend',
-        '/bind_key',
       ],
     );
 
@@ -328,19 +325,19 @@ void main() {
     );
     expect(consoleAdmin.map((section) => section.title), ['Console', 'Admin']);
     expect(consoleAdmin.first.commands.map((entry) => entry.command), [
+      '/add_alias',
+      '/add_global_admin',
+      '/add_key',
+      '/add_location',
       '/check_status',
       '/grid',
-      '/reset_grid',
-      '/set_date',
-      '/reset_date',
-      '/add_key',
       '/keys',
-      '/rm_key',
-      '/add_global_admin',
-      '/rm_global_admin',
       '/locations',
-      '/add_location',
-      '/add_alias',
+      '/reset_date',
+      '/reset_grid',
+      '/rm_global_admin',
+      '/rm_key',
+      '/set_date',
     ]);
     expect(
       consoleAdmin
@@ -372,6 +369,14 @@ void main() {
       ...consoleAdmin,
       ...consoleGlobalAdmin,
     ]) {
+      final commandNames = section.commands
+          .map((entry) => entry.command)
+          .toList();
+      expect(
+        commandNames,
+        orderedEquals([...commandNames]..sort()),
+        reason: '${section.title} commands should be alphabetic',
+      );
       for (final entry in section.commands) {
         expect(entry.usage, isNot(contains('<')));
         expect(entry.usage, isNot(contains('>')));
