@@ -38,6 +38,7 @@ class CommandCatalog {
       '/manual_mark_group_attend',
       'correct an attendance balance in your group',
     ),
+    CommandHelp('/bind_key', 'bind the console app to your admin account'),
   ];
   static const List<CommandHelp> _globalAdmin = [
     CommandHelp('/add_admin', 'promote a registered user', usage: '@handle'),
@@ -66,7 +67,7 @@ class CommandCatalog {
     CommandHelp('/reset_grid', 'return to your console grid'),
     CommandHelp('/set_date', 'set a custom or calendar date', usage: '[date]'),
     CommandHelp('/reset_date', 'return to the real date'),
-    CommandHelp('/add_key', 'register a console app key'),
+    CommandHelp('/add_key', 'register a console app key for signed API access'),
     CommandHelp('/keys', 'list console app keys'),
     CommandHelp('/rm_key', 'remove a console app key', usage: '[key]'),
     CommandHelp(

@@ -1,66 +1,25 @@
 part of '../../repo.dart';
 
 extension RepoUsers on Repo {
-
   sqlite.Database get raw => _db.raw;
-
-  // -------------------------------------------------------- console keys
-
-  List<ConsoleKey> listConsoleKeys() {
-    return [
-      for (final row
-          in raw.select('SELECT * FROM console_keys ORDER BY id'))
-        ConsoleKey(
-          pubkey: row['pubkey'] as String,
-          name: row['name'] as String,
-          createdAt: row['created_at'] as String,
-        ),
-    ];
-  }
-
-  bool hasConsoleKey(String pubkey) =>
-      raw.select(
-        'SELECT 1 FROM console_keys WHERE pubkey = ? LIMIT 1',
-        [pubkey],
-      ).isNotEmpty;
-
-  void addConsoleKey(String pubkey, {String name = ''}) {
-    raw.execute(
-      'INSERT OR IGNORE INTO console_keys (pubkey, name) VALUES (?, ?)',
-      [pubkey, name],
-    );
-  }
-
-  bool removeConsoleKey(String pubkey) {
-    if (!hasConsoleKey(pubkey)) return false;
-    raw.execute(
-      'DELETE FROM console_keys WHERE pubkey = ?',
-      [pubkey],
-    );
-    return true;
-  }
 
   // ---------------------------------------------------------------- users
 
   int? getUser(int id) {
-    final rows = raw.select(
-      'SELECT * FROM users WHERE id = ?',
-      [id],
-    );
+    final rows = raw.select('SELECT * FROM users WHERE id = ?', [id]);
     return rows.isEmpty ? null : User.fromRow(rows.first).id;
   }
 
   User? findUser(int id) {
-    final rows = raw.select(
-      'SELECT * FROM users WHERE id = ?',
-      [id],
-    );
+    final rows = raw.select('SELECT * FROM users WHERE id = ?', [id]);
     if (rows.isEmpty) return null;
     return User.fromRow(rows.first);
   }
 
-  List<User> allUsers() =>
-      raw.select('SELECT * FROM users ORDER BY name').map(User.fromRow).toList();
+  List<User> allUsers() => raw
+      .select('SELECT * FROM users ORDER BY name')
+      .map(User.fromRow)
+      .toList();
 
   /// Users who take part in availability, allocation and messaging. Checkers
   /// and old users are excluded; out-members follow the member flow.
@@ -114,8 +73,7 @@ extension RepoUsers on Repo {
       values.add(user.registeredAt!.toIso8601String());
     }
     final placeholders = List.filled(columns.length, '?').join(', ');
-    raw.execute(
-      '''
+    raw.execute('''
  INSERT INTO users (${columns.join(', ')})
  VALUES ($placeholders)
  ON CONFLICT(id) DO UPDATE SET
@@ -131,24 +89,19 @@ extension RepoUsers on Repo {
    member_tier = excluded.member_tier,
    notification_preference = excluded.notification_preference,
    last_prompt_state = excluded.last_prompt_state
- ''',
-      values,
-    );
+ ''', values);
     return findUser(user.id)!;
   }
 
   void updateExperience(int id, Experience experience) {
-    raw.execute(
-      'UPDATE users SET experience = ? WHERE id = ?',
-      [experience.name, id],
-    );
+    raw.execute('UPDATE users SET experience = ? WHERE id = ?', [
+      experience.name,
+      id,
+    ]);
   }
 
   void updateGroup(int id, String group) {
-    raw.execute(
-      'UPDATE users SET group_id = ? WHERE id = ?',
-      [group, id],
-    );
+    raw.execute('UPDATE users SET group_id = ? WHERE id = ?', [group, id]);
   }
 
   void updateName(int id, String name) {
@@ -157,10 +110,10 @@ extension RepoUsers on Repo {
 
   /// Updates the name a member wants to be called.
   void updatePreferredName(int id, String preferredName) {
-    raw.execute(
-      'UPDATE users SET preferred_name = ? WHERE id = ?',
-      [preferredName, id],
-    );
+    raw.execute('UPDATE users SET preferred_name = ? WHERE id = ?', [
+      preferredName,
+      id,
+    ]);
   }
 
   /// @deprecated Use [updatePreferredName].
@@ -196,24 +149,21 @@ extension RepoUsers on Repo {
   }
 
   void setOcbcStreak(int id, int streak) {
-    raw.execute(
-      'UPDATE users SET ocbc_streak = ? WHERE id = ?',
-      [streak, id],
-    );
+    raw.execute('UPDATE users SET ocbc_streak = ? WHERE id = ?', [streak, id]);
   }
 
   void setNotificationPreference(int id, NotificationPreference preference) {
-    raw.execute(
-      'UPDATE users SET notification_preference = ? WHERE id = ?',
-      [_notificationPreferenceValue(preference), id],
-    );
+    raw.execute('UPDATE users SET notification_preference = ? WHERE id = ?', [
+      _notificationPreferenceValue(preference),
+      id,
+    ]);
   }
 
   void setLastPromptState(int id, LastPromptState state) {
-    raw.execute(
-      'UPDATE users SET last_prompt_state = ? WHERE id = ?',
-      [state.name, id],
-    );
+    raw.execute('UPDATE users SET last_prompt_state = ? WHERE id = ?', [
+      state.name,
+      id,
+    ]);
   }
 
   /// Grants or strips the normal-admin flag. Out-members cannot be promoted.
@@ -270,9 +220,7 @@ extension RepoUsers on Repo {
     final seen = <String>{};
     for (final rawHandle in handles) {
       final trimmed = rawHandle.trim();
-      final handle = (trimmed.startsWith('@')
-              ? trimmed.substring(1)
-              : trimmed)
+      final handle = (trimmed.startsWith('@') ? trimmed.substring(1) : trimmed)
           .toLowerCase();
       if (!RegExp(r'^[A-Za-z0-9_]+$').hasMatch(handle)) {
         return UserRemovalResult.failure(UserRemovalFailure.notFound, handle);
@@ -357,5 +305,4 @@ extension RepoUsers on Repo {
     );
     return rows.isEmpty ? null : User.fromRow(rows.first);
   }
-
 }

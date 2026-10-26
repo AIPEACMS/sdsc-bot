@@ -26,7 +26,7 @@ extension AdminApiRouting on AdminApi {
   /// Returns true if the request is allowed: a known key signed it, or the
   /// bearer token matches (when configured). The message signed by the app is
   /// rebuilt here from the live request so nothing can be swapped.
-  Future<bool> _authorized(
+  Future<({bool allowed, String? keyPubkey})> _authorization(
     HttpRequest req, {
     required String method,
     required String path,
@@ -34,7 +34,8 @@ extension AdminApiRouting on AdminApi {
   }) async {
     final bearer = req.headers.value(HttpHeaders.authorizationHeader);
     if (bearer != null && token != null && bearer == 'Bearer $token') {
-      return true;
+      final signedKeyPresent = req.headers.value('X-SDSC-Pub') != null;
+      if (!signedKeyPresent) return (allowed: true, keyPubkey: null);
     }
 
     final pubB64 = req.headers.value('X-SDSC-Pub');
@@ -42,18 +43,22 @@ extension AdminApiRouting on AdminApi {
     final nonce = req.headers.value('X-SDSC-Nonce');
     final sigB64 = req.headers.value('X-SDSC-Sig');
     if (pubB64 == null || tsRaw == null || nonce == null || sigB64 == null) {
-      return false;
+      return (allowed: false, keyPubkey: null);
     }
 
-    if (!repo.hasConsoleKey(pubB64)) return false;
+    if (!repo.hasConsoleKey(pubB64)) {
+      return (allowed: false, keyPubkey: null);
+    }
 
     final ts = int.tryParse(tsRaw);
-    if (ts == null) return false;
+    if (ts == null) return (allowed: false, keyPubkey: null);
 
     // Reject stale or clock-skewed timestamps, and replay of a nonce.
     final skew = DateTime.now().millisecondsSinceEpoch - ts;
-    if (skew.abs() > 5 * 60 * 1000) return false;
-    if (_nonces.contains(nonce)) return false;
+    if (skew.abs() > 5 * 60 * 1000) {
+      return (allowed: false, keyPubkey: null);
+    }
+    if (_nonces.contains(nonce)) return (allowed: false, keyPubkey: null);
     _nonces.remember(nonce, ts);
 
     final message = KeyAuth.message(
@@ -63,11 +68,12 @@ extension AdminApiRouting on AdminApi {
       nonce: nonce,
       bodyHash: KeyAuth.bodyHash(bodyBytes),
     );
-    return KeyAuth.verifySignature(
+    final verified = await KeyAuth.verifySignature(
       pubkeyB64: pubB64,
       signatureB64: sigB64,
       message: utf8.encode(message),
     );
+    return (allowed: verified, keyPubkey: verified ? pubB64 : null);
   }
 
   Future<void> _handle(HttpRequest req) async {
@@ -88,16 +94,21 @@ extension AdminApiRouting on AdminApi {
         return;
       }
 
-      if (!await _authorized(
+      final auth = await _authorization(
         req,
         method: method,
         path: path,
         bodyBytes: bodyBytes,
-      )) {
+      );
+      if (!auth.allowed) {
         await _send(req, 401, {'ok': false, 'error': 'unauthorized'});
         return;
       }
-      final route = await _route(req, utf8.decode(bodyBytes));
+      final route = await _route(
+        req,
+        utf8.decode(bodyBytes),
+        keyPubkey: auth.keyPubkey,
+      );
       await _send(req, route.$1, route.$2);
     } catch (e) {
       await _send(req, 500, {'ok': false, 'error': 'internal: $e'});
@@ -112,7 +123,11 @@ extension AdminApiRouting on AdminApi {
     return bytes;
   }
 
-  Future<(int, Object)> _route(HttpRequest req, String bodyText) async {
+  Future<(int, Object)> _route(
+    HttpRequest req,
+    String bodyText, {
+    String? keyPubkey,
+  }) async {
     final segs = req.uri.pathSegments;
     if (segs.length < 2 || segs[0] != 'api') {
       return (404, {'ok': false, 'error': 'not found'});
@@ -219,6 +234,22 @@ extension AdminApiRouting on AdminApi {
       case 'attendance':
         if (method == 'GET') return (200, _attendanceBody());
         if (method == 'POST') return _toggleAttendance(bodyText);
+      case 'console-keys':
+        if (method == 'POST' &&
+            segs.length == 3 &&
+            segs[2] == 'bind-challenge') {
+          return _createConsoleKeyBindChallenge(keyPubkey);
+        }
+      case 'attendance-corrections':
+        if (segs.length == 3 && segs[2] == 'targets' && method == 'GET') {
+          return _attendanceCorrectionTargets(keyPubkey);
+        }
+        if (segs.length == 3 && segs[2] == 'preview' && method == 'POST') {
+          return _attendanceCorrectionPreview(keyPubkey, bodyText);
+        }
+        if (segs.length == 3 && segs[2] == 'apply' && method == 'POST') {
+          return _attendanceCorrectionApply(keyPubkey, bodyText);
+        }
       case 'allocations':
         if (method == 'POST' &&
             segs.length == 3 &&

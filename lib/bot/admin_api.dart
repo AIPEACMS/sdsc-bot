@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
+import 'package:crypto/crypto.dart' show sha256;
 import 'package:televerse/televerse.dart';
 import 'package:televerse/telegram.dart' hide Location, User;
 
@@ -66,6 +68,10 @@ import '../core/schedule.dart';
 ///   POST  /api/broadcast                -> { "text": "..." } (to all members)
 ///   GET   /api/attendance               -> sessions + allocated members + attendance eligibility/flags
 ///   POST  /api/attendance               -> { "sessionId": `id`, "userId": `id` } (toggle)
+///   POST  /api/console-keys/bind-challenge -> one-time code for /bind_key
+///   GET   /api/attendance-corrections/targets -> eligible users for the key owner
+///   POST  /api/attendance-corrections/preview -> validated correction snapshot
+///   POST  /api/attendance-corrections/apply -> apply a confirmed snapshot once
 ///   GET   /api/logs                     -> { "lines": [...] }
 ///   POST  /api/log-retention            -> { "days": 14 }
 ///   GET   /api/locations                -> approved + pending locations + aliases
@@ -80,6 +86,7 @@ part 'admin_api/removals.dart';
 part 'admin_api/part_05.dart';
 part 'admin_api/session_schedules.dart';
 part 'admin_api/session_schedule_helpers.dart';
+part 'admin_api/attendance_corrections.dart';
 
 Map<String, dynamic> _jsonBody(String text) {
   if (text.trim().isEmpty) return {};
@@ -108,6 +115,7 @@ class _AdminApiBase {
   Future<void> Function(LocationInfo location)? onLocationApproved;
 
   final NonceGuard _nonces = NonceGuard();
+  final Random _secureRandom = Random.secure();
 
   HttpServer? _server;
 

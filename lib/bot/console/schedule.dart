@@ -124,9 +124,50 @@ extension ConsoleSchedule on Console {
     LogRing.log('console: registered console key ${pubkey.substring(0, 12)}…');
     await ctx.reply(
       '✅ Console key registered.\n'
-      'The desktop app can now control the bot with signed requests.',
-      parseMode: ParseMode.html,
+      'Run /bind_key from the admin Telegram account to enable attendance corrections.',
     );
+  }
+
+  Future<void> _bindKey(Context ctx) async {
+    final userId = ctx.from?.id;
+    final actor = userId == null ? null : repo.findUser(userId);
+    if (userId == null ||
+        actor == null ||
+        (!actor.isAdmin && !actor.isGlobalAdmin)) {
+      await ctx.reply('Only an admin or global admin can bind a console key.');
+      return;
+    }
+    state.pendingArg[userId] = PendingArg('bindkey');
+    await ctx.reply(
+      'In the console, request a key-binding code. Paste the code here; it expires in 10 minutes.',
+    );
+  }
+
+  Future<void> onBindKeyText(Context ctx, int userId, String text) async {
+    final actor = repo.findUser(userId);
+    if (actor == null || (!actor.isAdmin && !actor.isGlobalAdmin)) {
+      await ctx.reply('Only an admin or global admin can bind a console key.');
+      return;
+    }
+    final result = repo.redeemConsoleKeyBindingChallenge(
+      text.trim(),
+      actorUserId: userId,
+      now: config.toLocal(Config.nowUtc()).toIso8601String(),
+    );
+    final message = switch (result) {
+      ConsoleKeyBindingResult.success =>
+        '✅ This console app key is now bound to your admin account.',
+      ConsoleKeyBindingResult.expiredCode =>
+        'That code expired. Request a new code in the console and try again.',
+      ConsoleKeyBindingResult.notAdmin =>
+        'Only an admin or global admin can bind a console key.',
+      ConsoleKeyBindingResult.alreadyBound =>
+        'This key is already bound and cannot be reassigned. Remove it and register a new key instead.',
+      ConsoleKeyBindingResult.invalidCode ||
+      ConsoleKeyBindingResult.missingKey =>
+        'That code is invalid or already used. Request a new code in the console.',
+    };
+    await ctx.reply(message);
   }
 
   Future<void> _keys(Context ctx) async {

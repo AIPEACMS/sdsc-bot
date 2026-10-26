@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
   PRIMARY KEY (weekend_start, day, slot, location_key)
 );
 ''');
+    _migrateConsoleKeySchema(db);
     // Schedule settings are durable and seeded once. The transaction keeps a
     // restart from exposing only part of the schedule. The six attendance and
     // absence defaults are additive, so existing values always take precedence.
