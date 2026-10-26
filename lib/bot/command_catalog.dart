@@ -34,6 +34,10 @@ class CommandCatalog {
     CommandHelp('/remind', 'remind non-responders now'),
     CommandHelp('/set_exp', 'change a member\'s experience'),
     CommandHelp('/allocate', 'run the allocation now'),
+    CommandHelp(
+      '/manual_mark_group_attend',
+      'correct an attendance balance in your group',
+    ),
   ];
   static const List<CommandHelp> _globalAdmin = [
     CommandHelp('/add_admin', 'promote a registered user', usage: '@handle'),
@@ -49,6 +53,10 @@ class CommandCatalog {
     CommandHelp(
       '/rm_allocate_entry',
       'remove selected current-window allocations',
+    ),
+    CommandHelp(
+      '/manual_mark_all_attend',
+      'correct attendance balance for active members',
     ),
   ];
   static const List<CommandHelp> _console = [

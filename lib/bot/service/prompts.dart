@@ -132,6 +132,88 @@ extension CycleServicePrompts on CycleService {
           user.lastPromptState != LastPromptState.responded,
   };
 
+  /// Re-evaluates prompt eligibility after a persistent attendance correction.
+  /// The normal same-day marker prevents a correction from producing a second
+  /// availability message on the same local day.
+  Future<void> reconcileAttendanceCorrection(User user) async {
+    final now = config.toLocal(Config.nowUtc());
+    final window = repo.windowFor(now, schedule: repo.readSchedule());
+    final today = DateTime(now.year, now.month, now.day);
+    final sentToday = repo.messageSentOnDay(user.id, 'prompt', today);
+    final eligible =
+        repo.activeOutreachEnabled('prompt') &&
+        (!sentToday || state.availabilityMessages[user.id] != null) &&
+        !repo.isQuiet(user.id, window.sat0) &&
+        _shouldPrompt(user) &&
+        now.isBefore(window.deadline0);
+    if (eligible) {
+      final text = promptFor(user, window);
+      if (text != null) {
+        await showAvailability(user, window, text, allowSend: !sentToday);
+        if (!sentToday) {
+          repo.markMessageSent(user.id, 'prompt', today);
+          repo.setLastPromptState(user.id, LastPromptState.prompted);
+        }
+      }
+    }
+    await _reconcileAbsenceNotification(user, today);
+  }
+
+  Future<void> _reconcileAbsenceNotification(User user, DateTime today) async {
+    final admin = repo.groupAdmin(user.group);
+    if (admin == null) return;
+    if (!repo.messageSentOnDay(admin.id, 'absent', today)) return;
+    final existingMessageId = repo.messageIdSentOnDay(
+      admin.id,
+      'absent',
+      today,
+    );
+    if (existingMessageId == null &&
+        !repo.claimMessageIdUpdateOnDay(admin.id, 'absent', today)) {
+      return;
+    }
+    final latestSat = repo.windowFor(today, schedule: repo.readSchedule()).sat0;
+    final absent = <User>[];
+    for (final member in repo.activeUsers()) {
+      if (member.memberTier == MemberTier.outMember) continue;
+      if (repo.groupAdmin(member.group)?.id != admin.id) continue;
+      if (repo.consecutiveAbsentWeeks(member.id, latestSat) >= 4) {
+        absent.add(member);
+      }
+    }
+    final entries = absent.map((member) {
+      final streak = repo.consecutiveAbsentWeeks(member.id, latestSat);
+      return '${member.name} — $streak weeks';
+    }).toList();
+    final list = entries.take(6).join('\n');
+    final more = entries.length > 6 ? '\n… and ${entries.length - 6} more' : '';
+    final status = entries.isEmpty
+        ? 'No members currently meet the absence threshold.'
+        : messages.msgAbsent(list, more: more);
+    final text = '🔄 <b>Updated absence status</b>\n$status';
+    try {
+      if (existingMessageId != null) {
+        await bot.api.editMessageText(
+          ChatID(admin.id),
+          existingMessageId,
+          text,
+          parseMode: ParseMode.html,
+        );
+      } else {
+        final sent = await bot.api.sendMessage(
+          ChatID(admin.id),
+          text,
+          parseMode: ParseMode.html,
+        );
+        repo.setMessageIdSentOnDay(admin.id, 'absent', today, sent.messageId);
+      }
+    } catch (error) {
+      LogRing.log(
+        'absent ${admin.id}: same-day status reconciliation failed: $error',
+      );
+    }
+  }
+
   bool _shouldRemind(User user) => switch (user.notificationPreference) {
     NotificationPreference.weekly => true,
     NotificationPreference.never => false,

@@ -8,6 +8,8 @@ class User {
   final bool isAdmin;
   final bool isGlobalAdmin;
   final int ocbcStreak; // consecutive OCBC sessions attended
+  final int attendanceBalance;
+  final DateTime? lastAttendedDate;
   final DateTime? registeredAt;
 
   final String _fullName;
@@ -51,6 +53,8 @@ class User {
     this.isAdmin = false,
     this.isGlobalAdmin = false,
     this.ocbcStreak = 0,
+    this.attendanceBalance = 0,
+    this.lastAttendedDate,
     this.registeredAt,
     String fullName = '',
     this.preferredName = '',
@@ -59,7 +63,8 @@ class User {
     this.memberTier = MemberTier.member,
     NotificationPreference? notificationPreference,
     this.lastPromptState = LastPromptState.none,
-  }) : notificationPreference = notificationPreference ??
+  }) : notificationPreference =
+           notificationPreference ??
            (memberTier == MemberTier.outMember
                ? NotificationPreference.never
                : NotificationPreference.weekly),
@@ -74,6 +79,9 @@ class User {
     bool? isAdmin,
     bool? isGlobalAdmin,
     int? ocbcStreak,
+    int? attendanceBalance,
+    DateTime? lastAttendedDate,
+    bool clearLastAttendedDate = false,
     String? preferredName,
     String? memberTier,
     String? fullName,
@@ -91,6 +99,10 @@ class User {
       isAdmin: isAdmin ?? this.isAdmin,
       isGlobalAdmin: isGlobalAdmin ?? this.isGlobalAdmin,
       ocbcStreak: ocbcStreak ?? this.ocbcStreak,
+      attendanceBalance: attendanceBalance ?? this.attendanceBalance,
+      lastAttendedDate: clearLastAttendedDate
+          ? null
+          : lastAttendedDate ?? this.lastAttendedDate,
       registeredAt: registeredAt ?? this.registeredAt,
       fullName: fullName ?? _fullName,
       preferredName: preferredName ?? this.preferredName,
@@ -121,6 +133,10 @@ class User {
     isAdmin: (row['is_admin'] as int) == 1,
     isGlobalAdmin: (row['is_global_admin'] as int? ?? 0) == 1,
     ocbcStreak: (row['ocbc_streak'] as int? ?? 0),
+    attendanceBalance: (row['attendance_balance'] as int? ?? 0),
+    lastAttendedDate: row['last_attended_date'] == null
+        ? null
+        : DateTime.tryParse(row['last_attended_date'] as String),
     registeredAt: row['created_at'] == null
         ? null
         : DateTime.tryParse(row['created_at'] as String),
@@ -138,12 +154,13 @@ class User {
   ) {
     final value = row['notification_preference'] as String?;
     return switch (value) {
-      'every-other' || 'every_other' || 'everyOther' =>
-        NotificationPreference.everyOther,
+      'every-other' ||
+      'every_other' ||
+      'everyOther' => NotificationPreference.everyOther,
       'never' => NotificationPreference.never,
       _ => defaultNotificationPreference(
-          (row['member_tier'] as String?) ?? MemberTier.member,
-        ),
+        (row['member_tier'] as String?) ?? MemberTier.member,
+      ),
     };
   }
 

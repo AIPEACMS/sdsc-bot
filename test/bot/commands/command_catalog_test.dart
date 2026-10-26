@@ -94,6 +94,7 @@ void main() {
       '/remind - remind non-responders now',
       '/set_exp - change a member\'s experience',
       '/allocate - run the allocation now',
+      '/manual_mark_group_attend - correct an attendance balance in your group',
     ]);
     final gadmin = CommandCatalog.commands(
       isConsole: false,
@@ -109,6 +110,7 @@ void main() {
       '/sync_calendar',
       '/assign_group',
       '/rm_allocate_entry',
+      '/manual_mark_all_attend',
       ...admin.map((entry) => entry.command),
     ]);
     expect(gadmin.map((entry) => entry.command), isNot(contains('/hold')));
@@ -283,6 +285,7 @@ void main() {
       '/remind',
       '/set_exp',
       '/allocate',
+      '/manual_mark_group_attend',
     ]);
 
     final gadmin = CommandCatalog.sections(
@@ -300,12 +303,14 @@ void main() {
       '/sync_calendar',
       '/assign_group',
       '/rm_allocate_entry',
+      '/manual_mark_all_attend',
       '/all_users',
       '/group_user',
       '/prompt',
       '/remind',
       '/set_exp',
       '/allocate',
+      '/manual_mark_group_attend',
     ]);
 
     final consoleAdmin = CommandCatalog.sections(

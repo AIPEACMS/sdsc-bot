@@ -4,6 +4,18 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.11.0] - 2026-10-26
+
+### Added
+
+- Added admin attendance-balance corrections with group and global-admin scopes,
+  optional last-attended dates, and persistent attendance summaries.
+
+### Changed
+
+- Reconciled last-attended dates after attendance reversals and refreshed
+  legacy same-day absence notices without duplicating the original notice.
+
 ## [4.10.1] - 2026-10-26
 
 ### Changed

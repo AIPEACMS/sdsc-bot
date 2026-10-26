@@ -40,6 +40,8 @@ class _FlowsBase {
   Future<void> Function()? onAvailabilitySaved;
   Future<void> Function(Context ctx, int userId, String text)? onBroadcastText;
   Future<void> Function(Context ctx, int userId, String text)? onAddUserText;
+  Future<void> Function(Context ctx, int userId, String text)?
+  onManualAttendanceText;
   Future<void> Function(Context ctx, int userId, String text)? onRemoveUserText;
   void Function(int userId, String command)? onPendingInputCleared;
 
@@ -73,7 +75,7 @@ class _FlowsBase {
   /// Set by main.dart: one alias typed in the console's /add_alias wizard.
   Future<void> Function(Context ctx, int userId, String text)? onAddAliasText;
   Future<void> Function(Context ctx, int userId, String text)?
-      onAssignGroupText;
+  onAssignGroupText;
 }
 
 class Flows extends _FlowsBase {

@@ -262,11 +262,71 @@ ON CONFLICT(username) DO UPDATE SET
     return rows.first['sent_at'] as String?;
   }
 
-  void markMessageSent(int userId, String kind, DateTime day) {
+  int? messageIdSentOnDay(int userId, String kind, DateTime day) {
+    final rows = raw.select(
+      'SELECT telegram_message_id FROM sent_messages '
+      'WHERE user_id = ? AND kind = ? AND day = ?',
+      [userId, kind, _dayKey(day)],
+    );
+    return rows.isEmpty ? null : rows.first['telegram_message_id'] as int?;
+  }
+
+  /// Claims the one permitted recovery send for a legacy message row that has
+  /// no Telegram ID. The claim is durable before network I/O to prevent races
+  /// or retries from creating duplicate correction messages.
+  bool claimMessageIdUpdateOnDay(int userId, String kind, DateTime day) {
+    final tx = raw;
+    tx.execute('BEGIN IMMEDIATE');
+    try {
+      final rows = tx.select(
+        'SELECT telegram_message_id, message_id_update_attempted '
+        'FROM sent_messages WHERE user_id = ? AND kind = ? AND day = ?',
+        [userId, kind, _dayKey(day)],
+      );
+      if (rows.isEmpty ||
+          rows.first['telegram_message_id'] != null ||
+          (rows.first['message_id_update_attempted'] as int) != 0) {
+        tx.execute('ROLLBACK');
+        return false;
+      }
+      tx.execute(
+        'UPDATE sent_messages SET message_id_update_attempted = 1 '
+        'WHERE user_id = ? AND kind = ? AND day = ? '
+        'AND telegram_message_id IS NULL AND message_id_update_attempted = 0',
+        [userId, kind, _dayKey(day)],
+      );
+      tx.execute('COMMIT');
+      return true;
+    } catch (_) {
+      tx.execute('ROLLBACK');
+      rethrow;
+    }
+  }
+
+  void setMessageIdSentOnDay(
+    int userId,
+    String kind,
+    DateTime day,
+    int telegramMessageId,
+  ) {
     raw.execute(
-      'INSERT OR IGNORE INTO sent_messages (user_id, kind, day, sent_at) '
-      'VALUES (?, ?, ?, ?)',
-      [userId, kind, _dayKey(day), _sgtNow()],
+      'UPDATE sent_messages SET telegram_message_id = ? '
+      'WHERE user_id = ? AND kind = ? AND day = ?',
+      [telegramMessageId, userId, kind, _dayKey(day)],
+    );
+  }
+
+  void markMessageSent(
+    int userId,
+    String kind,
+    DateTime day, {
+    int? telegramMessageId,
+  }) {
+    raw.execute(
+      'INSERT OR IGNORE INTO sent_messages '
+      '(user_id, kind, day, sent_at, telegram_message_id) '
+      'VALUES (?, ?, ?, ?, ?)',
+      [userId, kind, _dayKey(day), _sgtNow(), telegramMessageId],
     );
   }
 

@@ -32,6 +32,8 @@ late Console console;
 late HoldGate holdGate;
 late List<Map<String, dynamic>> sent;
 late List<Map<String, dynamic>> edited;
+bool failNextSendMessage = false;
+bool failNextEditMessageText = false;
 late HttpServer server;
 late Bot bot;
 
@@ -61,6 +63,8 @@ Future<void> setUpGrid() async {
   state = BotState();
   sent = <Map<String, dynamic>>[];
   edited = <Map<String, dynamic>>[];
+  failNextSendMessage = false;
+  failNextEditMessageText = false;
   final readiness = BotReadiness();
   server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   server.listen((req) async {
@@ -81,6 +85,15 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/sendMessage')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       sent.add(body as Map<String, dynamic>);
+      if (failNextSendMessage) {
+        failNextSendMessage = false;
+        await _json(req, {
+          'ok': false,
+          'error_code': 500,
+          'description': 'send failed',
+        }, status: 500);
+        return;
+      }
       await _json(req, {
         'ok': true,
         'result': {
@@ -107,6 +120,15 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/editMessageText')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       edited.add(body as Map<String, dynamic>);
+      if (failNextEditMessageText) {
+        failNextEditMessageText = false;
+        await _json(req, {
+          'ok': false,
+          'error_code': 500,
+          'description': 'edit failed',
+        }, status: 500);
+        return;
+      }
       await _json(req, {
         'ok': true,
         'result': {

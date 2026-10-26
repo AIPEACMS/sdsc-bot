@@ -92,12 +92,17 @@ extension CycleServiceAllocation on CycleService {
           ? '\n… and ${entry.value.length - 6} more'
           : '';
       try {
-        await bot.api.sendMessage(
+        final sent = await bot.api.sendMessage(
           ChatID(entry.key),
           messages.msgAbsent(list, more: more),
           parseMode: ParseMode.html,
         );
-        repo.markMessageSent(entry.key, 'absent', eventDay);
+        repo.markMessageSent(
+          entry.key,
+          'absent',
+          eventDay,
+          telegramMessageId: sent.messageId,
+        );
       } catch (_) {
         // admin unreachable; the next configured absence event retries
       }
@@ -176,7 +181,12 @@ extension CycleServiceAllocation on CycleService {
   }
 
   /// Sends (or edits an existing) availability keyboard message to [user].
-  Future<void> showAvailability(User user, RollingWindow w, String text) async {
+  Future<void> showAvailability(
+    User user,
+    RollingWindow w,
+    String text, {
+    bool allowSend = true,
+  }) async {
     // The window's sessions must exist before we can render them.
     for (final sat in [w.sat0, w.sat1]) {
       repo.ensureSessionsForWeekend(
@@ -232,8 +242,11 @@ extension CycleServiceAllocation on CycleService {
       } catch (error) {
         LogRing.log('availability ${user.id}: picker edit failed: $error');
         state.availabilityMessages.remove(user.id);
+        if (!allowSend) return;
       }
     }
+
+    if (!allowSend) return;
 
     try {
       final msg = await bot.api.sendMessage(

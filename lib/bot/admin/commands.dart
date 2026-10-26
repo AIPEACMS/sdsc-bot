@@ -45,6 +45,13 @@ extension AdminCommands on Admin {
     );
     commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
     commandBoth(bot, state, 'confirm', _guard(_confirm), label: 'mark-attend');
+    state.registerCommand('manual_mark_all_attend');
+    bot.command(
+      'manual_mark_all_attend',
+      _guardGlobalAdmin(_manualAllAttendance),
+    );
+    state.registerCommand('manual_mark_group_attend');
+    bot.command('manual_mark_group_attend', _guard(_manualGroupAttendance));
     commandBoth(
       bot,
       state,
@@ -84,6 +91,8 @@ extension AdminCommands on Admin {
         'prompt',
         'remind',
         'admincancel',
+        'manualatt',
+        'manualattconfirm',
       };
       if (mine.contains(head)) {
         await _onAdminCallback(ctx);
@@ -98,6 +107,19 @@ extension AdminCommands on Admin {
     if (userId == null) return false;
     final user = repo.findUser(userId);
     return user?.isAdmin == true || user?.isGlobalAdmin == true;
+  }
+
+  void Function(Context) _guardGlobalAdmin(
+    Future<void> Function(Context) handler,
+  ) {
+    return (ctx) async {
+      final user = ctx.from == null ? null : repo.findUser(ctx.from!.id);
+      if (user?.isGlobalAdmin != true) {
+        await ctx.reply('You are not authorized to use this command.');
+        return;
+      }
+      await handler(ctx);
+    };
   }
 
   void Function(Context) _guard(Future<void> Function(Context) handler) {

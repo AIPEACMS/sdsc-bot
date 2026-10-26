@@ -280,7 +280,8 @@ void main() {
         '/prompt - send availability prompts now\n'
         '/remind - remind non-responders now\n'
         '/set_exp - change a member\'s experience\n'
-        '/allocate - run the allocation now',
+        '/allocate - run the allocation now\n'
+        '/manual_mark_group_attend - correct an attendance balance in your group',
       );
       expect(adminCommands, isNot(contains('<b>Member</b>')));
       expect(adminCommands, isNot(contains('/groupstatus')));
