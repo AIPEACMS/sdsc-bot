@@ -23,10 +23,10 @@ extension AdminApiRouting on AdminApi {
     _server = null;
   }
 
-  /// Returns true if the request is allowed: a known key signed it, or the
-  /// bearer token matches (when configured). The message signed by the app is
-  /// rebuilt here from the live request so nothing can be swapped.
-  Future<({bool allowed, String? keyPubkey})> _authorization(
+  /// Verifies a registered key or the configured bearer fallback. A key
+  /// assigned to anyone except the configured console is rejected here for
+  /// every signed API route, not only attendance corrections.
+  Future<({bool allowed, String? keyPubkey, String? error})> _authorization(
     HttpRequest req, {
     required String method,
     required String path,
@@ -35,7 +35,9 @@ extension AdminApiRouting on AdminApi {
     final bearer = req.headers.value(HttpHeaders.authorizationHeader);
     if (bearer != null && token != null && bearer == 'Bearer $token') {
       final signedKeyPresent = req.headers.value('X-SDSC-Pub') != null;
-      if (!signedKeyPresent) return (allowed: true, keyPubkey: null);
+      if (!signedKeyPresent) {
+        return (allowed: true, keyPubkey: null, error: null);
+      }
     }
 
     final pubB64 = req.headers.value('X-SDSC-Pub');
@@ -43,22 +45,26 @@ extension AdminApiRouting on AdminApi {
     final nonce = req.headers.value('X-SDSC-Nonce');
     final sigB64 = req.headers.value('X-SDSC-Sig');
     if (pubB64 == null || tsRaw == null || nonce == null || sigB64 == null) {
-      return (allowed: false, keyPubkey: null);
+      return (allowed: false, keyPubkey: null, error: null);
     }
 
     if (!repo.hasConsoleKey(pubB64)) {
-      return (allowed: false, keyPubkey: null);
+      return (allowed: false, keyPubkey: null, error: null);
     }
 
     final ts = int.tryParse(tsRaw);
-    if (ts == null) return (allowed: false, keyPubkey: null);
+    if (ts == null) {
+      return (allowed: false, keyPubkey: null, error: null);
+    }
 
     // Reject stale or clock-skewed timestamps, and replay of a nonce.
     final skew = DateTime.now().millisecondsSinceEpoch - ts;
     if (skew.abs() > 5 * 60 * 1000) {
-      return (allowed: false, keyPubkey: null);
+      return (allowed: false, keyPubkey: null, error: null);
     }
-    if (_nonces.contains(nonce)) return (allowed: false, keyPubkey: null);
+    if (_nonces.contains(nonce)) {
+      return (allowed: false, keyPubkey: null, error: null);
+    }
     _nonces.remember(nonce, ts);
 
     final message = KeyAuth.message(
@@ -73,7 +79,18 @@ extension AdminApiRouting on AdminApi {
       signatureB64: sigB64,
       message: utf8.encode(message),
     );
-    return (allowed: verified, keyPubkey: verified ? pubB64 : null);
+    if (!verified) return (allowed: false, keyPubkey: null, error: null);
+    final key = repo.consoleKeyIdentity(pubB64);
+    if (key == null) return (allowed: false, keyPubkey: null, error: null);
+    if (key.actorUserId != null && key.actorUserId != config.consoleId) {
+      return (
+        allowed: false,
+        keyPubkey: pubB64,
+        error:
+            'This key is registered to an admin account, not the configured console. Remove it and register a new key from the console account.',
+      );
+    }
+    return (allowed: true, keyPubkey: pubB64, error: null);
   }
 
   Future<void> _handle(HttpRequest req) async {
@@ -101,7 +118,10 @@ extension AdminApiRouting on AdminApi {
         bodyBytes: bodyBytes,
       );
       if (!auth.allowed) {
-        await _send(req, 401, {'ok': false, 'error': 'unauthorized'});
+        await _send(req, auth.error == null ? 401 : 403, {
+          'ok': false,
+          'error': auth.error ?? 'unauthorized',
+        });
         return;
       }
       final route = await _route(
@@ -234,12 +254,6 @@ extension AdminApiRouting on AdminApi {
       case 'attendance':
         if (method == 'GET') return (200, _attendanceBody());
         if (method == 'POST') return _toggleAttendance(bodyText);
-      case 'console-keys':
-        if (method == 'POST' &&
-            segs.length == 3 &&
-            segs[2] == 'bind-challenge') {
-          return _createConsoleKeyBindChallenge(keyPubkey);
-        }
       case 'attendance-corrections':
         if (segs.length == 3 && segs[2] == 'targets' && method == 'GET') {
           return _attendanceCorrectionTargets(keyPubkey);

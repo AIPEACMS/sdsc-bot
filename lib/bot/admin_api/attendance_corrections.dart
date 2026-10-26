@@ -2,7 +2,6 @@ part of '../admin_api.dart';
 
 extension AdminApiAttendanceCorrections on AdminApi {
   static const _previewLifetime = Duration(minutes: 5);
-  static const _challengeLifetime = Duration(minutes: 10);
 
   String _randomToken(int byteCount) => base64UrlEncode(
     List<int>.generate(byteCount, (_) => _secureRandom.nextInt(256)),
@@ -33,92 +32,23 @@ extension AdminApiAttendanceCorrections on AdminApi {
     return date;
   }
 
-  Future<(int, Object)> _createConsoleKeyBindChallenge(String? pubkey) async {
-    if (pubkey == null) {
-      return (
-        403,
-        {
-          'ok': false,
-          'error': 'Use the registered console key to request a binding code.',
-        },
-      );
-    }
-    final code = _randomToken(24);
-    final now = config.toLocal(Config.nowUtc());
-    final expiresAt = now.add(_challengeLifetime);
-    final result = repo.createConsoleKeyBindingChallenge(
-      pubkey,
-      challengeHash: _tokenHash(code),
-      expiresAt: expiresAt.toIso8601String(),
-    );
-    if (result == ConsoleKeyBindingResult.alreadyBound) {
-      return (
-        409,
-        {
-          'ok': false,
-          'error':
-              'This console key is already bound. Remove and register a new key to change its owner.',
-        },
-      );
-    }
-    if (result != ConsoleKeyBindingResult.success) {
-      return (
-        401,
-        {'ok': false, 'error': 'This console key is not registered.'},
-      );
-    }
-    return (
-      200,
-      {
-        'ok': true,
-        'code': code,
-        'expiresAt': expiresAt.toIso8601String(),
-        'instruction':
-            'Copy this code, then send /bind_key in Telegram and paste it. It expires in 10 minutes.',
-      },
-    );
-  }
-
-  ({int keyId, User? actor})? _correctionOwner(String? pubkey) {
+  int? _consoleKeyId(String? pubkey) {
     if (pubkey == null) return null;
-    final identity = repo.consoleKeyIdentity(pubkey);
-    final actorId = identity?.actorUserId;
-    if (identity == null || actorId == null) return null;
-    final actor = repo.findUser(actorId);
-    return (keyId: identity.id, actor: actor);
+    return repo.consoleKeyIdentity(pubkey)?.id;
   }
 
-  (int, Object) _unboundKeyResponse() => (
+  (int, Object) _consoleKeyRequiredResponse() => (
     403,
     {
       'ok': false,
-      'error':
-          'This console key is not bound to an admin. In the console, request a binding code, then run /bind_key in Telegram and paste it.',
-    },
-  );
-
-  (int, Object) _inactiveOwnerResponse() => (
-    403,
-    {
-      'ok': false,
-      'error':
-          'The admin account bound to this key is no longer eligible. Ask a global admin to remove the key and register a replacement.',
+      'error': 'Use a registered console key for attendance corrections.',
     },
   );
 
   Future<(int, Object)> _attendanceCorrectionTargets(String? pubkey) async {
-    final owner = _correctionOwner(pubkey);
-    if (owner == null) return _unboundKeyResponse();
-    final actor = owner.actor;
-    if (actor == null || (!actor.isAdmin && !actor.isGlobalAdmin)) {
-      return _inactiveOwnerResponse();
-    }
+    if (_consoleKeyId(pubkey) == null) return _consoleKeyRequiredResponse();
     final users = repo.activeUsers().where((user) {
-      if (user.memberTier != MemberTier.member) return false;
-      if (actor.isGlobalAdmin) return true;
-      return actor.isAdmin &&
-          actor.group.isNotEmpty &&
-          user.group == actor.group;
+      return user.memberTier == MemberTier.member;
     });
     final targets = [
       for (final user in users)
@@ -136,9 +66,7 @@ extension AdminApiAttendanceCorrections on AdminApi {
       {
         'ok': true,
         'serverLocalDate': _dateOnly(today),
-        'scopes': actor.isGlobalAdmin
-            ? ['all', if (actor.group.isNotEmpty) 'group']
-            : ['group'],
+        'scopes': ['all'],
         'targets': targets,
       },
     );
@@ -148,12 +76,8 @@ extension AdminApiAttendanceCorrections on AdminApi {
     String? pubkey,
     String bodyText,
   ) async {
-    final owner = _correctionOwner(pubkey);
-    if (owner == null) return _unboundKeyResponse();
-    if (owner.actor == null ||
-        (!owner.actor!.isAdmin && !owner.actor!.isGlobalAdmin)) {
-      return _inactiveOwnerResponse();
-    }
+    final keyId = _consoleKeyId(pubkey);
+    if (keyId == null) return _consoleKeyRequiredResponse();
     final Map<String, dynamic> body;
     try {
       body = _jsonBody(bodyText);
@@ -177,26 +101,10 @@ extension AdminApiAttendanceCorrections on AdminApi {
     final targetId = body['targetId'] as int;
     final delta = body['delta'] as int;
     final scope = body['scope'] as String;
-    final actor = owner.actor!;
-    if (scope != 'all' && scope != 'group') {
-      return (400, {'ok': false, 'error': 'Scope must be all or group.'});
-    }
-    if (scope == 'all' && !actor.isGlobalAdmin) {
-      return (
-        403,
-        {'ok': false, 'error': 'Only a global admin can correct all members.'},
-      );
-    }
-    if (scope == 'group' && (!actor.isAdmin && !actor.isGlobalAdmin)) {
-      return (403, {'ok': false, 'error': 'An admin account is required.'});
-    }
-    if (scope == 'group' && delta < 0) {
+    if (scope != 'all') {
       return (
         400,
-        {
-          'ok': false,
-          'error': 'Group attendance corrections cannot reduce the balance.',
-        },
+        {'ok': false, 'error': 'Only the console-wide all scope is supported.'},
       );
     }
     if (delta < -1000000000 || delta > 1000000000) {
@@ -206,9 +114,7 @@ extension AdminApiAttendanceCorrections on AdminApi {
     final inScope =
         target != null &&
         repo.activeUsers().any((user) => user.id == target.id) &&
-        target.memberTier == MemberTier.member &&
-        (scope == 'all' ||
-            (actor.group.isNotEmpty && target.group == actor.group));
+        target.memberTier == MemberTier.member;
     if (!inScope) {
       return (
         404,
@@ -237,10 +143,8 @@ extension AdminApiAttendanceCorrections on AdminApi {
     final expiresAt = now.add(_previewLifetime);
     repo.storeAttendanceCorrectionPreview(
       tokenHash: _tokenHash(token),
-      consoleKeyId: owner.keyId,
-      actorUserId: actor.id,
+      consoleKeyId: keyId,
       targetUserId: targetId,
-      scope: scope,
       delta: delta,
       requestedDate: requestedDate == null ? null : _dateOnly(requestedDate),
       expectedSessionCount: count,
@@ -274,12 +178,8 @@ extension AdminApiAttendanceCorrections on AdminApi {
     String? pubkey,
     String bodyText,
   ) async {
-    final owner = _correctionOwner(pubkey);
-    if (owner == null) return _unboundKeyResponse();
-    if (owner.actor == null ||
-        (!owner.actor!.isAdmin && !owner.actor!.isGlobalAdmin)) {
-      return _inactiveOwnerResponse();
-    }
+    final keyId = _consoleKeyId(pubkey);
+    if (keyId == null) return _consoleKeyRequiredResponse();
     final Map<String, dynamic> body;
     try {
       body = _jsonBody(bodyText);
@@ -295,8 +195,8 @@ extension AdminApiAttendanceCorrections on AdminApi {
     final now = config.toLocal(Config.nowUtc());
     final (result, targetId) = repo.applyAttendanceCorrectionPreview(
       tokenHash: _tokenHash(body['previewToken'] as String),
-      consoleKeyId: owner.keyId,
-      actorUserId: owner.actor!.id,
+      consoleKeyId: keyId,
+      consoleUserId: config.consoleId,
       now: now.toIso8601String(),
     );
     if (result == AttendanceCorrectionApplyResult.expired) {
@@ -326,7 +226,7 @@ extension AdminApiAttendanceCorrections on AdminApi {
         {
           'ok': false,
           'error':
-              'Your admin role or correction scope changed. No change was made.',
+              'The console key or correction target changed. No change was made.',
         },
       );
     }

@@ -1,6 +1,5 @@
 import 'dart:convert';
 
-import 'package:crypto/crypto.dart' show sha256;
 import 'package:sqlite3/sqlite3.dart' as sqlite;
 
 import 'calendar.dart';
@@ -33,15 +32,6 @@ class ConsoleKey {
     required this.createdAt,
     this.actorUserId,
   });
-}
-
-enum ConsoleKeyBindingResult {
-  success,
-  missingKey,
-  alreadyBound,
-  invalidCode,
-  expiredCode,
-  notAdmin,
 }
 
 enum AttendanceCorrectionApplyResult { applied, stale, expired, forbidden }

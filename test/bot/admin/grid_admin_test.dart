@@ -287,13 +287,12 @@ void main() {
         adminCommands,
         '<b>Admin</b>\n'
         '/all_users - list registered members\n'
+        '/allocate - run the allocation now\n'
         '/group_user - show your group\'s member details\n'
+        '/manual_mark_group_attend - correct an attendance balance in your group\n'
         '/prompt - send availability prompts now\n'
         '/remind - remind non-responders now\n'
-        '/set_exp - change a member\'s experience\n'
-        '/allocate - run the allocation now\n'
-        '/manual_mark_group_attend - correct an attendance balance in your group\n'
-        '/bind_key - bind the console app to your admin account',
+        '/set_exp - change a member\'s experience',
       );
       expect(adminCommands, isNot(contains('<b>Member</b>')));
       expect(adminCommands, isNot(contains('/groupstatus')));

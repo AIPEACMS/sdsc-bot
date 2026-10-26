@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:crypto/crypto.dart' show sha256;
 import 'package:sdsc_bot/sdsc_bot.dart';
 import 'package:test/test.dart';
@@ -8,57 +10,25 @@ String _day(DateTime value) =>
     '${value.month.toString().padLeft(2, '0')}-'
     '${value.day.toString().padLeft(2, '0')}';
 
-void _addAdmin(int id, {bool global = false, String group = '1'}) {
+String _hashToken(String token) =>
+    sha256.convert(utf8.encode(token)).toString();
+
+void _addMember(int id) {
   repo.upsertUser(
-    User(
-      id: id,
-      name: '@admin$id',
-      experience: Experience.experienced,
-      group: group,
-      isAdmin: !global,
-      isGlobalAdmin: global,
-    ),
+    User(id: id, name: '@member$id', experience: Experience.newbie, group: '1'),
   );
 }
-
-void _addMember(int id, {String group = '1'}) {
-  repo.upsertUser(
-    User(
-      id: id,
-      name: '@member$id',
-      experience: Experience.newbie,
-      group: group,
-    ),
-  );
-}
-
-void _bindConsoleKey(int actorId) {
-  final key = repo.listConsoleKeys().single;
-  repo.raw.execute(
-    'UPDATE console_keys SET actor_user_id = ? WHERE pubkey = ?',
-    [actorId, key.pubkey],
-  );
-}
-
-String _makePreviewTokenHash(String token) =>
-    sha256.convert(token.codeUnits).toString();
 
 Future<Map<String, dynamic>> _preview({
   required int targetId,
   required int delta,
-  required String scope,
   String? date,
+  String scope = 'all',
 }) async {
-  final body = <String, Object?>{
-    'targetId': targetId,
-    'delta': delta,
-    'scope': scope,
-    'date': date,
-  };
   final (status, result) = await signedCall(
     'POST',
     '/api/attendance-corrections/preview',
-    body: body,
+    body: {'targetId': targetId, 'delta': delta, 'scope': scope, 'date': date},
   );
   expect(status, 200, reason: '$result');
   return result as Map<String, dynamic>;
@@ -69,34 +39,12 @@ void main() {
   tearDown(tearDownAdminApi);
 
   test(
-    'unowned legacy keys keep unrelated routes and get bind guidance',
+    'legacy unowned key remains trusted for console-wide corrections',
     () async {
-      final (targetsStatus, targetsBody) = await signedCall(
-        'GET',
-        '/api/attendance-corrections/targets',
-      );
-      expect(targetsStatus, 403);
-      expect(
-        (targetsBody as Map<String, dynamic>)['error'],
-        contains('/bind_key'),
-      );
-      final (stateStatus, stateBody) = await signedCall('GET', '/api/state');
-      expect(stateStatus, 200);
-      expect((stateBody as Map<String, dynamic>)['ok'], true);
-      final (bearerStatus, _) = await call(
-        'GET',
-        '/api/attendance-corrections/targets',
-      );
-      expect(bearerStatus, 403);
-    },
-  );
-
-  test(
-    'group target scope, negative rejection, date validation and apply',
-    () async {
-      _addAdmin(201);
+      repo.setActiveOutreach('prompt', false);
       _addMember(202);
-      _addMember(203, group: '2');
+      _addMember(203);
+      repo.setGroup(203, '2');
       repo.upsertUser(
         User(
           id: 204,
@@ -106,97 +54,94 @@ void main() {
           memberTier: MemberTier.check,
         ),
       );
-      _bindConsoleKey(201);
-      repo.setActiveOutreach('prompt', false);
+      repo.upsertUser(
+        User(
+          id: 205,
+          name: '@out',
+          experience: Experience.newbie,
+          group: '',
+          memberTier: MemberTier.outMember,
+        ),
+      );
 
-      final (targetsStatus, targetsResult) = await signedCall(
+      final columns = repo.raw
+          .select('PRAGMA table_info(console_keys)')
+          .map((row) => row['name'] as String)
+          .toSet();
+      expect(columns, contains('actor_user_id'));
+      expect(columns, isNot(contains('bind_challenge_hash')));
+      expect(columns, isNot(contains('bind_challenge_expires_at')));
+      expect(repo.listConsoleKeys().single.actorUserId, isNull);
+
+      final (stateStatus, stateBody) = await signedCall('GET', '/api/state');
+      expect(stateStatus, 200);
+      expect((stateBody as Map<String, dynamic>)['ok'], true);
+      final (targetsStatus, targetsBody) = await signedCall(
         'GET',
         '/api/attendance-corrections/targets',
       );
       expect(targetsStatus, 200);
-      final targetsBody = targetsResult as Map<String, dynamic>;
-      final targets = targetsBody['targets'] as List;
-      expect(
-        targets.map((row) => (row as Map)['userId']),
-        containsAll([201, 202]),
-      );
-      expect(
-        targets.map((row) => (row as Map)['userId']),
-        isNot(contains(203)),
-      );
-      expect(
-        targets.map((row) => (row as Map)['userId']),
-        isNot(contains(204)),
-      );
-      expect(targetsBody['serverLocalDate'], isNotNull);
+      final response = targetsBody as Map<String, dynamic>;
+      expect(response['scopes'], ['all']);
+      final ids = (response['targets'] as List)
+          .map((entry) => (entry as Map<String, dynamic>)['userId'])
+          .toSet();
+      expect(ids, containsAll([202, 203]));
+      expect(ids, isNot(contains(204)));
+      expect(ids, isNot(contains(205)));
 
-      final (negativeStatus, negativeBody) = await signedCall(
+      final (groupStatus, groupBody) = await signedCall(
         'POST',
         '/api/attendance-corrections/preview',
-        body: {'targetId': 202, 'delta': -1, 'scope': 'group'},
+        body: {'targetId': 203, 'delta': 1, 'scope': 'group'},
       );
-      expect(negativeStatus, 400);
+      expect(groupStatus, 400);
       expect(
-        (negativeBody as Map<String, dynamic>)['error'],
-        contains('cannot reduce'),
+        (groupBody as Map<String, dynamic>)['error'],
+        contains('all scope'),
       );
+      final (authorityStatus, _) = await signedCall(
+        'POST',
+        '/api/attendance-corrections/preview',
+        body: {'targetId': 202, 'delta': 1, 'scope': 'all', 'adminId': 201},
+      );
+      expect(authorityStatus, 400);
 
+      final today = api.config.toLocal(Config.nowUtc());
       final (invalidStatus, invalidBody) = await signedCall(
         'POST',
         '/api/attendance-corrections/preview',
         body: {
           'targetId': 202,
           'delta': 1,
-          'scope': 'group',
+          'scope': 'all',
           'date': '2026-02-30',
         },
       );
       expect(invalidStatus, 400);
       expect((invalidBody as Map<String, dynamic>)['error'], contains('valid'));
-
-      final today = api.config.toLocal(Config.nowUtc());
-      final future = _day(today.add(const Duration(days: 1)));
       final (futureStatus, futureBody) = await signedCall(
         'POST',
         '/api/attendance-corrections/preview',
-        body: {'targetId': 202, 'delta': 1, 'scope': 'group', 'date': future},
+        body: {
+          'targetId': 202,
+          'delta': 1,
+          'scope': 'all',
+          'date': _day(today.add(const Duration(days: 1))),
+        },
       );
       expect(futureStatus, 400);
       expect((futureBody as Map<String, dynamic>)['error'], contains('Future'));
 
-      final (authorityStatus, authorityBody) = await signedCall(
-        'POST',
-        '/api/attendance-corrections/preview',
-        body: {'targetId': 202, 'delta': 1, 'scope': 'group', 'adminId': 201},
-      );
-      expect(authorityStatus, 400);
-      expect(
-        (authorityBody as Map<String, dynamic>)['error'],
-        contains('Expected'),
-      );
-
-      final (outOfScopeStatus, _) = await signedCall(
-        'POST',
-        '/api/attendance-corrections/preview',
-        body: {'targetId': 203, 'delta': 1, 'scope': 'group'},
-      );
-      expect(outOfScopeStatus, 404);
-
-      final requestedDate = _day(today.subtract(const Duration(days: 5)));
       final preview = await _preview(
-        targetId: 202,
-        delta: 2,
-        scope: 'group',
-        date: requestedDate,
+        targetId: 203,
+        delta: -2,
+        date: _day(today),
       );
-      expect(preview['scope'], 'group');
-      expect(preview['currentSessionAttendanceCount'], 0);
-      expect(preview['proposedSessionAttendanceCount'], 0);
-      expect(preview['proposedBalance'], 2);
-      expect(preview['proposedLastAttendedDate'], requestedDate);
-      final token = preview['previewToken'] as String;
-      final beforeRows = repo.raw
-          .select('SELECT * FROM attendance WHERE user_id = 202')
+      expect(preview['scope'], 'all');
+      expect(preview['proposedBalance'], -2);
+      final beforeAttendance = repo.raw
+          .select('SELECT * FROM attendance WHERE user_id = 203')
           .map((row) => row.values.toList())
           .toList();
       final beforeSessions = repo.raw
@@ -206,22 +151,18 @@ void main() {
       final (applyStatus, applyBody) = await signedCall(
         'POST',
         '/api/attendance-corrections/apply',
-        body: {'previewToken': token},
+        body: {'previewToken': preview['previewToken']},
       );
       expect(applyStatus, 200, reason: '$applyBody');
       final applied = applyBody as Map<String, dynamic>;
-      expect(applied['attendanceBalance'], 2);
+      expect(applied['attendanceBalance'], -2);
       expect(applied['sessionAttendanceCount'], 0);
       expect(
-        repo.findUser(202)!.lastAttendedDate,
-        DateTime.parse(requestedDate),
-      );
-      expect(
         repo.raw
-            .select('SELECT * FROM attendance WHERE user_id = 202')
+            .select('SELECT * FROM attendance WHERE user_id = 203')
             .map((row) => row.values.toList())
             .toList(),
-        beforeRows,
+        beforeAttendance,
       );
       expect(
         repo.raw
@@ -230,23 +171,55 @@ void main() {
             .toList(),
         beforeSessions,
       );
-      final (againStatus, againBody) = await signedCall(
+      final (repeatStatus, repeatBody) = await signedCall(
         'POST',
         '/api/attendance-corrections/apply',
-        body: {'previewToken': token},
+        body: {'previewToken': preview['previewToken']},
       );
-      expect(againStatus, 409);
-      expect((againBody as Map<String, dynamic>)['error'], contains('changed'));
+      expect(repeatStatus, 409);
+      expect(
+        (repeatBody as Map<String, dynamic>)['error'],
+        contains('changed'),
+      );
     },
   );
 
+  test('preview token is bound to the console key id', () async {
+    _addMember(202);
+    repo.setActiveOutreach('prompt', false);
+    final preview = await _preview(targetId: 202, delta: 2);
+    final firstKeyId = repo
+        .consoleKeyIdentity(repo.listConsoleKeys().single.pubkey)!
+        .id;
+    repo.addConsoleKey('another-registered-key');
+    final secondKeyId = repo.consoleKeyIdentity('another-registered-key')!.id;
+    final (wrongKeyResult, _) = repo.applyAttendanceCorrectionPreview(
+      tokenHash: _hashToken(preview['previewToken'] as String),
+      consoleKeyId: secondKeyId,
+      consoleUserId: api.config.consoleId,
+      now: api.config.toLocal(Config.nowUtc()).toIso8601String(),
+    );
+    expect(wrongKeyResult, AttendanceCorrectionApplyResult.stale);
+    expect(repo.findUser(202)!.attendanceBalance, 0);
+
+    final (status, response) = await signedCall(
+      'POST',
+      '/api/attendance-corrections/apply',
+      body: {'previewToken': preview['previewToken']},
+    );
+    expect(status, 200, reason: '$response');
+    expect(
+      repo.consoleKeyIdentity(repo.listConsoleKeys().first.pubkey)!.id,
+      firstKeyId,
+    );
+    expect(repo.findUser(202)!.attendanceBalance, 2);
+  });
+
   test(
-    'effective date preview preserves a later actual session date',
+    'effective date retains later actual attendance; stale and expired fail',
     () async {
-      _addAdmin(201);
-      _addMember(202);
-      _bindConsoleKey(201);
       repo.setActiveOutreach('prompt', false);
+      _addMember(202);
       final today = api.config.toLocal(Config.nowUtc());
       final actualDate = _day(today.subtract(const Duration(days: 1)));
       repo.raw.execute(
@@ -262,81 +235,30 @@ void main() {
           '${actualDate}T12:00:00',
         ],
       );
-      final sessionId = repo.raw.lastInsertRowId;
-      repo.setAttendanceState(202, sessionId, attended: true);
-      final requestedDate = _day(today.subtract(const Duration(days: 8)));
+      repo.setAttendanceState(202, repo.raw.lastInsertRowId, attended: true);
       final preview = await _preview(
         targetId: 202,
         delta: 1,
-        scope: 'group',
-        date: requestedDate,
+        date: _day(today.subtract(const Duration(days: 8))),
       );
       expect(preview['currentSessionAttendanceCount'], 1);
       expect(preview['proposedSessionAttendanceCount'], 1);
       expect(preview['proposedLastAttendedDate'], actualDate);
-      final (status, response) = await signedCall(
+      final (applyStatus, _) = await signedCall(
         'POST',
         '/api/attendance-corrections/apply',
         body: {'previewToken': preview['previewToken']},
       );
-      expect(status, 200, reason: '$response');
+      expect(applyStatus, 200);
       expect(repo.lastAttendedDate(202), DateTime.parse(actualDate));
-      expect(repo.attendanceStats(202).total, 1);
-    },
-  );
 
-  test('apply rechecks owner group and rejects a changed scope', () async {
-    _addAdmin(201);
-    _addMember(202);
-    _bindConsoleKey(201);
-    final preview = await _preview(targetId: 202, delta: 4, scope: 'group');
-    repo.raw.execute('UPDATE users SET group_id = ? WHERE id = ?', ['2', 201]);
-    final (status, response) = await signedCall(
-      'POST',
-      '/api/attendance-corrections/apply',
-      body: {'previewToken': preview['previewToken']},
-    );
-    expect(status, 403);
-    expect(
-      (response as Map<String, dynamic>)['error'],
-      contains('scope changed'),
-    );
-    expect(repo.findUser(202)!.attendanceBalance, 0);
-  });
-
-  test(
-    'global admins can apply negatives; stale and expired previews fail',
-    () async {
-      _addAdmin(201, global: true);
-      _addMember(202);
-      _bindConsoleKey(201);
-      repo.setActiveOutreach('prompt', false);
-      final today = api.config.toLocal(Config.nowUtc());
-      final negative = await _preview(
-        targetId: 202,
-        delta: -3,
-        scope: 'all',
-        date: _day(today),
-      );
-      expect(negative['proposedBalance'], -3);
-      final (negativeApplyStatus, negativeApplyBody) = await signedCall(
-        'POST',
-        '/api/attendance-corrections/apply',
-        body: {'previewToken': negative['previewToken']},
-      );
-      expect(negativeApplyStatus, 200, reason: '$negativeApplyBody');
-      expect(
-        (negativeApplyBody as Map<String, dynamic>)['attendanceBalance'],
-        -3,
-      );
-
-      final expired = await _preview(targetId: 202, delta: 1, scope: 'all');
+      final expired = await _preview(targetId: 202, delta: 1);
       repo.raw.execute(
-        'UPDATE attendance_correction_previews SET expires_at = ? '
+        'UPDATE attendance_correction_previews_v2 SET expires_at = ? '
         'WHERE token_hash = ?',
         [
           today.subtract(const Duration(minutes: 1)).toIso8601String(),
-          _makePreviewTokenHash(expired['previewToken'] as String),
+          _hashToken(expired['previewToken'] as String),
         ],
       );
       final (expiredStatus, expiredBody) = await signedCall(
@@ -350,7 +272,7 @@ void main() {
         contains('expired'),
       );
 
-      final stale = await _preview(targetId: 202, delta: 1, scope: 'all');
+      final stale = await _preview(targetId: 202, delta: 1);
       repo.raw.execute(
         'UPDATE users SET attendance_balance = attendance_balance + 1 WHERE id = 202',
       );

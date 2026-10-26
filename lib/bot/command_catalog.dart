@@ -38,7 +38,6 @@ class CommandCatalog {
       '/manual_mark_group_attend',
       'correct an attendance balance in your group',
     ),
-    CommandHelp('/bind_key', 'bind the console app to your admin account'),
   ];
   static const List<CommandHelp> _globalAdmin = [
     CommandHelp('/add_admin', 'promote a registered user', usage: '@handle'),
@@ -128,9 +127,11 @@ class CommandCatalog {
       role,
       consoleIdentity: isConsole,
     ).map((button) => button.command).whereType<String>().toSet();
-    List<CommandHelp> additional(List<CommandHelp> commands) => commands
-        .where((entry) => !buttonFunctions.contains(entry.command))
-        .toList(growable: false);
+    List<CommandHelp> additional(List<CommandHelp> commands) =>
+        commands
+            .where((entry) => !buttonFunctions.contains(entry.command))
+            .toList()
+          ..sort((a, b) => a.command.compareTo(b.command));
 
     final result = <CommandSection>[
       if (isConsole) CommandSection('Console', additional(_console)),

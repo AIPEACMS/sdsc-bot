@@ -68,9 +68,8 @@ import '../core/schedule.dart';
 ///   POST  /api/broadcast                -> { "text": "..." } (to all members)
 ///   GET   /api/attendance               -> sessions + allocated members + attendance eligibility/flags
 ///   POST  /api/attendance               -> { "sessionId": `id`, "userId": `id` } (toggle)
-///   POST  /api/console-keys/bind-challenge -> one-time code for /bind_key
-///   GET   /api/attendance-corrections/targets -> eligible users for the key owner
-///   POST  /api/attendance-corrections/preview -> validated correction snapshot
+///   GET   /api/attendance-corrections/targets -> all eligible users for console keys
+///   POST  /api/attendance-corrections/preview -> {targetId, delta, scope: 'all', date?}
 ///   POST  /api/attendance-corrections/apply -> apply a confirmed snapshot once
 ///   GET   /api/logs                     -> { "lines": [...] }
 ///   POST  /api/log-retention            -> { "days": 14 }

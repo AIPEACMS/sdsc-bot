@@ -15,9 +15,7 @@ extension RepoAttendanceCorrections on Repo {
   void storeAttendanceCorrectionPreview({
     required String tokenHash,
     required int consoleKeyId,
-    required int actorUserId,
     required int targetUserId,
-    required String scope,
     required int delta,
     required String? requestedDate,
     required int expectedSessionCount,
@@ -27,21 +25,19 @@ extension RepoAttendanceCorrections on Repo {
     required String now,
   }) {
     raw.execute(
-      'DELETE FROM attendance_correction_previews WHERE expires_at <= ?',
+      'DELETE FROM attendance_correction_previews_v2 WHERE expires_at <= ?',
       [now],
     );
     raw.execute(
-      'INSERT INTO attendance_correction_previews '
-      '(token_hash, console_key_id, actor_user_id, target_user_id, scope, '
+      'INSERT INTO attendance_correction_previews_v2 '
+      '(token_hash, console_key_id, target_user_id, '
       'delta, requested_last_attended_date, expected_session_count, '
       'expected_balance, expected_effective_date, expires_at) '
-      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         tokenHash,
         consoleKeyId,
-        actorUserId,
         targetUserId,
-        scope,
         delta,
         requestedDate,
         expectedSessionCount,
@@ -55,14 +51,14 @@ extension RepoAttendanceCorrections on Repo {
   (AttendanceCorrectionApplyResult, int?) applyAttendanceCorrectionPreview({
     required String tokenHash,
     required int consoleKeyId,
-    required int actorUserId,
+    required int consoleUserId,
     required String now,
   }) {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
       final previews = tx.select(
-        'SELECT * FROM attendance_correction_previews WHERE token_hash = ?',
+        'SELECT * FROM attendance_correction_previews_v2 WHERE token_hash = ?',
         [tokenHash],
       );
       if (previews.isEmpty) {
@@ -81,37 +77,22 @@ extension RepoAttendanceCorrections on Repo {
         tx.execute('COMMIT');
         return (AttendanceCorrectionApplyResult.expired, null);
       }
-      if (identity.isEmpty ||
-          identity.first['actor_user_id'] != actorUserId ||
-          preview['console_key_id'] != consoleKeyId ||
-          preview['actor_user_id'] != actorUserId) {
+      if (identity.isEmpty || preview['console_key_id'] != consoleKeyId) {
         tx.execute('ROLLBACK');
         return (AttendanceCorrectionApplyResult.stale, null);
       }
-      final actorRows = tx.select('SELECT * FROM users WHERE id = ?', [
-        actorUserId,
-      ]);
+      final ownerId = identity.first['actor_user_id'] as int?;
       final targetRows = tx.select('SELECT * FROM users WHERE id = ?', [
         targetId,
       ]);
-      if (actorRows.isEmpty || targetRows.isEmpty) {
+      if ((ownerId != null && ownerId != consoleUserId) || targetRows.isEmpty) {
         _deletePreview(tx, tokenHash);
         tx.execute('COMMIT');
         return (AttendanceCorrectionApplyResult.forbidden, null);
       }
-      final actor = User.fromRow(actorRows.first);
       final target = User.fromRow(targetRows.first);
-      final scope = preview['scope'] as String;
       final delta = preview['delta'] as int;
-      final permitted =
-          target.memberTier == MemberTier.member &&
-          (scope == 'all'
-              ? actor.isGlobalAdmin
-              : (actor.isAdmin || actor.isGlobalAdmin) &&
-                    actor.group.isNotEmpty &&
-                    actor.group == target.group &&
-                    delta >= 0);
-      if (!permitted) {
+      if (target.memberTier != MemberTier.member) {
         _deletePreview(tx, tokenHash);
         tx.execute('COMMIT');
         return (AttendanceCorrectionApplyResult.forbidden, null);
@@ -158,7 +139,7 @@ extension RepoAttendanceCorrections on Repo {
 
   void _deletePreview(sqlite.Database tx, String tokenHash) {
     tx.execute(
-      'DELETE FROM attendance_correction_previews WHERE token_hash = ?',
+      'DELETE FROM attendance_correction_previews_v2 WHERE token_hash = ?',
       [tokenHash],
     );
   }

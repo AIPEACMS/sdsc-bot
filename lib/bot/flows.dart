@@ -74,7 +74,6 @@ class _FlowsBase {
 
   /// Set by main.dart: one alias typed in the console's /add_alias wizard.
   Future<void> Function(Context ctx, int userId, String text)? onAddAliasText;
-  Future<void> Function(Context ctx, int userId, String text)? onBindKeyText;
   Future<void> Function(Context ctx, int userId, String text)?
   onAssignGroupText;
 }

@@ -197,7 +197,6 @@ Future<void> setUpGrid() async {
     holdGate: holdGate,
     calendarSync: CalendarSync(repo: repo, config: config),
   );
-  flows.onBindKeyText = console.onBindKeyText;
   flows.onSetDateText = console.onSetDateText;
   flows.onSyncCalendarText = console.onSyncCalendarText;
   flows.register();

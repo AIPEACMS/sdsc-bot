@@ -172,7 +172,6 @@ Future<void> main() async {
   flows.onSetTimeText = setTime.onText;
   flows.onSetTimeNewNameText = setTime.onNewNameText;
   flows.onAddAliasText = console.onAddAliasText;
-  flows.onBindKeyText = console.onBindKeyText;
   flows.onAssignGroupText = console.onAssignGroupText;
   flows.onAvailabilitySaved = scheduler.allocateImmediately;
 
