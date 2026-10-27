@@ -202,7 +202,7 @@ extension FlowsAvailability on Flows {
 
     if (user.memberTier != MemberTier.outMember) {
       sb.writeln(
-        '\n<b>Attendance balance</b>: ${user.attendanceBalance}.',
+        '\n<b>Attendance</b>: ${user.attendanceBalance} sessions.',
       );
     }
 

@@ -18,7 +18,7 @@ void main() {
   });
 
   test(
-    '/mystatus shows preferred name, unavailable dates, and persisted balance',
+    '/mystatus shows preferred name, unavailable dates, and persisted count',
     () async {
       repo.updatePreferredName(2, 'Allen');
       final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
@@ -44,7 +44,7 @@ void main() {
       expect(text, contains('Bundle: "'));
       expect(text, contains('Preferred name: Allen'));
       expect(text, contains('Indicated not available'));
-      expect(text, contains('Attendance balance</b>: 7.'));
+      expect(text, contains('Attendance</b>: 7 sessions.'));
       expect(text, isNot(contains('sessions total')));
       expect(text, isNot(contains('Weekend 1')));
       expect(text, isNot(contains('this bundle')));

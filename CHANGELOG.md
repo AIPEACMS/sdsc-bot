@@ -4,6 +4,12 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.13.2] - 2026-10-27
+
+### Fixed
+
+- `/mystatus` labels the persisted attendance count as `Attendance`.
+
 ## [4.13.1] - 2026-10-27
 
 ### Fixed
