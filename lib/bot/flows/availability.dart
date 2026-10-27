@@ -135,7 +135,7 @@ extension FlowsAvailability on Flows {
   // ------------------------------------------------------- /mystatus
 
   /// Member-facing status: what they indicated, what they are allocated to,
-  /// and their attendance (total + per location).
+  /// and their persisted attendance balance.
   Future<void> _onMyStatus(Context ctx) async {
     final userId = ctx.from!.id;
     await _recordSeen(ctx, userId);
@@ -201,14 +201,8 @@ extension FlowsAvailability on Flows {
     }
 
     if (user.memberTier != MemberTier.outMember) {
-      final stats = repo.attendanceStats(userId);
-      final byLoc = stats.byLocation.entries
-          .where((e) => e.value > 0)
-          .map((e) => '${e.value} ${repo.locationName(e.key)}')
-          .join(' · ');
       sb.writeln(
-        '\n<b>Attendance</b>: ${stats.total} sessions total'
-        '${byLoc.isEmpty ? '' : ' ($byLoc)'}.',
+        '\n<b>Attendance balance</b>: ${user.attendanceBalance}.',
       );
     }
 
