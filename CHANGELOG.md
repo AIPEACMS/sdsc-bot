@@ -4,6 +4,13 @@ All notable user-facing changes to the SDSC bot.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [4.13.1] - 2026-10-27
+
+### Fixed
+
+- `/mystatus` now shows the persisted attendance balance without a per-location
+  breakdown or listing attended sessions.
+
 ## [4.13.0] - 2026-10-26
 
 ### Added

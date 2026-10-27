@@ -18,10 +18,16 @@ void main() {
   });
 
   test(
-    '/mystatus shows preferred name and dated unavailable responses',
+    '/mystatus shows preferred name, unavailable dates, and persisted balance',
     () async {
       repo.updatePreferredName(2, 'Allen');
       final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
+      final attendedSession = repo.sessionsForWeekend(w.sat0).first;
+      repo.setAttendanceState(2, attendedSession.id, attended: true);
+      repo.raw.execute(
+        'UPDATE users SET attendance_balance = ? WHERE id = ?',
+        [7, 2],
+      );
       repo.setAvailability(
         Availability(
           weekendStart: w.sat0,
@@ -38,6 +44,8 @@ void main() {
       expect(text, contains('Bundle: "'));
       expect(text, contains('Preferred name: Allen'));
       expect(text, contains('Indicated not available'));
+      expect(text, contains('Attendance balance</b>: 7.'));
+      expect(text, isNot(contains('sessions total')));
       expect(text, isNot(contains('Weekend 1')));
       expect(text, isNot(contains('this bundle')));
     },
