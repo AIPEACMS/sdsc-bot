@@ -2,11 +2,7 @@
 
 Telegram bot for volunteer availability and allocation.
 
-Every 2 weeks it prompts members for their availability for the next 2
-weekends, then allocates them to sessions (Sat/Sun, AM/PM).
-
-- Pure Dart (`televerse` + `sqlite3`), long-polling, no webhook
-- Scheduler runs in-process and catches up on restart
+Pure Dart (`televerse` + `sqlite3`), long-polling, no webhook.
 
 ## Run
 
@@ -18,10 +14,6 @@ dart run bin/main.dart
 ```
 
 ## Test / lint
-
-For local development, run the affected test suites with four workers. Bot
-integration tests wait for a fake Telegram long-poll readiness signal instead
-of sleeping for a guessed startup interval:
 
 ```sh
 ./tool/test-affected.sh
@@ -36,16 +28,13 @@ or `--all` to run the complete suite. CI always runs the full suite.
 
 **Primary — GitHub Releases + `sdsc.sh`:**
 
-1. Bump `pubspec.yaml` + move CHANGELOG `[Unreleased]` to the new version,
-   commit, push.
-2. Tag the build: `git tag v0.2.0 && git push --tags` — GitHub Actions builds
+1. Bump `pubspec.yaml` + move CHANGELOG `[Unreleased]` to the new version.
+2. Tag the build: `git tag v0.2.0 && git push --tags` - GitHub Actions builds
    the bundle and publishes it as a Release.
-3. On the VM: `./sdsc.sh update` (latest) or `./sdsc.sh update v0.2.0`
-   (pinned). Pulls the release, verifies checksum, swaps the bundle,
-   restarts the service, rolls back on failure.
+3. ./sdsc.sh update` (latest) or `./sdsc.sh update v0.2.0`
+   (pinned).
 
-**Fallback — manual copy:** `./deploy.sh` builds the bundle locally and ships
-it over SSH (set `SDSC_HOST=user@host`) when GitHub is unreachable.
+**Fallback — manual copy:** `./deploy.sh` builds the bundle locally.
 
 ## License
 - This project is licensed under the [EUPL-1.2](LICENSE) License.
