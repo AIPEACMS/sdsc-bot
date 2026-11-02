@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.14.2] - 2026-11-02
+
+### Changed
+
+- Keep the reminder confirmation result to the requested status line only.
+
 ## [4.14.1] - 2026-11-02
 
 ### Fixed
