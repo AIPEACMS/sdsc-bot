@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../core/models.dart';
 
 /// A pending text-input step in an interactive flow (e.g. "type the message
@@ -28,35 +30,23 @@ class ReminderPreferenceFlow {
   final String token;
   final int chatId;
   final int messageId;
+  final bool desiredEnabled;
+  final Duration expiresAfter;
   final DateTime createdAt;
-  bool? desiredEnabled;
+  Timer? expiryTimer;
+  bool closing = false;
+  final Completer<void> closed = Completer<void>();
 
   ReminderPreferenceFlow({
     required this.token,
     required this.chatId,
     required this.messageId,
+    required this.desiredEnabled,
+    this.expiresAfter = timeout,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
-  bool get isExpired => DateTime.now().difference(createdAt) > timeout;
-}
-
-class ReminderPreferenceResult {
-  static const Duration timeout = Duration(minutes: 10);
-
-  final String token;
-  final int chatId;
-  final int messageId;
-  final DateTime createdAt;
-
-  ReminderPreferenceResult({
-    required this.token,
-    required this.chatId,
-    required this.messageId,
-    DateTime? createdAt,
-  }) : createdAt = createdAt ?? DateTime.now();
-
-  bool get isExpired => DateTime.now().difference(createdAt) > timeout;
+  bool get isExpired => DateTime.now().difference(createdAt) >= expiresAfter;
 }
 
 /// Transient in-memory state for the bot. Nothing here is durable — it only
@@ -85,13 +75,45 @@ class BotState {
 
   /// Owner- and message-bound preference confirmations, kept only in memory.
   final Map<int, ReminderPreferenceFlow> reminderPreferenceFlows = {};
-  final Map<int, ReminderPreferenceResult> reminderPreferenceResults = {};
+  final Map<int, Future<void>> reminderPreferenceOpenings = {};
+  final Map<int, int> _reminderPreferenceGenerations = {};
+  final Map<(int, int), int> _reminderPreferenceOpenReservations = {};
+  Duration reminderPreferenceTimeout = ReminderPreferenceFlow.timeout;
   final Map<int, Future<void>> gridRefreshes = {};
   int _reminderFlowSequence = 0;
 
   String nextReminderFlowToken() =>
       '${DateTime.now().microsecondsSinceEpoch}_'
       '${_reminderFlowSequence++}';
+
+  int beginReminderPreferenceOpen(int userId) {
+    final generation = (_reminderPreferenceGenerations[userId] ?? 0) + 1;
+    _reminderPreferenceGenerations[userId] = generation;
+    return generation;
+  }
+
+  int reserveReminderPreferenceOpen(int userId, int messageId) {
+    _reminderPreferenceOpenReservations.removeWhere(
+      (key, _) => key.$1 == userId,
+    );
+    final generation = beginReminderPreferenceOpen(userId);
+    _reminderPreferenceOpenReservations[(userId, messageId)] = generation;
+    return generation;
+  }
+
+  int? takeReminderPreferenceOpenReservation(int userId, int messageId) =>
+      _reminderPreferenceOpenReservations.remove((userId, messageId));
+
+  void invalidateReminderPreferenceOpen(int userId) {
+    _reminderPreferenceGenerations[userId] =
+        (_reminderPreferenceGenerations[userId] ?? 0) + 1;
+    _reminderPreferenceOpenReservations.removeWhere(
+      (key, _) => key.$1 == userId,
+    );
+  }
+
+  bool isCurrentReminderPreferenceOpen(int userId, int generation) =>
+      _reminderPreferenceGenerations[userId] == generation;
 
   /// Users waiting for a text argument (e.g. the message to broadcast).
   final Map<int, PendingArg> pendingArg = {};
@@ -128,6 +150,14 @@ class BotState {
     final messages = interactiveMessages.putIfAbsent(userId, () => []);
     final message = (chatId, messageId);
     if (!messages.contains(message)) messages.add(message);
+  }
+
+  void untrackInteractiveMessage(int userId, int chatId, int messageId) {
+    final messages = interactiveMessages[userId];
+    messages?.remove((chatId, messageId));
+    if (messages != null && messages.isEmpty) {
+      interactiveMessages.remove(userId);
+    }
   }
 
   List<(int chatId, int messageId)> takeInteractiveMessages(int userId) =>

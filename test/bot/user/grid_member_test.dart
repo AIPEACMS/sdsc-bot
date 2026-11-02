@@ -2,6 +2,7 @@ import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import '../../support/grid_harness.dart';
+import '../../support/inline_keyboard_assertions.dart';
 
 void main() {
   setUp(setUpGrid);
@@ -24,10 +25,10 @@ void main() {
       final w = RollingWindow.forDate(config.toLocal(Config.nowUtc()));
       final attendedSession = repo.sessionsForWeekend(w.sat0).first;
       repo.setAttendanceState(2, attendedSession.id, attended: true);
-      repo.raw.execute(
-        'UPDATE users SET attendance_balance = ? WHERE id = ?',
-        [7, 2],
-      );
+      repo.raw.execute('UPDATE users SET attendance_balance = ? WHERE id = ?', [
+        7,
+        2,
+      ]);
       repo.setAvailability(
         Availability(
           weekendStart: w.sat0,
@@ -56,11 +57,13 @@ void main() {
     () async {
       await sendText(2, '/repick');
       expect(sent.last['reply_markup'], isNotNull);
+      final pickerMessageId = sentMessageIds.last;
 
       await sendText(2, '/mystatus');
 
       expect(edited, hasLength(1));
-      expect(edited.single['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(edited.single), isTrue);
+      expect(fakeMessageMarkups[(2, pickerMessageId)], isNull);
       expect(sent.last['text'], startsWith('👤 <b>Your information</b>'));
     },
   );

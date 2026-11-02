@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:televerse/televerse.dart';
 import 'package:televerse/telegram.dart' hide Location, User;
 
