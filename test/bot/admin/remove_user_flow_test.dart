@@ -26,6 +26,7 @@ void main() {
   late BotReadiness readiness;
   late Future<void> botStart;
   late List<Map<String, dynamic>> sent;
+  late List<int> sentMessageIds;
   late List<Map<String, dynamic>> edited;
 
   setUp(() async {
@@ -50,6 +51,7 @@ void main() {
     repo = Repo(db);
     final state = BotState();
     sent = [];
+    sentMessageIds = [];
     edited = [];
     readiness = BotReadiness();
     server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -70,11 +72,13 @@ void main() {
         await _json(req, {'ok': true, 'result': <dynamic>[]});
       } else if (path.endsWith('/sendMessage')) {
         final body = jsonDecode(await utf8.decoder.bind(req).join());
+        final messageId = sent.length + 1;
         sent.add((body as Map).cast<String, dynamic>());
+        sentMessageIds.add(messageId);
         await _json(req, {
           'ok': true,
           'result': {
-            'message_id': sent.length,
+            'message_id': messageId,
             'date': 1,
             'chat': {'id': body['chat_id'], 'type': 'private'},
             'text': body['text'],
@@ -201,23 +205,24 @@ void main() {
     }),
   );
 
-  Future<void> sendCallback(String data) => bot.handleUpdate(
-    Update.fromJson({
-      'update_id': 99,
-      'callback_query': {
-        'id': 'callback',
-        'from': {'id': 1, 'is_bot': false, 'first_name': 'gadmin'},
-        'chat_instance': 'x',
-        'data': data,
-        'message': {
-          'message_id': sent.length,
-          'date': 1,
-          'chat': {'id': 1, 'type': 'private'},
-          'text': 'confirmation',
-        },
-      },
-    }),
-  );
+  Future<void> sendCallback(String data, {required int messageId}) =>
+      bot.handleUpdate(
+        Update.fromJson({
+          'update_id': 99,
+          'callback_query': {
+            'id': 'callback',
+            'from': {'id': 1, 'is_bot': false, 'first_name': 'gadmin'},
+            'chat_instance': 'x',
+            'data': data,
+            'message': {
+              'message_id': messageId,
+              'date': 1,
+              'chat': {'id': 1, 'type': 'private'},
+              'text': 'confirmation',
+            },
+          },
+        }),
+      );
 
   test('removeuser validates the batch then confirms and removes it', () async {
     await sendText('/rm_user');
@@ -226,8 +231,8 @@ void main() {
     expect(repo.findUser(2)!.memberTier, MemberTier.member);
     expect(repo.isPendingUser('never_started'), true);
 
-    final confirmationMessageId = sent.length;
-    await sendCallback('removeuser|yes');
+    final confirmationMessageId = sentMessageIds.last;
+    await sendCallback('removeuser|yes', messageId: confirmationMessageId);
     expect(repo.findUser(2)!.memberTier, MemberTier.old);
     expect(repo.findUser(2)!.group, isEmpty);
     expect(repo.isPendingUser('never_started'), false);
@@ -255,7 +260,7 @@ void main() {
     () async {
       await sendText('/rm_user');
       await sendText('@alice');
-      await sendCallback('removeuser|no');
+      await sendCallback('removeuser|no', messageId: sentMessageIds.last);
       expect(repo.findUser(2)!.memberTier, MemberTier.member);
 
       repo.addPendingUser('queued_admin', isAdmin: true);

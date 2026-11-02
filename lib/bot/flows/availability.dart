@@ -109,22 +109,52 @@ extension FlowsAvailability on Flows {
     LogRing.log('repick $userId: availability picker completed');
   }
 
-  Future<void> _dismissInteractiveMessages(int userId) async {
+  Future<void> _dismissInteractiveMessages(
+    int userId, {
+    bool invalidateReminderOpen = true,
+  }) async {
     state.forgetAvailability(userId);
     state.clearAttendanceDrafts(userId);
     state.cancelInputFlow(userId);
-    state.reminderPreferenceFlows.remove(userId);
-    state.reminderPreferenceResults.remove(userId);
-    for (final (chatId, messageId) in state.takeInteractiveMessages(userId)) {
+    if (invalidateReminderOpen) {
+      state.invalidateReminderPreferenceOpen(userId);
+    }
+    var reminderFlow = state.reminderPreferenceFlows[userId];
+    if (reminderFlow?.closing == true) {
+      await reminderFlow!.closed.future;
+      reminderFlow = null;
+    } else if (reminderFlow != null) {
+      reminderFlow.closing = true;
+      reminderFlow.expiryTimer?.cancel();
+    }
+    final tracked = List<(int, int)>.of(
+      state.interactiveMessages[userId] ?? const [],
+    );
+    for (final (chatId, messageId) in tracked) {
       try {
         await bot.api.editMessageReplyMarkup(
           ChatID(chatId),
           messageId,
-          replyMarkup: null,
+          replyMarkup: _emptyReminderKeyboard(),
         );
-      } catch (_) {
-        // The message may already be gone or have been closed by a callback.
+      } catch (error) {
+        if (reminderFlow?.chatId == chatId &&
+            reminderFlow?.messageId == messageId) {
+          try {
+            await bot.api.deleteMessage(ChatID(chatId), messageId);
+          } catch (deleteError) {
+            LogRing.log(
+              'reminder interruption cleanup failed: $error; $deleteError',
+            );
+          }
+        }
       }
+    }
+    state.clearInteractiveMessages(userId);
+    if (reminderFlow != null &&
+        identical(state.reminderPreferenceFlows[userId], reminderFlow)) {
+      state.reminderPreferenceFlows.remove(userId);
+      if (!reminderFlow.closed.isCompleted) reminderFlow.closed.complete();
     }
     state.availabilityMessages.remove(userId);
   }

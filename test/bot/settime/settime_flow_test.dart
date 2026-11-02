@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:test/test.dart';
 import 'package:televerse/telegram.dart' show Update;
 import 'package:televerse/televerse.dart';
-
 import 'package:sdsc_bot/core/config.dart';
 import 'package:sdsc_bot/core/db.dart';
 import 'package:sdsc_bot/core/messages.dart';
@@ -15,6 +14,7 @@ import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/settime.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import '../../support/bot_readiness.dart';
+import '../../support/inline_keyboard_assertions.dart';
 
 void main() {
   late Directory tmp;
@@ -269,7 +269,7 @@ void main() {
     expect(thirdAck, contains('Session 3: Sunday 10:00 to 12:00'));
     expect(thirdAck, contains('Session 4: Friday 18:00 to 20:00'));
     await sendText(1, 'done');
-    expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+    expect(edited.any(hasEmptyInlineKeyboard), isTrue);
     final confirmation = sent.last['text'] as String;
     expect(confirmation, contains('Before change:'));
     expect(confirmation, contains('After change:'));

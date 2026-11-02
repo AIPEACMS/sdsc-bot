@@ -11,6 +11,17 @@ extension FlowsRegistration on Flows {
       final text = ctx.message?.text;
       if (text != null) {
         final userId = ctx.from!.id;
+        final commandToken = text.trim().split(RegExp(r'\s+')).first;
+        final commandName = commandToken.startsWith('/')
+            ? commandToken.substring(1).split('@').first
+            : commandToken;
+        final reminderOpenGeneration =
+            commandName == 'config_remind' || commandName == 'config-remind'
+            ? state.reserveReminderPreferenceOpen(
+                userId,
+                ctx.message!.messageId,
+              )
+            : null;
         final existedBeforeUpdate = repo.findUser(userId) != null;
         final username = ctx.from?.username;
         final hadPendingRole = username != null && repo.isPendingUser(username);
@@ -22,9 +33,21 @@ extension FlowsRegistration on Flows {
           await _refreshRoleGrid(ctx, userId, currentUser);
         }
 
+        if (reminderOpenGeneration != null &&
+            !state.isCurrentReminderPreferenceOpen(
+              userId,
+              reminderOpenGeneration,
+            )) {
+          await next();
+          return;
+        }
+
         if (state.isValidCommandText(text)) {
           final pending = state.pendingArg.remove(userId);
-          await _dismissInteractiveMessages(userId);
+          await _dismissInteractiveMessages(
+            userId,
+            invalidateReminderOpen: reminderOpenGeneration == null,
+          );
           if (pending != null) {
             onPendingInputCleared?.call(userId, pending.command);
           }

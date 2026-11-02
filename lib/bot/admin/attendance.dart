@@ -7,7 +7,7 @@ extension AdminAttendance on Admin {
         await bot.api.editMessageReplyMarkup(
           ChatID(chatId),
           messageId,
-          replyMarkup: null,
+          replyMarkup: _emptyManualInlineKeyboard(),
         );
       } catch (error, stackTrace) {
         developer.log(
@@ -31,7 +31,10 @@ extension AdminAttendance on Admin {
 
   Future<void> _editManualResult(Context ctx, String text) async {
     try {
-      await ctx.editMessageText(text, replyMarkup: null);
+      await ctx.editMessageText(
+        text,
+        replyMarkup: _emptyManualInlineKeyboard(),
+      );
     } catch (error, stackTrace) {
       developer.log(
         'manual attendance result edit failed',
@@ -78,7 +81,7 @@ extension AdminAttendance on Admin {
       await bot.api.editMessageReplyMarkup(
         ChatID(message.chat.id),
         message.messageId,
-        replyMarkup: null,
+        replyMarkup: _emptyManualInlineKeyboard(),
       );
     } catch (error, stackTrace) {
       developer.log(
@@ -89,6 +92,9 @@ extension AdminAttendance on Admin {
       );
     }
   }
+
+  InlineKeyboard _emptyManualInlineKeyboard() =>
+      InlineKeyboard(inlineKeyboard: const []);
 
   Future<void> _doBroadcast(Context ctx, String text) async {
     if (!repo.activeOutreachEnabled('broadcast')) {

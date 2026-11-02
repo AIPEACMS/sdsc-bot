@@ -10,6 +10,7 @@ import 'package:sdsc_bot/bot/service.dart';
 import 'package:sdsc_bot/bot/state.dart';
 import '../../support/repick_harness.dart';
 import '../../support/bot_readiness.dart';
+import '../../support/inline_keyboard_assertions.dart';
 
 void main() {
   setUp(setUpRepick);
@@ -140,7 +141,7 @@ void main() {
       await cmd(2, 'Ali');
 
       expect(editedMarkups, hasLength(1));
-      expect(editedMarkups.single['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(editedMarkups.single), isTrue);
 
       await bot.stop();
       await startFuture;

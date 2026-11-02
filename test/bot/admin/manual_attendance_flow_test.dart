@@ -2,7 +2,9 @@ import 'package:sdsc_bot/sdsc_bot.dart';
 import 'package:sdsc_bot/bot/admin.dart';
 import 'package:sdsc_bot/bot/service.dart';
 import 'package:test/test.dart';
+
 import '../../support/grid_harness.dart';
+import '../../support/inline_keyboard_assertions.dart';
 
 void main() {
   setUp(() async {
@@ -80,7 +82,7 @@ void main() {
       await sendCallback(2, 'manualattconfirm|no');
       expect(repo.findUser(targetId)!.attendanceBalance, originalBalance);
       expect(edited.last['text'], contains('Cancelled'));
-      expect(edited.last['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(edited.last), isTrue);
       expect(state.interactiveMessages[2], isNull);
     },
   );
@@ -164,7 +166,7 @@ void main() {
         contains('Last-attended date: 2026-Sept-26.'),
       );
       expect(edited.last['text'], isNot(contains('2026-09-26')));
-      expect(edited.last['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(edited.last), isTrue);
       await sendCallback(1, 'manualattconfirm|yes');
       expect(repo.findUser(targetId)!.attendanceBalance, initial + 3);
     },
@@ -179,7 +181,7 @@ void main() {
     await sendCallback(2, callback, messageId: pickerMessageId);
     expect(state.interactiveMessages[2], contains((2, pickerMessageId)));
 
-    final messageIds = _inlineMessageIds();
+    final messageIds = inlineKeyboardMessageIds(sent, sentMessageIds);
     await sendCallback(
       2,
       'manualatt|cancel|0|cancel',
@@ -187,7 +189,7 @@ void main() {
     );
 
     expect(edited.last['text'], 'Cancelled.');
-    expect(edited.last['reply_markup'], isNull);
+    expect(hasEmptyInlineKeyboard(edited.last), isTrue);
     expect(state.pendingArg, isNot(contains(2)));
     expect(state.interactiveMessages[2], isNull);
     for (final messageId in messageIds) {
@@ -219,12 +221,12 @@ void main() {
       expect(sent.last['text'], contains('Requested adjustment: 3'));
       expect(repo.findUser(22)!.attendanceBalance, balance);
 
-      final messageIds = _inlineMessageIds();
+      final messageIds = inlineKeyboardMessageIds(sent, sentMessageIds);
       await sendCallback(1, 'manualattconfirm|no', messageId: messageIds.last);
 
       expect(repo.findUser(22)!.attendanceBalance, balance);
       expect(edited.last['text'], contains('Cancelled'));
-      expect(edited.last['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(edited.last), isTrue);
       expect(state.interactiveMessages[1], isNull);
       for (final messageId in messageIds) {
         expect(fakeMessageMarkups[(1, messageId)], isNull);
@@ -242,7 +244,7 @@ void main() {
 
     expect(state.pendingArg, isNot(contains(2)));
     expect(state.interactiveMessages[2], isNull);
-    expect(edited.any((message) => message['reply_markup'] == null), isTrue);
+    expect(edited.any(hasEmptyInlineKeyboard), isTrue);
     expect(repo.findUser(2)!.attendanceBalance, inputBefore);
 
     await sendText(2, '/manual_mark_group_attend');
@@ -268,13 +270,11 @@ void main() {
       await sendCallback(1, callback);
 
       expect(edited.last['text'], contains('not authorized'));
-      expect(edited.last['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(edited.last), isTrue);
       expect(
         edited.any(
           (body) =>
-              body.containsKey('message_id') &&
-              !body.containsKey('text') &&
-              !body.containsKey('reply_markup'),
+              body.containsKey('message_id') && hasEmptyInlineKeyboard(body),
         ),
         isTrue,
       );
@@ -390,9 +390,3 @@ void main() {
     },
   );
 }
-
-List<int> _inlineMessageIds() => [
-  for (var index = 0; index < sent.length; index++)
-    if ((sent[index]['reply_markup'] as Map?)?['inline_keyboard'] != null)
-      sentMessageIds[index],
-];

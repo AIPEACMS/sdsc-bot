@@ -47,6 +47,9 @@ jobs:
       - name: Build bundle (AOT + native assets)
         run: dart build cli -o build
 
+      - name: Include local deployment script
+        run: cp deploy.sh build/bundle/deploy.sh
+
       - name: Package bundle + checksum
         run: |
           set -euo pipefail

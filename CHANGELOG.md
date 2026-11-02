@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.14.1] - 2026-11-02
+
+### Fixed
+
+- Run the bot as a lingering user service and perform updates without sudo.
+- Deploy local packages on the current machine without SSH, downloads, or builds.
+- Session reminder confirmations now remove their inline controls on every
+  terminal path, and successful results no longer leave a Dismiss button.
+
 ### Changed
 
 - Deployment and rollback preserve bundle ownership by the configured

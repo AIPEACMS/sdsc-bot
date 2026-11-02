@@ -1,7 +1,9 @@
 import 'package:sdsc_bot/sdsc_bot.dart';
 import 'package:sdsc_bot/bot/admin.dart';
 import 'package:test/test.dart';
+
 import '../../support/grid_harness.dart';
+import '../../support/inline_keyboard_assertions.dart';
 
 void main() {
   setUp(() async {
@@ -36,7 +38,7 @@ void main() {
       expect(_button(sent.last, 0), 'Cancel');
       expect(repo.findUser(targetId)!.attendanceBalance, balance);
 
-      final retryMessageIds = _inlineMessageIds();
+      final retryMessageIds = inlineKeyboardMessageIds(sent, sentMessageIds);
       await sendCallback(
         2,
         'manualatt|cancel|0|cancel',
@@ -50,7 +52,7 @@ void main() {
       expect(removals, containsAll(retryMessageIds));
       _expectMarkupsClosed(2, retryMessageIds);
       expect(edited.last['text'], 'Cancelled.');
-      expect(edited.last['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(edited.last), isTrue);
       expect(state.interactiveMessages[2], isNull);
     },
   );
@@ -100,11 +102,11 @@ void main() {
       expect(_button(preview, 0), 'Confirm');
       expect(repo.findUser(targetId)!.attendanceBalance, before);
 
-      final messageIds = _inlineMessageIds();
+      final messageIds = inlineKeyboardMessageIds(sent, sentMessageIds);
       await sendCallback(1, 'manualattconfirm|yes', messageId: messageIds.last);
       expect(repo.findUser(targetId)!.attendanceBalance, before + 3);
       expect(edited.last['text'], contains('Attendance updated'));
-      expect(edited.last['reply_markup'], isNull);
+      expect(hasEmptyInlineKeyboard(edited.last), isTrue);
       expect(edited.any(_isMarkupRemoval), isTrue);
       expect(
         edited.where(_isMarkupRemoval).map((body) => body['message_id']),
@@ -169,7 +171,7 @@ void main() {
 
     await sendCallback(2, callback);
 
-    expect(edited.last['reply_markup'], isNull);
+    expect(hasEmptyInlineKeyboard(edited.last), isTrue);
     expect(edited.any(_isMarkupRemoval), isTrue);
     expect(state.pendingArg, isNot(contains(2)));
     expect(state.interactiveMessages[2], isNull);
@@ -187,7 +189,7 @@ void main() {
 
     expect(repo.findUser(2)!.attendanceBalance, balance);
     expect(edited.last['text'], contains('no longer available'));
-    expect(edited.last['reply_markup'], isNull);
+    expect(hasEmptyInlineKeyboard(edited.last), isTrue);
     expect(edited.any(_isMarkupRemoval), isTrue);
     expect(state.interactiveMessages[2], isNull);
   });
@@ -238,8 +240,8 @@ void main() {
         edited.last['text'],
         contains('Attendance updated for @negative-test'),
       );
-      expect(edited.last['reply_markup'], isNull);
-      _expectMarkupsClosed(1, _inlineMessageIds());
+      expect(hasEmptyInlineKeyboard(edited.last), isTrue);
+      _expectMarkupsClosed(1, inlineKeyboardMessageIds(sent, sentMessageIds));
       expect(state.interactiveMessages[1], isNull);
     },
   );
@@ -248,7 +250,7 @@ void main() {
 bool _isMarkupRemoval(Map<String, dynamic> body) =>
     body.containsKey('message_id') &&
     !body.containsKey('text') &&
-    !body.containsKey('reply_markup');
+    hasEmptyInlineKeyboard(body);
 
 void _expectMarkupsClosed(int chatId, Iterable<int> messageIds) {
   for (final messageId in messageIds) {
@@ -259,12 +261,6 @@ void _expectMarkupsClosed(int chatId, Iterable<int> messageIds) {
     );
   }
 }
-
-List<int> _inlineMessageIds() => [
-  for (var index = 0; index < sent.length; index++)
-    if ((sent[index]['reply_markup'] as Map?)?['inline_keyboard'] != null)
-      sentMessageIds[index],
-];
 
 String _button(Map<String, dynamic> message, int row) {
   final keyboard = message['reply_markup']['inline_keyboard'] as List;

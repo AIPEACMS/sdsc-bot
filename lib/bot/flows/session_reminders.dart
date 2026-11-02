@@ -1,204 +1,322 @@
 part of '../flows.dart';
 
+InlineKeyboard _emptyReminderKeyboard() =>
+    InlineKeyboard(inlineKeyboard: const []);
+
 extension FlowsSessionReminders on Flows {
   Future<void> _onConfigRemind(Context ctx) async {
     final userId = ctx.from!.id;
-    await _recordSeen(ctx, userId);
+    final messageId = ctx.message?.messageId;
+    if (messageId == null) return;
+    final generation = state.takeReminderPreferenceOpenReservation(
+      userId,
+      messageId,
+    );
+    if (generation == null ||
+        !state.isCurrentReminderPreferenceOpen(userId, generation)) {
+      return;
+    }
     final user = repo.findUser(userId);
     if (user == null || !MemberTier.isActive(user.memberTier)) return;
-    final token = state.nextReminderFlowToken();
-    final choice = user.sessionRemindersEnabled ? 'choose_off' : 'choose_on';
-    final message = await ctx.reply(
-      'Session reminders are currently '
-      '${user.sessionRemindersEnabled ? 'on' : 'off'}.',
-      replyMarkup: InlineKeyboard().text(
-        user.sessionRemindersEnabled ? 'Turn off' : 'Turn on',
-        'configremind|$token|$choice',
-      ),
+
+    final previous =
+        state.reminderPreferenceOpenings[userId] ?? Future<void>.value();
+    late final Future<void> opening;
+    opening = previous.then(
+      (_) => _openReminderPreference(ctx, userId, generation),
     );
-    state.reminderPreferenceFlows[userId] = ReminderPreferenceFlow(
+    state.reminderPreferenceOpenings[userId] = opening;
+    try {
+      await opening;
+    } finally {
+      if (identical(state.reminderPreferenceOpenings[userId], opening)) {
+        state.reminderPreferenceOpenings.remove(userId);
+      }
+    }
+  }
+
+  Future<void> _openReminderPreference(
+    Context ctx,
+    int userId,
+    int generation,
+  ) async {
+    if (!state.isCurrentReminderPreferenceOpen(userId, generation)) return;
+    final previousFlow = state.reminderPreferenceFlows[userId];
+    if (previousFlow != null) {
+      if (previousFlow.closing) {
+        await previousFlow.closed.future;
+      } else {
+        previousFlow.closing = true;
+        previousFlow.expiryTimer?.cancel();
+        await _finishReminderFlow(userId, previousFlow);
+      }
+    }
+    if (!state.isCurrentReminderPreferenceOpen(userId, generation)) return;
+
+    final user = repo.findUser(userId);
+    if (user == null || !MemberTier.isActive(user.memberTier)) return;
+    final desiredEnabled = !user.sessionRemindersEnabled;
+    final token = state.nextReminderFlowToken();
+    final warning = user.sessionRemindersEnabled && !desiredEnabled;
+    final prompt = warning
+        ? 'Turning off session reminders means you are responsible for '
+              'remembering your allocated sessions and arriving on time. '
+              'Turn them off?'
+        : 'Turn session reminders on?';
+    final keyboard = InlineKeyboard()
+        .text(
+          'Confirm',
+          'configremind|$token|${desiredEnabled ? 'confirm_on' : 'confirm_off'}',
+        )
+        .row()
+        .text('Cancel', 'configremind|$token|cancel');
+    final Message message;
+    try {
+      message = await ctx.reply(prompt, replyMarkup: keyboard);
+    } catch (error) {
+      LogRing.log('reminder confirmation send failed user=$userId: $error');
+      return;
+    }
+
+    if (!state.isCurrentReminderPreferenceOpen(userId, generation)) {
+      await _clearReminderMarkup(
+        message.chat.id,
+        message.messageId,
+        deleteOnFailure: true,
+      );
+      return;
+    }
+    final currentUser = repo.findUser(userId);
+    if (currentUser == null ||
+        !MemberTier.isActive(currentUser.memberTier) ||
+        currentUser.sessionRemindersEnabled == desiredEnabled) {
+      await _clearReminderMarkup(
+        message.chat.id,
+        message.messageId,
+        deleteOnFailure: true,
+      );
+      return;
+    }
+    final flow = ReminderPreferenceFlow(
       token: token,
       chatId: message.chat.id,
       messageId: message.messageId,
+      desiredEnabled: desiredEnabled,
+      expiresAfter: state.reminderPreferenceTimeout,
     );
-    state.trackInteractiveMessage(userId, message.chat.id, message.messageId);
+    state.reminderPreferenceFlows[userId] = flow;
+    state.trackInteractiveMessage(userId, flow.chatId, flow.messageId);
+    flow.expiryTimer = Timer(
+      flow.expiresAfter,
+      () => unawaited(_expireReminderFlow(userId, flow)),
+    );
   }
 
   Future<void> _onConfigRemindCallback(Context ctx) async {
     final userId = ctx.from!.id;
     final parts = (ctx.callbackQuery?.data ?? '').split('|');
-    await ctx.answerCallbackQuery();
     final flow = state.reminderPreferenceFlows[userId];
     final callbackMessage = ctx.callbackQuery?.message;
     if (flow == null || parts.length != 3 || parts[1] != flow.token) {
-      await _dismissReminderResult(ctx, userId, parts, callbackMessage);
+      await _answerReminderCallback(ctx);
+      await _clearLegacyReminderKeyboard(
+        userId,
+        callbackMessage,
+        protectedFlow: flow,
+      );
       return;
     }
     if (callbackMessage?.chat.id != flow.chatId ||
         callbackMessage?.messageId != flow.messageId) {
+      await _answerReminderCallback(ctx);
+      await _clearLegacyReminderKeyboard(
+        userId,
+        callbackMessage,
+        protectedFlow: flow,
+      );
+      return;
+    }
+    if (flow.closing) {
+      await _answerReminderCallback(ctx);
       return;
     }
     if (flow.isExpired) {
-      state.reminderPreferenceFlows.remove(userId);
-      state.clearInteractiveMessages(userId);
-      try {
-        await ctx.editMessageText(
-          'This confirmation expired.',
-          replyMarkup: null,
-        );
-      } catch (error) {
-        LogRing.log('expired reminder confirmation cleanup failed: $error');
-      }
-      return;
-    }
-    final user = repo.findUser(userId);
-    if (user == null || !MemberTier.isActive(user.memberTier)) {
-      await _closeReminderPreference(
-        ctx,
+      flow.closing = true;
+      flow.expiryTimer?.cancel();
+      await _answerReminderCallback(ctx);
+      await _finishReminderFlow(
         userId,
-        'This preference is unavailable.',
+        flow,
+        context: ctx,
+        text: 'This confirmation expired.',
       );
       return;
     }
-    switch (parts[2]) {
-      case 'choose_off':
-        if (!user.sessionRemindersEnabled) {
-          await _closeReminderPreference(ctx, userId, 'Reminder: off.');
-          return;
+
+    final action = parts[2];
+    if (action == 'confirm_on' || action == 'confirm_off') {
+      flow.closing = true;
+      flow.expiryTimer?.cancel();
+      final wantsEnabled = action == 'confirm_on';
+      String result;
+      try {
+        final user = repo.findUser(userId);
+        if (flow.desiredEnabled == wantsEnabled &&
+            user != null &&
+            MemberTier.isActive(user.memberTier) &&
+            user.sessionRemindersEnabled != wantsEnabled) {
+          repo.setSessionRemindersEnabled(userId, wantsEnabled);
         }
-        flow.desiredEnabled = false;
-        await ctx.editMessageText(
-          'Turning off session reminders means you are responsible for '
-          'remembering your allocated sessions and arriving on time. Turn them off?',
-          replyMarkup: InlineKeyboard()
-              .text('Confirm', 'configremind|${flow.token}|confirm_off')
-              .row()
-              .text('Cancel', 'configremind|${flow.token}|cancel')
-              .text('Dismiss', 'configremind|${flow.token}|dismiss'),
-        );
-      case 'choose_on':
-        if (user.sessionRemindersEnabled) {
-          await _closeReminderPreference(ctx, userId, 'Reminder: on.');
-          return;
-        }
-        flow.desiredEnabled = true;
-        await ctx.editMessageText(
-          'Turn session reminders on?',
-          replyMarkup: InlineKeyboard()
-              .text('Confirm', 'configremind|${flow.token}|confirm_on')
-              .row()
-              .text('Cancel', 'configremind|${flow.token}|cancel')
-              .text('Dismiss', 'configremind|${flow.token}|dismiss'),
-        );
-      case 'confirm_off':
-      case 'confirm_on':
-        final enabled = parts[2] == 'confirm_on';
-        if (flow.desiredEnabled != enabled ||
-            user.sessionRemindersEnabled == enabled) {
-          await _closeReminderPreference(
-            ctx,
-            userId,
-            'Reminder: ${user.sessionRemindersEnabled ? 'on' : 'off'}.',
-          );
-          return;
-        }
-        repo.setSessionRemindersEnabled(userId, enabled);
-        await _completeReminderPreference(
-          ctx,
-          userId,
-          flow,
-          '✅ Reminder: ${enabled ? 'on' : 'off'}.',
-        );
-      case 'cancel':
-        await _closeReminderPreference(ctx, userId, 'No change made.');
-      case 'dismiss':
-        state.reminderPreferenceFlows.remove(userId);
-        state.clearInteractiveMessages(userId);
-        try {
-          await bot.api.deleteMessage(ChatID(flow.chatId), flow.messageId);
-        } catch (error) {
-          LogRing.log('reminder confirmation dismiss failed: $error');
-        }
-      default:
-        await _closeReminderPreference(
-          ctx,
-          userId,
-          'This action is unavailable.',
-        );
+        final updated = repo.findUser(userId);
+        result = updated?.sessionRemindersEnabled == wantsEnabled
+            ? '✅ Reminder: ${wantsEnabled ? 'on' : 'off'}. '
+                  'You can change this anytime with /config_remind.'
+            : 'This reminder setting is no longer available.';
+      } catch (error) {
+        LogRing.log('reminder preference write failed user=$userId: $error');
+        result = 'Could not save this reminder preference. Please try again.';
+      }
+      await _answerReminderCallback(ctx);
+      await _finishReminderFlow(userId, flow, context: ctx, text: result);
+      return;
     }
+
+    flow.closing = true;
+    flow.expiryTimer?.cancel();
+    await _answerReminderCallback(ctx);
+    await _finishReminderFlow(
+      userId,
+      flow,
+      context: ctx,
+      text: action == 'cancel'
+          ? 'No change made.'
+          : 'This reminder action is no longer available.',
+    );
   }
 
-  Future<void> _closeReminderPreference(
-    Context ctx,
-    int userId,
-    String text,
-  ) async {
-    state.reminderPreferenceFlows.remove(userId);
-    state.clearInteractiveMessages(userId);
+  Future<void> _answerReminderCallback(Context ctx) async {
     try {
-      await ctx.editMessageText(text, replyMarkup: null);
+      await ctx.answerCallbackQuery();
     } catch (error) {
-      LogRing.log('reminder confirmation close failed: $error');
+      LogRing.log('reminder callback answer failed: $error');
     }
   }
 
-  Future<void> _completeReminderPreference(
-    Context ctx,
+  Future<void> _expireReminderFlow(
     int userId,
     ReminderPreferenceFlow flow,
-    String text,
   ) async {
-    state.reminderPreferenceFlows.remove(userId);
-    state.clearInteractiveMessages(userId);
-    final token = state.nextReminderFlowToken();
+    if (!identical(state.reminderPreferenceFlows[userId], flow) ||
+        flow.closing) {
+      return;
+    }
+    flow.closing = true;
+    await _finishReminderFlow(userId, flow, text: 'This confirmation expired.');
+  }
+
+  Future<void> _finishReminderFlow(
+    int userId,
+    ReminderPreferenceFlow flow, {
+    Context? context,
+    String? text,
+  }) async {
+    flow.closing = true;
+    flow.expiryTimer?.cancel();
     try {
-      await ctx.editMessageText(
-        text,
-        replyMarkup: InlineKeyboard().text(
-          'Dismiss',
-          'configremind|$token|dismiss_result',
-        ),
-      );
-      state.reminderPreferenceResults[userId] = ReminderPreferenceResult(
-        token: token,
-        chatId: flow.chatId,
-        messageId: flow.messageId,
-      );
-      state.trackInteractiveMessage(userId, flow.chatId, flow.messageId);
+      if (context != null && text != null) {
+        await context.editMessageText(
+          text,
+          replyMarkup: _emptyReminderKeyboard(),
+        );
+      } else {
+        await bot.api.editMessageReplyMarkup(
+          ChatID(flow.chatId),
+          flow.messageId,
+          replyMarkup: _emptyReminderKeyboard(),
+        );
+      }
     } catch (error) {
-      LogRing.log('reminder preference result update failed: $error');
+      LogRing.log('reminder markup cleanup failed: $error');
+      try {
+        await bot.api.editMessageReplyMarkup(
+          ChatID(flow.chatId),
+          flow.messageId,
+          replyMarkup: _emptyReminderKeyboard(),
+        );
+      } catch (retryError) {
+        try {
+          await bot.api.deleteMessage(ChatID(flow.chatId), flow.messageId);
+        } catch (deleteError) {
+          LogRing.log(
+            'reminder prompt removal failed: $retryError; $deleteError',
+          );
+        }
+      }
+    } finally {
+      if (identical(state.reminderPreferenceFlows[userId], flow)) {
+        state.reminderPreferenceFlows.remove(userId);
+      }
+      state.untrackInteractiveMessage(userId, flow.chatId, flow.messageId);
+      if (!flow.closed.isCompleted) flow.closed.complete();
     }
   }
 
-  Future<void> _dismissReminderResult(
-    Context ctx,
-    int userId,
-    List<String> parts,
-    MaybeInaccessibleMessage? callbackMessage,
-  ) async {
-    final result = state.reminderPreferenceResults[userId];
-    if (result == null ||
-        parts.length != 3 ||
-        parts[1] != result.token ||
-        parts[2] != 'dismiss_result' ||
-        callbackMessage?.chat.id != result.chatId ||
-        callbackMessage?.messageId != result.messageId) {
-      return;
-    }
-    state.reminderPreferenceResults.remove(userId);
-    state.clearInteractiveMessages(userId);
-    if (result.isExpired) {
+  Future<void> _clearReminderMarkup(
+    int chatId,
+    int messageId, {
+    bool deleteOnFailure = false,
+  }) async {
+    Object? error;
+    for (var attempt = 0; attempt < 2; attempt++) {
       try {
-        await ctx.editMessageText('This result expired.', replyMarkup: null);
-      } catch (error) {
-        LogRing.log('expired reminder result cleanup failed: $error');
+        await bot.api.editMessageReplyMarkup(
+          ChatID(chatId),
+          messageId,
+          replyMarkup: _emptyReminderKeyboard(),
+        );
+        return;
+      } catch (failure) {
+        error = failure;
       }
+    }
+    LogRing.log('stale reminder keyboard cleanup failed: $error');
+    if (!deleteOnFailure) return;
+    try {
+      await bot.api.deleteMessage(ChatID(chatId), messageId);
+    } catch (deleteError) {
+      LogRing.log('stale reminder prompt removal failed: $deleteError');
+    }
+  }
+
+  Future<void> _clearLegacyReminderKeyboard(
+    int userId,
+    MaybeInaccessibleMessage? message, {
+    required ReminderPreferenceFlow? protectedFlow,
+  }) async {
+    if (message == null ||
+        message.chat.type != ChatType.private ||
+        message.chat.id != userId ||
+        (protectedFlow != null &&
+            message.chat.id == protectedFlow.chatId &&
+            message.messageId == protectedFlow.messageId)) {
       return;
     }
-    try {
-      await bot.api.deleteMessage(ChatID(result.chatId), result.messageId);
-    } catch (error) {
-      LogRing.log('reminder result dismiss failed: $error');
+    await _clearReminderMarkup(userId, message.messageId);
+  }
+
+  Future<void> shutdown() async {
+    for (final userId in state.reminderPreferenceOpenings.keys.toList()) {
+      state.invalidateReminderPreferenceOpen(userId);
+    }
+    await Future.wait(state.reminderPreferenceOpenings.values.toList());
+    for (final entry in state.reminderPreferenceFlows.entries.toList()) {
+      final flow = entry.value;
+      if (flow.closing) {
+        await flow.closed.future;
+      } else {
+        flow.closing = true;
+        await _finishReminderFlow(entry.key, flow);
+      }
     }
   }
 }

@@ -1,0 +1,60 @@
+fun setting(name: Text, fallback: Text): Text {
+    const value = $ printenv "{name}" $ failed { return fallback }
+    if value == "": return fallback
+    return value
+}
+
+fun rollback(install: Text, previous: Text, service: Text): Int {
+    $ rm -r -- "{install}" $ failed { return status() }
+    $ mv -- "{previous}" "{install}" $ failed { return status() }
+    $ systemctl --user restart "{service}" $ exited(code) { return code }
+}
+
+main(args) {
+    if len(args) != 2 {
+        echo("usage: deploy.sh /path/to/package.tar.gz")
+        exit(2)
+    }
+    const package = $ realpath -e -- "{args[1]}" $ failed { exit(status()) }
+    const home = $ printenv HOME $ failed { exit(status()) }
+    const install = setting("SDSC_INSTALL_DIR", "{home}/app")
+    const service = setting("SDSC_SERVICE", "sdsc-bot.service")
+    const uid = $ id -u $ failed { exit(status()) }
+    const runtime = setting("XDG_RUNTIME_DIR", "/run/user/{uid}")
+    const bus = setting("DBUS_SESSION_BUS_ADDRESS", "unix:path={runtime}/bus")
+    $ export XDG_RUNTIME_DIR="{runtime}" DBUS_SESSION_BUS_ADDRESS="{bus}" $ failed { exit(status()) }
+    $ test -d "{install}" && test -O "{install}" $ failed {
+        echo("Run as the account that owns the existing installation.")
+        exit(1)
+    }
+    $ systemctl --user show "{service}" --property=LoadState --value | grep -qx loaded $ failed {
+        echo("The local user service is not installed.")
+        exit(1)
+    }
+    const stage = $ mktemp -d "{install}.stage.XXXXXX" $ failed { exit(status()) }
+    $ trap 'test ! -d "{stage}" || rm -r -- "{stage}"' EXIT $ failed { exit(status()) }
+    $ tar --no-same-owner -xzf "{package}" -C "{stage}" $ failed { exit(status()) }
+    $ test -x "{stage}/bin/main" $ failed {
+        echo("Package has no executable bin/main.")
+        exit(1)
+    }
+    const previous = "{install}.previous"
+    $ test ! -e "{previous}" $ failed { $ rm -r -- "{previous}" $ failed { exit(status()) } }
+    $ mv -- "{install}" "{previous}" $ failed { exit(status()) }
+    $ mv -- "{stage}" "{install}" $ failed {
+        $ mv -- "{previous}" "{install}" $ failed { exit(status()) }
+        exit(1)
+    }
+    let healthy = true
+    $ systemctl --user restart "{service}" $ failed { healthy = false }
+    if healthy {
+        $ systemctl --user is-active --quiet "{service}" $ failed { healthy = false }
+    }
+    if not healthy {
+        const restored = rollback(install, previous, service)
+        if restored != 0: echo("Rollback failed; check the local user service.")
+        exit(1)
+    }
+    $ rm -r -- "{previous}" $ failed { exit(status()) }
+    echo("Local deployment complete.")
+}

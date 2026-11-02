@@ -127,8 +127,7 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/editMessageReplyMarkup')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       edited.add(body as Map<String, dynamic>);
-      fakeMessageMarkups[(body['chat_id'] as int, body['message_id'] as int)] =
-          null;
+      _updateFakeMarkup(body);
       await _json(req, {
         'ok': true,
         'result': {
@@ -147,13 +146,6 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/editMessageText')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       edited.add(body as Map<String, dynamic>);
-      if (body.containsKey('reply_markup')) {
-        fakeMessageMarkups[(
-              body['chat_id'] as int,
-              body['message_id'] as int,
-            )] =
-            body['reply_markup'];
-      }
       if (failNextEditMessageText) {
         failNextEditMessageText = false;
         await _json(req, {
@@ -163,6 +155,7 @@ Future<void> setUpGrid() async {
         }, status: 500);
         return;
       }
+      _updateFakeMarkup(body);
       await _json(req, {
         'ok': true,
         'result': {
@@ -270,12 +263,23 @@ Future<void> setUpGrid() async {
   final startFuture = bot.start();
   await readiness.wait();
   addTearDown(() async {
+    await flows.shutdown();
     await bot.stop();
     await startFuture;
     await server.close(force: true);
     db.close();
     tmp.deleteSync(recursive: true);
   });
+}
+
+void _updateFakeMarkup(Map<String, dynamic> body) {
+  if (!body.containsKey('reply_markup')) return;
+  final markup = body['reply_markup'];
+  final inlineKeyboard = markup is Map ? markup['inline_keyboard'] : null;
+  final key = (body['chat_id'] as int, body['message_id'] as int);
+  fakeMessageMarkups[key] = inlineKeyboard is List && inlineKeyboard.isEmpty
+      ? null
+      : markup;
 }
 
 Future<void> sendText(int userId, String text, {String? username}) =>

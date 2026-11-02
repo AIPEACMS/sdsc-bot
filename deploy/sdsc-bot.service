@@ -1,17 +1,13 @@
 [Unit]
 Description=SDSC Telegram Bot
-After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=simple
-User=sbo
-Group=sbo
-WorkingDirectory=/var/lib/sdsc-bot
-EnvironmentFile=/etc/sdsc-bot/sdsc-bot.env
-ExecStart=/opt/sdsc-bot/bin/main
+WorkingDirectory=%h
+EnvironmentFile=%h/.config/sdsc-bot/env
+ExecStart=%h/app/bin/main
 Restart=always
 RestartSec=5
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target

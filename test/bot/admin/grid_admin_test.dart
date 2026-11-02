@@ -1,6 +1,7 @@
 import 'package:test/test.dart';
 import 'package:sdsc_bot/sdsc_bot.dart';
 import '../../support/grid_harness.dart';
+import '../../support/inline_keyboard_assertions.dart';
 
 void main() {
   setUp(setUpGrid);
@@ -67,7 +68,7 @@ void main() {
       expect(sent.last['text'], contains('@alice @bob'));
 
       await sendPlainText(2, '@alice bad-handle @bob');
-      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+      expect(edited.any(hasEmptyInlineKeyboard), isTrue);
       expect(sent.last['text'], contains('Add these 3 out-members?'));
       expect(sent.last['reply_markup'], isNotNull);
       await sendCallback(2, 'adduser|yes');
@@ -115,7 +116,7 @@ void main() {
     () async {
       await sendText(2, '/broadcast');
       await sendPlainText(2, 'hello everyone');
-      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+      expect(edited.any(hasEmptyInlineKeyboard), isTrue);
       await sendCallback(2, 'bcast|no');
       expect(edited.last['reply_markup'], isNull);
 
@@ -190,12 +191,12 @@ void main() {
       await sendText(1, '/set_date');
       await sendPlainText(1, 'not-a-date');
       expect(sent.last['text'], 'Invalid date. Use YYYY-MM-DD.');
-      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+      expect(edited.any(hasEmptyInlineKeyboard), isTrue);
 
       await sendText(1, '/sync_calendar');
       await sendPlainText(1, 'not yaml');
       expect(sent.last['text'], startsWith('❌ Sync failed:'));
-      expect(edited.any((body) => body['reply_markup'] == null), isTrue);
+      expect(edited.any(hasEmptyInlineKeyboard), isTrue);
     },
   );
 
