@@ -8,7 +8,7 @@ Pure Dart (`televerse` + `sqlite3`), long-polling, no webhook.
 
 ```sh
 export TELEGRAM_TOKEN=...  # required
-export CONSOLE_ID=...      # required — the console user's Telegram id (secret)
+export CONSOLE_ID=...      # required 
 dart pub get
 dart run bin/main.dart
 ```
