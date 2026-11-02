@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Deployment and rollback preserve bundle ownership by the configured
+  unprivileged service account instead of resetting it to root.
+
 ## [4.14.0] - 2026-11-02
 
 ### Added

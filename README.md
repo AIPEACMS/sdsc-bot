@@ -32,8 +32,8 @@ or `--all` to run the complete suite. CI always runs the full suite.
 1. Bump `pubspec.yaml` + move CHANGELOG `[Unreleased]` to the new version.
 2. Tag the build: `git tag v0.2.0 && git push --tags` - GitHub Actions builds
    the bundle and publishes it as a Release.
-3. ./sdsc.sh update` (latest) or `./sdsc.sh update v0.2.0`
-   (pinned).
+3. As an administrator, run `./sdsc.sh update` (latest) or
+   `./sdsc.sh update v0.2.0` (pinned).
 
 **Fallback — manual copy:** `./deploy.sh` builds the bundle locally.
 
