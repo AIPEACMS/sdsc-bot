@@ -128,8 +128,10 @@ extension AdminUsers on Admin {
       final exp = u.experience == Experience.experienced ? 'exp' : 'new';
       final detail = outMember
           ? 'notifications ${_notificationLabel(u.notificationPreference)}'
+                '${u.sessionRemindersEnabled ? '' : ', <i>reminder dismissed</i>'}'
           : member
           ? '$exp, attended ${u.attendanceBalance} sessions'
+                '${u.sessionRemindersEnabled ? '' : ', <i>reminder dismissed</i>'}'
           : exp;
       final roleAndGroup = outMember
           ? tier

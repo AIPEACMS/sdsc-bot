@@ -132,7 +132,10 @@ void main() {
         sent.any((s) => (s['text'] as String).contains('preferred name')),
         isTrue,
       );
-      expect(sent.single['reply_markup'], isNotNull);
+      final prompt = sent.singleWhere(
+        (body) => (body['text'] as String).contains('preferred name'),
+      );
+      expect(prompt['reply_markup'], isNotNull);
 
       await cmd(2, 'Ali');
 

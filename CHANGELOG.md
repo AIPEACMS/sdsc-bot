@@ -6,8 +6,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.14.0] - 2026-11-02
+
+### Added
+
+- Added default-on per-session reminders for current allocated recipients,
+  including out-members, with per-recipient opt-out, a separate global
+  `session-reminder` outbound switch, and durable catch-up/deduplication.
+- Added `/config_remind`, reminder status, and once-per-release role-grid refresh for
+  existing users.
+
 ### Changed
 
+- Moved add-out-user, ask, and broadcast controls off the admin grid and into
+  More Commands while retaining their slash commands and aliases.
 - Track the systemd service for the unprivileged `sbo` runtime account and
   document migration, deployment ownership, and user acceptance before cleanup.
 

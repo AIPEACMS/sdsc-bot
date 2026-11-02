@@ -1,7 +1,6 @@
 part of '../../repo.dart';
 
 extension RepoSettings on Repo {
-
   /// Promotes a registered user to the singleton global-admin role. A member
   /// gets a group only when they do not already have one; an existing normal
   /// admin keeps their group while its admin flag is cleared.
@@ -71,16 +70,19 @@ extension RepoSettings on Repo {
   /// Console identity is never stored as a member tier; it is derived from
   /// the console id and remains separate from the stored role.
   bool setTier(int id, String tier) {
-    if (![MemberTier.admin, MemberTier.check, MemberTier.member,
-          MemberTier.outMember, MemberTier.old]
-        .contains(tier)) {
+    if (![
+      MemberTier.admin,
+      MemberTier.check,
+      MemberTier.member,
+      MemberTier.outMember,
+      MemberTier.old,
+    ].contains(tier)) {
       return false;
     }
     final isAdminNext = tier == MemberTier.admin;
-    final stored =
-        (tier == MemberTier.admin || tier == MemberTier.member)
-            ? MemberTier.member
-            : tier;
+    final stored = (tier == MemberTier.admin || tier == MemberTier.member)
+        ? MemberTier.member
+        : tier;
     final user = findUser(id);
     if (user == null || user.isGlobalAdmin) return false;
     if (isAdminNext && user.memberTier == MemberTier.outMember) return false;
@@ -122,10 +124,10 @@ extension RepoSettings on Repo {
     }
     if (tier == MemberTier.outMember &&
         user.memberTier != MemberTier.outMember) {
-      raw.execute(
-        'UPDATE users SET notification_preference = ? WHERE id = ?',
-        [_notificationPreferenceValue(NotificationPreference.never), id],
-      );
+      raw.execute('UPDATE users SET notification_preference = ? WHERE id = ?', [
+        _notificationPreferenceValue(NotificationPreference.never),
+        id,
+      ]);
     }
     return true;
   }
@@ -166,10 +168,7 @@ extension RepoSettings on Repo {
   /// Every member of [groupId] (including its admin, if any) loses their
   /// group. Used when an admin is demoted.
   void _dissolveGroup(String groupId) {
-    raw.execute(
-      "UPDATE users SET group_id = '' WHERE group_id = ?",
-      [groupId],
-    );
+    raw.execute("UPDATE users SET group_id = '' WHERE group_id = ?", [groupId]);
   }
 
   /// Manual group assignment (the API validates and blocks admins).
@@ -181,9 +180,7 @@ extension RepoSettings on Repo {
 
   /// Whether the bot is held (all outgoing messages suppressed).
   bool isHeld() {
-    final rows = raw.select(
-      "SELECT value FROM settings WHERE key = 'hold'",
-    );
+    final rows = raw.select("SELECT value FROM settings WHERE key = 'hold'");
     return rows.isNotEmpty && rows.first['value'] == '1';
   }
 
@@ -193,13 +190,11 @@ extension RepoSettings on Repo {
       "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       [held ? '1' : '0'],
     );
+    notifySessionReminderWorkChanged();
   }
 
   String? getSetting(String key) {
-    final rows = raw.select(
-      'SELECT value FROM settings WHERE key = ?',
-      [key],
-    );
+    final rows = raw.select('SELECT value FROM settings WHERE key = ?', [key]);
     return rows.isEmpty ? null : rows.first['value'] as String;
   }
 
@@ -212,20 +207,24 @@ extension RepoSettings on Repo {
   }
 
   Map<String, bool> activeOutreach() => {
-        for (final key in Repo.activeOutreachRouteKeys)
-          key: getSetting('active_outreach_$key') != '0',
-      }
-
-;
+    for (final key in Repo.activeOutreachRouteKeys)
+      key: getSetting('active_outreach_$key') != '0',
+  };
 
   bool activeOutreachEnabled(String route) =>
       getSetting('active_outreach_$route') != '0';
 
   void setActiveOutreach(String route, bool enabled) {
     if (!Repo.activeOutreachRouteKeys.contains(route)) {
-      throw ArgumentError.value(route, 'route', 'unknown active outreach route');
+      throw ArgumentError.value(
+        route,
+        'route',
+        'unknown active outreach route',
+      );
     }
     setSetting('active_outreach_$route', enabled ? '1' : '0');
+    if (route == 'session-reminder') {
+      notifySessionReminderWorkChanged();
+    }
   }
-
 }

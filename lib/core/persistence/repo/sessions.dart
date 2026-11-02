@@ -207,6 +207,7 @@ extension RepoSessions on Repo {
         );
       }
       tx.execute('COMMIT');
+      notifySessionReminderWorkChanged();
     } catch (_) {
       tx.execute('ROLLBACK');
       rethrow;
@@ -337,6 +338,7 @@ extension RepoSessions on Repo {
         tx.execute('DELETE FROM sessions WHERE id = ?', [id]);
       }
       tx.execute('COMMIT');
+      notifySessionReminderWorkChanged();
     } catch (_) {
       tx.execute('ROLLBACK');
       rethrow;
@@ -348,6 +350,7 @@ extension RepoSessions on Repo {
       _dayKey(sat),
     ]);
     setSetting('schedule_override_empty_${_dayKey(sat)}', '0');
+    notifySessionReminderWorkChanged();
   }
 
   /// Creates (idempotently) the sessions for [sat]'s weekend from [template].

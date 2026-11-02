@@ -33,16 +33,14 @@ void main() {
           .toList(),
       [
         ('add-user', '/adduser', RoleColor.admin),
-        ('add-out-user', '/addoutuser', RoleColor.admin),
         ('group-status', '/groupstatus', RoleColor.admin),
         ('all-status', '/allstatus', RoleColor.admin),
-        ('ask', '/ask', RoleColor.admin),
         ('mark-attend', '/confirm', RoleColor.admin),
-        ('broadcast', '/broadcast', RoleColor.admin),
         ('start', '/start', RoleColor.member),
         ('(re)pick', '/repick', RoleColor.member),
         ('set-info', '/setinfo', RoleColor.member),
         ('my-status', '/mystatus', RoleColor.member),
+        ('config-remind', '/config_remind', RoleColor.member),
       ],
     );
     expect(

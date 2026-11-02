@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:async';
 import 'dart:io';
 
 import 'package:televerse/telegram.dart' show Update;
@@ -32,11 +33,14 @@ late Console console;
 late HoldGate holdGate;
 late List<Map<String, dynamic>> sent;
 late List<Map<String, dynamic>> edited;
+late List<Map<String, dynamic>> deletedMessages;
 late List<int> sentMessageIds;
 late Map<(int chatId, int messageId), Object?> fakeMessageMarkups;
 bool useUniqueTelegramMessageIds = false;
 int _nextFakeMessageId = 0;
 bool failNextSendMessage = false;
+int nextSendFailureStatus = 500;
+Future<void> Function(Map<String, dynamic>)? beforeSendMessageResponse;
 bool failNextEditMessageText = false;
 late HttpServer server;
 late Bot bot;
@@ -67,11 +71,14 @@ Future<void> setUpGrid() async {
   state = BotState();
   sent = <Map<String, dynamic>>[];
   edited = <Map<String, dynamic>>[];
+  deletedMessages = <Map<String, dynamic>>[];
   sentMessageIds = <int>[];
   fakeMessageMarkups = <(int, int), Object?>{};
   useUniqueTelegramMessageIds = false;
   _nextFakeMessageId = 0;
   failNextSendMessage = false;
+  nextSendFailureStatus = 500;
+  beforeSendMessageResponse = null;
   failNextEditMessageText = false;
   final readiness = BotReadiness();
   server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -93,6 +100,7 @@ Future<void> setUpGrid() async {
     } else if (path.endsWith('/sendMessage')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
       sent.add(body as Map<String, dynamic>);
+      await beforeSendMessageResponse?.call(body);
       final messageId = useUniqueTelegramMessageIds ? ++_nextFakeMessageId : 1;
       sentMessageIds.add(messageId);
       fakeMessageMarkups[(body['chat_id'] as int, messageId)] =
@@ -101,9 +109,10 @@ Future<void> setUpGrid() async {
         failNextSendMessage = false;
         await _json(req, {
           'ok': false,
-          'error_code': 500,
+          'error_code': nextSendFailureStatus,
           'description': 'send failed',
-        }, status: 500);
+        }, status: nextSendFailureStatus);
+        nextSendFailureStatus = 500;
         return;
       }
       await _json(req, {
@@ -111,7 +120,7 @@ Future<void> setUpGrid() async {
         'result': {
           'message_id': messageId,
           'date': 1,
-          'chat': {'id': 1, 'type': 'private'},
+          'chat': {'id': body['chat_id'], 'type': 'private'},
           'text': body['text'],
         },
       });
@@ -125,11 +134,15 @@ Future<void> setUpGrid() async {
         'result': {
           'message_id': body['message_id'],
           'date': 1,
-          'chat': {'id': 1, 'type': 'private'},
+          'chat': {'id': body['chat_id'], 'type': 'private'},
           'text': '',
         },
       });
     } else if (path.endsWith('/answerCallbackQuery')) {
+      await _json(req, {'ok': true, 'result': true});
+    } else if (path.endsWith('/deleteMessage')) {
+      final body = jsonDecode(await utf8.decoder.bind(req).join());
+      deletedMessages.add(body as Map<String, dynamic>);
       await _json(req, {'ok': true, 'result': true});
     } else if (path.endsWith('/editMessageText')) {
       final body = jsonDecode(await utf8.decoder.bind(req).join());
@@ -155,7 +168,7 @@ Future<void> setUpGrid() async {
         'result': {
           'message_id': body['message_id'],
           'date': 1,
-          'chat': {'id': 1, 'type': 'private'},
+          'chat': {'id': body['chat_id'], 'type': 'private'},
           'text': body['text'],
         },
       });

@@ -20,6 +20,7 @@ if [[ "$HOST" == "user@host" ]]; then
 fi
 
 echo "==> dart build cli -o build"
+dart run tool/generate_build_version.dart
 dart build cli -o build
 
 echo "==> packing bundle"

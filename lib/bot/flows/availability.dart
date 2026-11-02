@@ -113,6 +113,8 @@ extension FlowsAvailability on Flows {
     state.forgetAvailability(userId);
     state.clearAttendanceDrafts(userId);
     state.cancelInputFlow(userId);
+    state.reminderPreferenceFlows.remove(userId);
+    state.reminderPreferenceResults.remove(userId);
     for (final (chatId, messageId) in state.takeInteractiveMessages(userId)) {
       try {
         await bot.api.editMessageReplyMarkup(
@@ -146,6 +148,7 @@ extension FlowsAvailability on Flows {
     final sb = StringBuffer()
       ..writeln('👤 <b>Your information</b>')
       ..writeln('Preferred name: ${_html(user.preferredName)}')
+      ..writeln('Reminder: ${user.sessionRemindersEnabled ? 'on' : 'off'}')
       ..writeln('\n📋 <b>Your status</b>')
       ..writeln('Bundle: "${_day(w.sat0)}, ${_day(w.sat1)}"');
 
@@ -201,9 +204,7 @@ extension FlowsAvailability on Flows {
     }
 
     if (user.memberTier != MemberTier.outMember) {
-      sb.writeln(
-        '\n<b>Attendance</b>: ${user.attendanceBalance} sessions.',
-      );
+      sb.writeln('\n<b>Attendance</b>: ${user.attendanceBalance} sessions.');
     }
 
     await ctx.reply(sb.toString(), parseMode: ParseMode.html);

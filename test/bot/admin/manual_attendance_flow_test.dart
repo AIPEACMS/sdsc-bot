@@ -170,32 +170,30 @@ void main() {
     },
   );
 
-  test(
-    'prompt Cancel replaces the prompt and clears tracked controls',
-    () async {
-      useUniqueTelegramMessageIds = true;
-      await sendText(2, '/manual_mark_group_attend');
-      final picker = sent.last['reply_markup']['inline_keyboard'] as List;
-      final callback = picker.first.first['callback_data'] as String;
-      await sendCallback(2, callback, messageId: sentMessageIds.last);
-      expect(state.interactiveMessages[2], contains((2, 1)));
+  test('prompt Cancel closes tracked controls', () async {
+    useUniqueTelegramMessageIds = true;
+    await sendText(2, '/manual_mark_group_attend');
+    final picker = sent.last['reply_markup']['inline_keyboard'] as List;
+    final callback = picker.first.first['callback_data'] as String;
+    final pickerMessageId = sentMessageIds.last;
+    await sendCallback(2, callback, messageId: pickerMessageId);
+    expect(state.interactiveMessages[2], contains((2, pickerMessageId)));
 
-      final messageIds = sentMessageIds.toList();
-      await sendCallback(
-        2,
-        'manualatt|cancel|0|cancel',
-        messageId: messageIds.last,
-      );
+    final messageIds = _inlineMessageIds();
+    await sendCallback(
+      2,
+      'manualatt|cancel|0|cancel',
+      messageId: messageIds.last,
+    );
 
-      expect(edited.last['text'], 'Cancelled.');
-      expect(edited.last['reply_markup'], isNull);
-      expect(state.pendingArg, isNot(contains(2)));
-      expect(state.interactiveMessages[2], isNull);
-      for (final messageId in messageIds) {
-        expect(fakeMessageMarkups[(2, messageId)], isNull);
-      }
-    },
-  );
+    expect(edited.last['text'], 'Cancelled.');
+    expect(edited.last['reply_markup'], isNull);
+    expect(state.pendingArg, isNot(contains(2)));
+    expect(state.interactiveMessages[2], isNull);
+    for (final messageId in messageIds) {
+      expect(fakeMessageMarkups[(2, messageId)], isNull);
+    }
+  });
 
   test(
     'positive preview Cancel never changes balance and removes buttons',
@@ -221,7 +219,7 @@ void main() {
       expect(sent.last['text'], contains('Requested adjustment: 3'));
       expect(repo.findUser(22)!.attendanceBalance, balance);
 
-      final messageIds = sentMessageIds.toList();
+      final messageIds = _inlineMessageIds();
       await sendCallback(1, 'manualattconfirm|no', messageId: messageIds.last);
 
       expect(repo.findUser(22)!.attendanceBalance, balance);
@@ -392,3 +390,9 @@ void main() {
     },
   );
 }
+
+List<int> _inlineMessageIds() => [
+  for (var index = 0; index < sent.length; index++)
+    if ((sent[index]['reply_markup'] as Map?)?['inline_keyboard'] != null)
+      sentMessageIds[index],
+];

@@ -11,7 +11,16 @@ extension FlowsRegistration on Flows {
       final text = ctx.message?.text;
       if (text != null) {
         final userId = ctx.from!.id;
+        final existedBeforeUpdate = repo.findUser(userId) != null;
+        final username = ctx.from?.username;
+        final hadPendingRole = username != null && repo.isPendingUser(username);
         await _recordSeen(ctx, userId);
+        final currentUser = repo.findUser(userId);
+        if (!hadPendingRole && existedBeforeUpdate && currentUser != null) {
+          await _refreshRoleGrid(ctx, userId, currentUser);
+        } else if (config.isConsole(userId)) {
+          await _refreshRoleGrid(ctx, userId, currentUser);
+        }
 
         if (state.isValidCommandText(text)) {
           final pending = state.pendingArg.remove(userId);
@@ -66,6 +75,10 @@ extension FlowsRegistration on Flows {
         await _onCallback(ctx);
         return;
       }
+      if (head == 'configremind') {
+        await _onConfigRemindCallback(ctx);
+        return;
+      }
       if (head == 'noop' || head == 'locked' || head == 'full') {
         // Non-interactive label rows (e.g. the picker's weekend headers):
         // dismiss the button press instantly so Telegram shows no spinner.
@@ -107,8 +120,63 @@ extension FlowsRegistration on Flows {
     commandBoth(bot, state, 'reset_grid', _onResetGrid, label: 'reset-grid');
     commandAlias(bot, state, 'resetgrid', _onResetGrid);
     commandBoth(bot, state, 'notify', _onNotify, label: 'notify');
+    commandBoth(
+      bot,
+      state,
+      'config_remind',
+      _onConfigRemind,
+      label: 'config-remind',
+    );
     state.registerLabel('more-cmd');
     bot.hears('more-cmd', _onMoreCommands);
+  }
+
+  Future<void> _refreshRoleGrid(
+    Context ctx,
+    int userId,
+    User? initialUser,
+  ) async {
+    // Publish the per-user in-flight future synchronously; concurrent updates
+    // wait here, then re-read the durable marker before deciding to send.
+    final prior = state.gridRefreshes[userId] ?? Future<void>.value();
+    late final Future<void> operation;
+    operation = prior.then((_) async {
+      final marker = 'role_grid_refresh_${releaseVersion}_$userId';
+      if (repo.getSetting(marker) == '1') return;
+      final user = repo.findUser(userId) ?? initialUser;
+      final role = RoleKeyboard.roleFor(
+        isConsole: config.isConsole(userId),
+        isAdmin: user?.isAdmin ?? false,
+        isGlobalAdmin: user?.isGlobalAdmin ?? false,
+        tier: user?.memberTier,
+      );
+      final buttons = RoleKeyboard.buttonsFor(
+        role,
+        consoleIdentity: config.isConsole(userId),
+      );
+      try {
+        await ctx.reply(
+          'Your command buttons have been updated.',
+          replyMarkup: buttons.isEmpty
+              ? Keyboard.remove()
+              : RoleKeyboard.build(
+                  role,
+                  consoleIdentity: config.isConsole(userId),
+                ),
+        );
+        repo.setSetting(marker, '1');
+      } catch (error) {
+        LogRing.log('role grid refresh failed user=$userId: $error');
+      }
+    });
+    state.gridRefreshes[userId] = operation;
+    try {
+      await operation;
+    } finally {
+      if (identical(state.gridRefreshes[userId], operation)) {
+        state.gridRefreshes.remove(userId);
+      }
+    }
   }
 
   // ------------------------------------------------------------- /start
