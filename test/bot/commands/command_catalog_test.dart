@@ -154,8 +154,11 @@ void main() {
       isGlobalAdmin: false,
     );
     expect(admin.map((entry) => entry.display), [
+      '/add_out_user [@handle ...] - add out-members',
       '/all_users - list registered members',
       '/allocate - run the allocation now',
+      '/ask - send one member an availability picker',
+      '/broadcast [message] - message all members',
       '/group_user - show your group\'s member details',
       '/manual_mark_group_attend - correct an attendance balance in your group',
       '/prompt - send availability prompts now',
@@ -280,8 +283,11 @@ void main() {
     );
     expect(admin.map((section) => section.title), ['Admin']);
     expect(admin.single.commands.map((entry) => entry.command), [
+      '/add_out_user',
       '/all_users',
       '/allocate',
+      '/ask',
+      '/broadcast',
       '/group_user',
       '/manual_mark_group_attend',
       '/prompt',
@@ -311,14 +317,7 @@ void main() {
         '/rm_user',
         '/sync_calendar',
         '/view_pend_user',
-        '/all_users',
-        '/allocate',
-        '/group_user',
-        '/manual_mark_group_attend',
-        '/prompt',
-        '/remind',
-        '/set_exp',
-        '/view_pend_member',
+        ...admin.single.commands.map((entry) => entry.command),
       ],
     );
 

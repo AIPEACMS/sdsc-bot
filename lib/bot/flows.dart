@@ -13,6 +13,7 @@ import 'keyboards.dart';
 import 'service.dart';
 import 'state.dart';
 import '../core/schedule.dart';
+import '../core/build_version.dart';
 
 /// Member-facing commands: gated /start, availability picking, and the
 /// seen-user bookkeeping that lets admins add members by handle.
@@ -21,6 +22,7 @@ part 'flows/registration.dart';
 part 'flows/availability.dart';
 part 'flows/callbacks.dart';
 part 'flows/presentation.dart';
+part 'flows/session_reminders.dart';
 
 class _FlowsBase {
   final Bot bot;
@@ -36,6 +38,7 @@ class _FlowsBase {
   final CycleService service;
 
   final ScheduleRuntime scheduleRuntime;
+  final String releaseVersion;
 
   Future<void> Function()? onAvailabilitySaved;
   Future<void> Function(Context ctx, int userId, String text)? onBroadcastText;
@@ -52,8 +55,10 @@ class _FlowsBase {
     required this.messages,
     required this.state,
     required this.service,
+    String? releaseVersion,
     ScheduleRuntime? scheduleRuntime,
-  }) : scheduleRuntime =
+  }) : releaseVersion = releaseVersion ?? buildVersion,
+       scheduleRuntime =
            scheduleRuntime ?? ScheduleRuntime(repo: repo, config: config);
 
   final int _profileSteps = 1;
@@ -86,6 +91,7 @@ class Flows extends _FlowsBase {
     required super.messages,
     required super.state,
     required super.service,
+    super.releaseVersion,
     super.scheduleRuntime,
   });
 

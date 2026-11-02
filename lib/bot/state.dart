@@ -22,6 +22,43 @@ class AttendanceDraft {
       values = Map<int, bool?>.of(snapshot);
 }
 
+class ReminderPreferenceFlow {
+  static const Duration timeout = Duration(minutes: 10);
+
+  final String token;
+  final int chatId;
+  final int messageId;
+  final DateTime createdAt;
+  bool? desiredEnabled;
+
+  ReminderPreferenceFlow({
+    required this.token,
+    required this.chatId,
+    required this.messageId,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  bool get isExpired => DateTime.now().difference(createdAt) > timeout;
+}
+
+class ReminderPreferenceResult {
+  static const Duration timeout = Duration(minutes: 10);
+
+  final String token;
+  final int chatId;
+  final int messageId;
+  final DateTime createdAt;
+
+  ReminderPreferenceResult({
+    required this.token,
+    required this.chatId,
+    required this.messageId,
+    DateTime? createdAt,
+  }) : createdAt = createdAt ?? DateTime.now();
+
+  bool get isExpired => DateTime.now().difference(createdAt) > timeout;
+}
+
 /// Transient in-memory state for the bot. Nothing here is durable — it only
 /// tracks interactive flows in progress (availability picks) and the console's
 /// grid preview.
@@ -45,6 +82,16 @@ class BotState {
   /// The console's grid preview: which role's grid is currently shown
   /// ('console' | 'admin' | 'check' | 'member'). Absent = console's own grid.
   final Map<int, String> gridPreview = {};
+
+  /// Owner- and message-bound preference confirmations, kept only in memory.
+  final Map<int, ReminderPreferenceFlow> reminderPreferenceFlows = {};
+  final Map<int, ReminderPreferenceResult> reminderPreferenceResults = {};
+  final Map<int, Future<void>> gridRefreshes = {};
+  int _reminderFlowSequence = 0;
+
+  String nextReminderFlowToken() =>
+      '${DateTime.now().microsecondsSinceEpoch}_'
+      '${_reminderFlowSequence++}';
 
   /// Users waiting for a text argument (e.g. the message to broadcast).
   final Map<int, PendingArg> pendingArg = {};

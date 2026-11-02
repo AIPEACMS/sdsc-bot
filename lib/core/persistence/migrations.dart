@@ -99,6 +99,15 @@ CREATE TABLE IF NOT EXISTS sent_messages (
   message_id_update_attempted INTEGER NOT NULL DEFAULT 0,
   UNIQUE(user_id, kind, day)
 );
+CREATE TABLE IF NOT EXISTS session_reminder_deliveries (
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  session_id INTEGER NOT NULL,
+  attempted_at TEXT NOT NULL,
+  delivered_at TEXT,
+  delivery_state TEXT NOT NULL DEFAULT 'uncertain',
+  retry_at TEXT,
+  PRIMARY KEY (user_id, session_id)
+);
 CREATE TABLE IF NOT EXISTS calendar_years (
   academic_year TEXT PRIMARY KEY,
   yaml TEXT NOT NULL,
@@ -151,9 +160,8 @@ CREATE TABLE IF NOT EXISTS schedule_overrides (
 );
 ''');
     _migrateConsoleKeySchema(db);
-    // Schedule settings are durable and seeded once. The transaction keeps a
-    // restart from exposing only part of the schedule. The six attendance and
-    // absence defaults are additive, so existing values always take precedence.
+    _migrateSessionReminderDeliverySchema(db);
+    // Schedule settings are seeded atomically; existing values take precedence.
     db.execute('BEGIN IMMEDIATE');
     try {
       String hour(int value) => '${value.toString().padLeft(2, '0')}:00';
@@ -289,6 +297,7 @@ END;
       ('attendance_balance', 'INTEGER NOT NULL DEFAULT 0'),
       ('last_attended_date', 'TEXT'),
       ('manual_last_attended_date', 'TEXT'),
+      ('session_reminders_enabled', 'INTEGER NOT NULL DEFAULT 1'),
     ]) {
       if (!userColumns.contains(column)) {
         db.execute('ALTER TABLE users ADD COLUMN $column $definition');

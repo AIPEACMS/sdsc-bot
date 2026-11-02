@@ -36,7 +36,7 @@ void main() {
       expect(_button(sent.last, 0), 'Cancel');
       expect(repo.findUser(targetId)!.attendanceBalance, balance);
 
-      final retryMessageIds = sentMessageIds.toList();
+      final retryMessageIds = _inlineMessageIds();
       await sendCallback(
         2,
         'manualatt|cancel|0|cancel',
@@ -100,7 +100,7 @@ void main() {
       expect(_button(preview, 0), 'Confirm');
       expect(repo.findUser(targetId)!.attendanceBalance, before);
 
-      final messageIds = sentMessageIds.toList();
+      final messageIds = _inlineMessageIds();
       await sendCallback(1, 'manualattconfirm|yes', messageId: messageIds.last);
       expect(repo.findUser(targetId)!.attendanceBalance, before + 3);
       expect(edited.last['text'], contains('Attendance updated'));
@@ -239,7 +239,7 @@ void main() {
         contains('Attendance updated for @negative-test'),
       );
       expect(edited.last['reply_markup'], isNull);
-      _expectMarkupsClosed(1, sentMessageIds);
+      _expectMarkupsClosed(1, _inlineMessageIds());
       expect(state.interactiveMessages[1], isNull);
     },
   );
@@ -259,6 +259,12 @@ void _expectMarkupsClosed(int chatId, Iterable<int> messageIds) {
     );
   }
 }
+
+List<int> _inlineMessageIds() => [
+  for (var index = 0; index < sent.length; index++)
+    if ((sent[index]['reply_markup'] as Map?)?['inline_keyboard'] != null)
+      sentMessageIds[index],
+];
 
 String _button(Map<String, dynamic> message, int row) {
   final keyboard = message['reply_markup']['inline_keyboard'] as List;

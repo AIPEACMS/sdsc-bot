@@ -226,13 +226,17 @@ void main() {
     expect(repo.findUser(2)!.memberTier, MemberTier.member);
     expect(repo.isPendingUser('never_started'), true);
 
+    final confirmationMessageId = sent.length;
     await sendCallback('removeuser|yes');
     expect(repo.findUser(2)!.memberTier, MemberTier.old);
     expect(repo.findUser(2)!.group, isEmpty);
     expect(repo.isPendingUser('never_started'), false);
     expect(edited.last['text'], contains('Removed'));
     expect(edited.last['reply_markup'], isNull);
-    expect(edited.any((body) => body['message_id'] == 1), isTrue);
+    expect(
+      edited.any((body) => body['message_id'] == confirmationMessageId),
+      isTrue,
+    );
   });
 
   test(

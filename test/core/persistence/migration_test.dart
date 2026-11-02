@@ -205,12 +205,20 @@ CREATE TABLE users (
     final firstUser = Repo(first).findUser(7)!;
     expect(firstUser.notificationPreference, NotificationPreference.weekly);
     expect(firstUser.lastPromptState, LastPromptState.none);
+    expect(firstUser.sessionRemindersEnabled, isTrue);
+    expect(Repo(first).activeOutreach()['session-reminder'], isTrue);
+    expect(Repo(first).activeOutreach()['reminder'], isTrue);
+    Repo(first).setSessionRemindersEnabled(7, false);
+    Repo(first).setActiveOutreach('session-reminder', false);
     first.close();
 
     final second = Database.open(_config(path));
     final secondUser = Repo(second).findUser(7)!;
     expect(secondUser.notificationPreference, NotificationPreference.weekly);
     expect(secondUser.lastPromptState, LastPromptState.none);
+    expect(secondUser.sessionRemindersEnabled, isFalse);
+    expect(Repo(second).activeOutreach()['session-reminder'], isFalse);
+    expect(Repo(second).activeOutreach()['reminder'], isTrue);
     second.close();
     tmp.deleteSync(recursive: true);
   });

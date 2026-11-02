@@ -19,11 +19,31 @@ void main() {
     expect(text.indexOf('@console'), lessThan(text.indexOf('@admin')));
   });
 
-  test('plain broadcast button text opens the broadcast flow', () async {
-    await sendPlainText(2, 'broadcast');
-    expect(sent.last['text'], contains('Send me the message to broadcast'));
-    expect(sent.last['text'], isNot(contains('availability')));
-  });
+  test(
+    'moved admin actions remain typed commands but not grid buttons',
+    () async {
+      await sendText(2, '/broadcast');
+      expect(sent.last['text'], contains('Send me the message to broadcast'));
+      await sendText(2, '/ask');
+      expect(sent.last['text'], contains('which member'));
+      await sendText(2, '/add_out_user');
+      expect(sent.last['text'], contains('Send me the handle'));
+
+      await sendText(2, '/grid');
+      final buttons = keyboardTexts(sent.last);
+      expect(buttons, isNot(contains('add-out-user')));
+      expect(buttons, isNot(contains('ask')));
+      expect(buttons, isNot(contains('broadcast')));
+      expect(buttons, contains('add-user'));
+
+      await sendPlainText(2, 'ask');
+      expect(sent.last['text'], contains('which member'));
+      await sendPlainText(2, 'broadcast');
+      expect(sent.last['text'], contains('Send me the message to broadcast'));
+      await sendPlainText(2, 'add-out-user');
+      expect(sent.last['text'], contains('Send me the handle'));
+    },
+  );
 
   test('/adduser and /addoutuser accept multiple handles', () async {
     await sendText(2, '/adduser @memberalpha memberbeta');
@@ -286,8 +306,11 @@ void main() {
       expect(
         adminCommands,
         '<b>Admin</b>\n'
+        '/add_out_user [@handle ...] - add out-members\n'
         '/all_users - list registered members\n'
         '/allocate - run the allocation now\n'
+        '/ask - send one member an availability picker\n'
+        '/broadcast [message] - message all members\n'
         '/group_user - show your group\'s member details\n'
         '/manual_mark_group_attend - correct an attendance balance in your group\n'
         '/prompt - send availability prompts now\n'
@@ -302,8 +325,14 @@ void main() {
         contains('/group_user - show your group\'s member details'),
       );
       expect(adminCommands, isNot(contains('/group_users')));
-      expect(adminCommands, isNot(contains('/ask')));
-      expect(adminCommands, isNot(contains('/broadcast')));
+      expect(
+        adminCommands,
+        contains('/ask - send one member an availability picker'),
+      );
+      expect(
+        adminCommands,
+        contains('/broadcast [message] - message all members'),
+      );
       expect(adminCommands, isNot(contains('/repick')));
 
       await sendText(1, '/grid');
@@ -338,6 +367,9 @@ void main() {
       expect(text, isNot(contains('/mystatus')));
       expect(keyboardTexts(sent.last).first, 'more-cmd');
       expect(keyboardTexts(sent.last), contains('add-user'));
+      expect(keyboardTexts(sent.last), isNot(contains('add-out-user')));
+      expect(keyboardTexts(sent.last), isNot(contains('ask')));
+      expect(keyboardTexts(sent.last), isNot(contains('broadcast')));
     },
   );
 }

@@ -216,7 +216,7 @@ Future<void> main() async {
 
   await ipcServer?.stop();
   await adminApi?.stop();
-  scheduler.stop();
+  await scheduler.stopAndWait();
   database.close();
   processLog('SDSC bot stopped.');
   exit(0);

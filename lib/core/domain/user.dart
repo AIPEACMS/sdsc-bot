@@ -44,6 +44,7 @@ class User {
   final String memberTier;
   final NotificationPreference notificationPreference;
   final LastPromptState lastPromptState;
+  final bool sessionRemindersEnabled;
 
   const User({
     required this.id,
@@ -63,6 +64,7 @@ class User {
     this.memberTier = MemberTier.member,
     NotificationPreference? notificationPreference,
     this.lastPromptState = LastPromptState.none,
+    this.sessionRemindersEnabled = true,
   }) : notificationPreference =
            notificationPreference ??
            (memberTier == MemberTier.outMember
@@ -90,6 +92,7 @@ class User {
     DateTime? registeredAt,
     NotificationPreference? notificationPreference,
     LastPromptState? lastPromptState,
+    bool? sessionRemindersEnabled,
   }) {
     return User(
       id: id,
@@ -112,6 +115,8 @@ class User {
       notificationPreference:
           notificationPreference ?? this.notificationPreference,
       lastPromptState: lastPromptState ?? this.lastPromptState,
+      sessionRemindersEnabled:
+          sessionRemindersEnabled ?? this.sessionRemindersEnabled,
     );
   }
 
@@ -147,6 +152,8 @@ class User {
     memberTier: (row['member_tier'] as String?) ?? MemberTier.member,
     notificationPreference: _notificationPreferenceFromRow(row),
     lastPromptState: _lastPromptStateFromRow(row),
+    sessionRemindersEnabled:
+        (row['session_reminders_enabled'] as int? ?? 1) != 0,
   );
 
   static NotificationPreference _notificationPreferenceFromRow(

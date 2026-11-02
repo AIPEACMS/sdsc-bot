@@ -8,7 +8,13 @@ void main() {
     Future<String> startText(int userId) async {
       final before = sent.length;
       await sendText(userId, '/start');
-      return sent[before]['text'] as String;
+      expect(sent.length, greaterThan(before));
+      return sent
+              .skip(before)
+              .lastWhere(
+                (message) => (message['text'] as String).startsWith('👋'),
+              )['text']
+          as String;
     }
 
     repo.updatePreferredName(1, 'Console');
@@ -22,17 +28,15 @@ void main() {
       'set-time - set activity days, times and locations\n\n'
       '<b>Admin</b>\n'
       'add-user - add members\n'
-      'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
       'all-status - show cycle state and responders\n'
-      'ask - send one member an availability picker\n'
-      'mark-attend - mark attendance\n'
-      'broadcast - message all members\n\n'
+      'mark-attend - mark attendance\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
       '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
+      'config-remind - configure session reminders\n'
       '\nTap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -60,17 +64,15 @@ void main() {
       'set-time - set activity days, times and locations\n\n'
       '<b>Admin</b>\n'
       'add-user - add members\n'
-      'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
       'all-status - show cycle state and responders\n'
-      'ask - send one member an availability picker\n'
-      'mark-attend - mark attendance\n'
-      'broadcast - message all members\n\n'
+      'mark-attend - mark attendance\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
       '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
+      'config-remind - configure session reminders\n'
       '\nTap more-cmd for additional commands.',
     );
 
@@ -82,17 +84,15 @@ void main() {
       '<b>Console</b>\nmore-cmd - show additional commands\n\n'
       '<b>Admin</b>\n'
       'add-user - add members\n'
-      'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
       'all-status - show cycle state and responders\n'
-      'ask - send one member an availability picker\n'
-      'mark-attend - mark attendance\n'
-      'broadcast - message all members\n\n'
+      'mark-attend - mark attendance\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
       '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
+      'config-remind - configure session reminders\n'
       '\nTap more-cmd for additional commands.\n'
       'Type /grid to switch which grid you see (console only).',
     );
@@ -114,17 +114,15 @@ void main() {
       '<b>Admin</b>\n'
       'more-cmd - show additional commands\n'
       'add-user - add members\n'
-      'add-out-user - add out-members\n'
       'group-status - show your group\'s cycle state and responders\n'
       'all-status - show cycle state and responders\n'
-      'ask - send one member an availability picker\n'
-      'mark-attend - mark attendance\n'
-      'broadcast - message all members\n\n'
+      'mark-attend - mark attendance\n\n'
       '<b>Member</b>\n'
       'start - show the welcome and role buttons\n'
       '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
+      'config-remind - configure session reminders\n'
       '\nTap more-cmd for additional commands.',
     );
 
@@ -140,6 +138,7 @@ void main() {
       '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks, allocation and attendance\n'
+      'config-remind - configure session reminders\n'
       're-pick — update your availability\n'
       'set-info — update your preferred name\n'
       'my-status — your picks, allocation and attendance',
@@ -157,11 +156,12 @@ void main() {
     expect(
       await startText(7),
       '👋 <b>@outmember</b>, here is what you can do:\n\n'
-       '<b>Member-o</b>\n'
+      '<b>Member-o</b>\n'
       'start - show the welcome and role buttons\n'
       '(re)pick - update your availability\n'
       'set-info - update your preferred name\n'
       'my-status - show your picks and allocation\n'
+      'config-remind - configure session reminders\n'
       'notify - choose prompt frequency\n'
       're-pick — update your availability\n'
       'set-info — update your preferred name\n'
@@ -192,39 +192,29 @@ void main() {
     );
   });
 
-  test(
-    '/grid cycles the stored role through the available previews',
-    () async {
-      await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: admin grid'));
-      expect(
-        keyboardTexts(sent.last),
-        containsAll([
-          'add-user',
-          'add-out-user',
-          'group-status',
-          'all-status',
-          'broadcast',
-        ]),
-      );
-      expect(keyboardTexts(sent.last), contains('all-status'));
-      expect(keyboardTexts(sent.last), isNot(contains('all-users')));
-      expect(keyboardTexts(sent.last), isNot(contains('prompt')));
-      expect(keyboardTexts(sent.last), isNot(contains('remind')));
-      expect(keyboardTexts(sent.last), isNot(contains('allocate')));
+  test('/grid cycles the stored role through the available previews', () async {
+    await sendText(1, '/grid');
+    expect(sent.last['text'], contains('Preview: admin grid'));
+    expect(
+      keyboardTexts(sent.last),
+      containsAll(['add-user', 'group-status', 'all-status', 'config-remind']),
+    );
+    expect(keyboardTexts(sent.last), contains('all-status'));
+    expect(keyboardTexts(sent.last), isNot(contains('all-users')));
+    expect(keyboardTexts(sent.last), isNot(contains('prompt')));
+    expect(keyboardTexts(sent.last), isNot(contains('remind')));
+    expect(keyboardTexts(sent.last), isNot(contains('allocate')));
 
-      await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: check grid'));
-      expect(keyboardTexts(sent.last), contains('check-status'));
+    await sendText(1, '/grid');
+    expect(sent.last['text'], contains('Preview: check grid'));
+    expect(keyboardTexts(sent.last), contains('check-status'));
 
-      await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: member grid'));
-      expect(keyboardTexts(sent.last), contains('(re)pick'));
+    await sendText(1, '/grid');
+    expect(sent.last['text'], contains('Preview: member grid'));
+    expect(keyboardTexts(sent.last), contains('(re)pick'));
 
-      await sendText(1, '/grid');
-      expect(sent.last['text'], contains('Preview: out-member grid'));
-      expect(keyboardTexts(sent.last), contains('notify'));
-    },
-  );
-
+    await sendText(1, '/grid');
+    expect(sent.last['text'], contains('Preview: out-member grid'));
+    expect(keyboardTexts(sent.last), contains('notify'));
+  });
 }

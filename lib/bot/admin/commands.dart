@@ -3,13 +3,12 @@ part of '../admin.dart';
 extension AdminCommands on Admin {
   void register() {
     commandBoth(bot, state, 'adduser', _guard(_addUser), label: 'add-user');
-    commandBoth(
-      bot,
-      state,
-      'addoutuser',
-      _guard(_addOutUser),
-      label: 'add-out-user',
-    );
+    final addOutUser = _guard(_addOutUser);
+    state.registerCommand('add_out_user');
+    state.registerLabel('add-out-user');
+    bot.command('add_out_user', addOutUser);
+    bot.hears('add-out-user', addOutUser); // Previous grid-label compatibility.
+    commandAlias(bot, state, 'addoutuser', addOutUser);
     commandBoth(bot, state, 'allstatus', _guard(_status), label: 'all-status');
     state.registerCommand('status');
     bot.command('status', _guard(_status)); // Compatibility alias.
@@ -47,7 +46,11 @@ extension AdminCommands on Admin {
       }),
       label: 'allocate',
     );
-    commandBoth(bot, state, 'ask', _guard(_ask), label: 'ask');
+    state.registerCommand('ask');
+    final ask = _guard(_ask);
+    state.registerLabel('ask');
+    bot.command('ask', ask);
+    bot.hears('ask', ask); // Previous grid-label compatibility.
     commandBoth(bot, state, 'confirm', _guard(_confirm), label: 'mark-attend');
     state.registerCommand('manual_mark_all_attend');
     bot.command(
@@ -69,13 +72,11 @@ extension AdminCommands on Admin {
       'setexp',
       _guard((ctx) => _pickUser(ctx, 'setexp')),
     );
-    commandBoth(
-      bot,
-      state,
-      'broadcast',
-      _guard(_broadcast),
-      label: 'broadcast',
-    );
+    state.registerCommand('broadcast');
+    final broadcast = _guard(_broadcast);
+    state.registerLabel('broadcast');
+    bot.command('broadcast', broadcast);
+    bot.hears('broadcast', broadcast); // Previous grid-label compatibility.
 
     // Callback middleware: handles admin prefixes, continues otherwise.
     bot.use((ctx, next) async {

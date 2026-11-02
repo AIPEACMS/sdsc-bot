@@ -29,6 +29,9 @@ class CommandCatalog {
 
   static const List<CommandHelp> _admin = [
     CommandHelp('/all_users', 'list registered members'),
+    CommandHelp('/add_out_user', 'add out-members', usage: '[@handle ...]'),
+    CommandHelp('/ask', 'send one member an availability picker'),
+    CommandHelp('/broadcast', 'message all members', usage: '[message]'),
     CommandHelp('/group_user', 'show your group\'s member details'),
     CommandHelp('/prompt', 'send availability prompts now'),
     CommandHelp('/remind', 'remind non-responders now'),

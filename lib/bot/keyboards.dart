@@ -79,6 +79,7 @@ class RoleKeyboard {
               ? 'show your picks and allocation'
               : 'show your picks, allocation and attendance',
         'notify' => 'choose prompt frequency',
+        'config-remind' => 'configure session reminders',
         'check-status' => 'show the current week\'s allocation',
         _ => '',
       };
@@ -88,6 +89,7 @@ class RoleKeyboard {
     GridButton('(re)pick', '/repick', RoleColor.member),
     GridButton('set-info', '/setinfo', RoleColor.member),
     GridButton('my-status', '/mystatus', RoleColor.member),
+    GridButton('config-remind', '/config_remind', RoleColor.member),
   ];
 
   /// Out-members keep the complete availability grid and can choose how often
@@ -108,12 +110,9 @@ class RoleKeyboard {
 
   static const List<GridButton> adminButtons = [
     GridButton('add-user', '/adduser', RoleColor.admin),
-    GridButton('add-out-user', '/addoutuser', RoleColor.admin),
     GridButton('group-status', '/groupstatus', RoleColor.admin),
     GridButton('all-status', '/allstatus', RoleColor.admin),
-    GridButton('ask', '/ask', RoleColor.admin),
     GridButton('mark-attend', '/confirm', RoleColor.admin),
-    GridButton('broadcast', '/broadcast', RoleColor.admin),
     ...memberButtons,
   ];
 

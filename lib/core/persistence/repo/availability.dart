@@ -1,7 +1,6 @@
 part of '../../repo.dart';
 
 extension RepoAvailability on Repo {
-
   /// Deletes and recreates [sat]'s sessions from [template]. Destructive:
   /// callers must also clear availability/allocations for the weekend (see
   /// [clearWeekendAvailabilityAndAllocations]).
@@ -13,11 +12,19 @@ extension RepoAvailability on Repo {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
-      tx.execute('DELETE FROM attendance WHERE session_id IN '
-          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
-      tx.execute('DELETE FROM allocations WHERE session_id IN '
-          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
-      tx.execute('DELETE FROM sessions WHERE weekend_start = ?', [_dayKey(sat)]);
+      tx.execute(
+        'DELETE FROM attendance WHERE session_id IN '
+        '(SELECT id FROM sessions WHERE weekend_start = ?)',
+        [_dayKey(sat)],
+      );
+      tx.execute(
+        'DELETE FROM allocations WHERE session_id IN '
+        '(SELECT id FROM sessions WHERE weekend_start = ?)',
+        [_dayKey(sat)],
+      );
+      tx.execute('DELETE FROM sessions WHERE weekend_start = ?', [
+        _dayKey(sat),
+      ]);
       tx.execute('COMMIT');
     } catch (_) {
       tx.execute('ROLLBACK');
@@ -32,10 +39,14 @@ extension RepoAvailability on Repo {
     final tx = raw;
     tx.execute('BEGIN IMMEDIATE');
     try {
-      tx.execute('DELETE FROM allocations WHERE session_id IN '
-          '(SELECT id FROM sessions WHERE weekend_start = ?)', [_dayKey(sat)]);
-      tx.execute('DELETE FROM availability WHERE weekend_start = ?',
-          [_dayKey(sat)]);
+      tx.execute(
+        'DELETE FROM allocations WHERE session_id IN '
+        '(SELECT id FROM sessions WHERE weekend_start = ?)',
+        [_dayKey(sat)],
+      );
+      tx.execute('DELETE FROM availability WHERE weekend_start = ?', [
+        _dayKey(sat),
+      ]);
       tx.execute('COMMIT');
     } catch (_) {
       tx.execute('ROLLBACK');
@@ -80,8 +91,10 @@ ORDER BY s.start_at
       .toList();
 
   /// Sessions of the window's two weekends (current + next).
-  List<Session> windowSessions(RollingWindow w) =>
-      [...sessionsForWeekend(w.sat0), ...sessionsForWeekend(w.sat1)];
+  List<Session> windowSessions(RollingWindow w) => [
+    ...sessionsForWeekend(w.sat0),
+    ...sessionsForWeekend(w.sat1),
+  ];
 
   Session? sessionById(int id) {
     final rows = raw.select('SELECT * FROM sessions WHERE id = ?', [id]);
@@ -127,7 +140,8 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
     if (current == null) return;
     bool sameSession(Slot choice) =>
         choice.day == day && choice.slot == slot && choice.location == location;
-    if (!current.slots.any(sameSession) && !current.wantSlots.any(sameSession)) {
+    if (!current.slots.any(sameSession) &&
+        !current.wantSlots.any(sameSession)) {
       return;
     }
     setAvailability(
@@ -167,15 +181,17 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
       [_dayKey(weekendStart)],
     );
     return rows
-        .map((r) => Availability(
-              weekendStart: weekendStart,
-              userId: r['user_id'] as int,
-              bundleStart: DateTime.parse(r['bundle_start'] as String),
-              slots: Slot.decodeSet(r['slots'] as String),
-              wantSlots: Slot.decodeSet(r['want_slots'] as String),
-              available: (r['available'] as int) == 1,
-              updatedAt: DateTime.parse(r['updated_at'] as String),
-            ))
+        .map(
+          (r) => Availability(
+            weekendStart: weekendStart,
+            userId: r['user_id'] as int,
+            bundleStart: DateTime.parse(r['bundle_start'] as String),
+            slots: Slot.decodeSet(r['slots'] as String),
+            wantSlots: Slot.decodeSet(r['want_slots'] as String),
+            available: (r['available'] as int) == 1,
+            updatedAt: DateTime.parse(r['updated_at'] as String),
+          ),
+        )
         .toList();
   }
 
@@ -219,9 +235,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
         )
         .map(User.fromRow)
         .toList();
-    return users
-        .where((u) => !hasBundleResponse(bundleStart, u.id))
-        .toList();
+    return users.where((u) => !hasBundleResponse(bundleStart, u.id)).toList();
   }
 
   /// Non-responders of the bundle: active users, including out-members, who
@@ -236,9 +250,11 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
         .map(User.fromRow)
         .toList();
     return users
-        .where((u) =>
-            !hasBundleResponse(bundleStart, u.id) &&
-            !isQuiet(u.id, bundleStart))
+        .where(
+          (u) =>
+              !hasBundleResponse(bundleStart, u.id) &&
+              !isQuiet(u.id, bundleStart),
+        )
         .toList();
   }
 
@@ -264,6 +280,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
       }
       stmt.close();
       tx.execute('COMMIT');
+      notifySessionReminderWorkChanged();
     } catch (_) {
       tx.execute('ROLLBACK');
       rethrow;
@@ -278,6 +295,7 @@ ON CONFLICT(weekend_start, user_id) DO UPDATE SET
       '(SELECT id FROM sessions WHERE weekend_start = ?)',
       [userId, _dayKey(sat)],
     );
+    notifySessionReminderWorkChanged();
   }
 
   List<(User, Session)> allocationsForWeekend(DateTime sat) {
@@ -317,5 +335,4 @@ ORDER BY s.start_at, u.name
       return (user, session);
     }).toList();
   }
-
 }

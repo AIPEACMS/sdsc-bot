@@ -37,16 +37,14 @@ void main() {
           'unhold',
           'set-time',
           'add-user',
-          'add-out-user',
           'group-status',
           'all-status',
-          'ask',
           'mark-attend',
-          'broadcast',
           'start',
           '(re)pick',
           'set-info',
           'my-status',
+          'config-remind',
         ],
       );
       expect(

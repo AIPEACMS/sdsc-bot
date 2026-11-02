@@ -49,6 +49,7 @@ extension RepoUsers on Repo {
       'last_prompt_state',
       'attendance_balance',
       'last_attended_date',
+      'session_reminders_enabled',
     ];
     final values = <Object?>[
       user.id,
@@ -67,6 +68,7 @@ extension RepoUsers on Repo {
       user.lastPromptState.name,
       user.attendanceBalance,
       user.lastAttendedDate == null ? null : _dayKey(user.lastAttendedDate!),
+      user.sessionRemindersEnabled ? 1 : 0,
     ];
     if (user.registeredAt != null) {
       columns.add('created_at');
@@ -85,10 +87,11 @@ extension RepoUsers on Repo {
    full_name = excluded.full_name,
    preferred_name = excluded.preferred_name,
    matric_no = excluded.matric_no,
-   school_email = excluded.school_email,
-   member_tier = excluded.member_tier,
-   notification_preference = excluded.notification_preference,
-   last_prompt_state = excluded.last_prompt_state
+    school_email = excluded.school_email,
+    member_tier = excluded.member_tier,
+    notification_preference = excluded.notification_preference,
+    last_prompt_state = excluded.last_prompt_state,
+    session_reminders_enabled = excluded.session_reminders_enabled
  ''', values);
     return findUser(user.id)!;
   }

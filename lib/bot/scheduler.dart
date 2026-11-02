@@ -1,15 +1,20 @@
 import 'dart:async';
 
-import '../core/models.dart';
-import '../core/repo.dart';
-import '../core/config.dart';
-import '../core/week.dart';
-import 'service.dart';
-import '../core/log.dart';
-import '../core/schedule.dart';
+import 'package:televerse/televerse.dart'
+    show ChatID, TeleverseException, TeleverseExceptionType, TelegramException;
 
-/// Periodically drives the rolling schedule. A lightweight Timer replaces a
-/// cron daemon and naturally catches up when the bot restarts.
+import 'hold.dart';
+import 'service.dart';
+import '../core/models.dart';
+import '../core/config.dart';
+import '../core/log.dart';
+import '../core/repo.dart';
+import '../core/schedule.dart';
+import '../core/week.dart';
+
+part 'scheduler/session_reminders.dart';
+
+/// Drives the rolling schedule in-process and catches up after restarts.
 ///
 /// The rolling window (bundle = current + next weekend) has, every week:
 ///  - the configured prompt weekday/time prompts for the bundle
@@ -18,13 +23,11 @@ import '../core/schedule.dart';
 ///  - the configured checker weekday/time pushes the allocation list
 ///  - configured attendance and absence reminders
 ///
-/// New availability indications allocate immediately. The deprecated
-/// [scheduleDynamicAllocation] sharp-hour path remains for compatibility; the
-/// old Friday batch allocation is deprecated and no longer fires.
+/// New indications allocate immediately; the deprecated sharp-hour path stays
+/// for compatibility, while the old Friday batch allocation no longer fires.
 ///
-/// Two timers: a one-shot armed to the next milestone so things fire on the
-/// sharp scheduled hour, and a slow periodic safety net that catches up
-/// after restarts and drift.
+/// A one-shot is armed to the next milestone for exact timing; a five-minute
+/// periodic tick catches restart recovery and policy/allocation changes.
 class Scheduler {
   final Repo repo;
   final Config config;
@@ -35,6 +38,8 @@ class Scheduler {
   Timer? _milestone;
   Timer? _allocTimer;
   DateTime? _nextMilestone;
+  bool _workListenerRegistered = false;
+  bool _allocationInProgress = false;
   final Set<Future<void>> _activeTicks = {};
 
   DateTime? get nextMilestone => _nextMilestone;
@@ -49,7 +54,12 @@ class Scheduler {
     this.scheduleRuntime.addListener(reschedule);
   }
 
-  void start({Duration interval = const Duration(hours: 12)}) {
+  void start({Duration interval = const Duration(minutes: 5)}) {
+    if (_timer != null) return;
+    if (!_workListenerRegistered) {
+      repo.addSessionReminderWorkListener(_wakeSessionReminderWork);
+      _workListenerRegistered = true;
+    }
     _timer = Timer.periodic(interval, (_) => _tick());
     _scheduleNext();
     unawaited(_tick());
@@ -63,6 +73,10 @@ class Scheduler {
     _milestone = null;
     _allocTimer = null;
     _nextMilestone = null;
+    if (_workListenerRegistered) {
+      repo.removeSessionReminderWorkListener(_wakeSessionReminderWork);
+      _workListenerRegistered = false;
+    }
   }
 
   Future<void> _tick() {
@@ -78,7 +92,8 @@ class Scheduler {
   Future<void> _runTick() async {
     _milestone?.cancel();
     try {
-      final now = config.toLocal(Config.nowUtc());
+      final nowUtc = Config.nowUtc().toUtc();
+      final now = config.toLocal(nowUtc);
       final w = _window(now);
       final today = DateTime(now.year, now.month, now.day);
 
@@ -109,7 +124,7 @@ class Scheduler {
       // batch paths do not run here.
 
       // Catch-up: a restart can interrupt an immediate allocation run.
-      // Re-optimize the open weekends on every tick (startup + 12h safety
+      // Re-optimize the open weekends on every tick (startup + 5m safety
       // net) so a pending allocation is never lost. Idempotent —
       // already-allocated members are locked in and only newly-allocated
       // members are notified.
@@ -120,6 +135,8 @@ class Scheduler {
       if (_sameDay(today, w.checkerDay) && !now.isBefore(w.checkerDay)) {
         await service.sendCheckList(w.sat0);
       }
+
+      await _sendSessionReminders(this, nowUtc);
 
       for (final occurrence in _configuredEventOccurrences(now)) {
         if (!_sameDay(today, occurrence.at) || now.isBefore(occurrence.at)) {
@@ -143,15 +160,27 @@ class Scheduler {
       // Scheduling failures should not kill the bot.
       LogRing.log('scheduler error: $e');
     }
+    // stop() nulls _timer before waiting for this tick, so completed work never
+    // re-arms a milestone after shutdown begins.
     if (_timer != null) _scheduleNext();
   }
 
   /// Cancels scheduled work and waits for the current tick to finish.
   Future<void> stopAndWait() async {
     stop();
+    await waitForCurrentTicks();
+  }
+
+  Future<void> waitForCurrentTicks() async {
     while (_activeTicks.isNotEmpty) {
       await Future.wait(_activeTicks.toList());
     }
+  }
+
+  void _wakeSessionReminderWork() {
+    if (_timer == null || _allocationInProgress) return;
+    _milestone?.cancel();
+    unawaited(_tick());
   }
 
   RollingWindow _window(DateTime now) => scheduleRuntime.window(now);
@@ -177,6 +206,7 @@ class Scheduler {
     final now = config.toLocal(Config.nowUtc());
     final w = _window(now);
     final nextWindow = _window(now.add(const Duration(days: 7)));
+    final retryUtc = repo.nextSessionReminderRetryAt(Config.nowUtc());
 
     final due = <DateTime>[
       // This week's milestones, if still in the future.
@@ -191,6 +221,18 @@ class Scheduler {
       nextWindow.lock1,
       nextWindow.checkerDay,
       ..._configuredEventOccurrences(now).map((event) => event.at),
+      ...repo
+          .pendingSessionReminderRecipients(
+            nowUtc: Config.nowUtc(),
+            timezoneOffsetHours: config.timezoneOffsetHours,
+          )
+          .map(
+            (recipient) => sessionReminderDueAt(
+              recipient.$2,
+              timezoneOffsetHours: config.timezoneOffsetHours,
+            ),
+          ),
+      if (retryUtc != null) config.toLocal(retryUtc),
     ];
     DateTime? next;
     for (final d in due) {
@@ -234,15 +276,20 @@ class Scheduler {
   /// Re-optimizes both weekends of the current bundle over the current
   /// availability. Weekends that have already started are left alone.
   Future<void> _runDynamicAllocation() async {
+    if (_allocationInProgress) return;
+    _allocationInProgress = true;
     try {
       final now = config.toLocal(Config.nowUtc());
       final w = _window(now);
       if (now.isBefore(w.sat0) || now.isBefore(w.sat1)) {
         await service.allocateBundle(w);
       }
+      await _sendSessionReminders(this, Config.nowUtc());
       LogRing.log('dynamic allocation run');
     } catch (e) {
       LogRing.log('dynamic allocation error: $e');
+    } finally {
+      _allocationInProgress = false;
     }
   }
 

@@ -16,6 +16,7 @@ dart run bin/main.dart
 ## Test / lint
 
 ```sh
+dart pub get
 ./tool/test-affected.sh
 ./tool/test-affected.sh --all
 dart analyze

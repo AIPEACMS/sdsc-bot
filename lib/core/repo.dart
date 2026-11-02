@@ -19,6 +19,7 @@ part 'persistence/repo/holidays.dart';
 part 'persistence/repo/groups.dart';
 part 'persistence/repo/console_keys.dart';
 part 'persistence/repo/pending_users.dart';
+part 'persistence/repo/session_reminders.dart';
 
 /// A registered Ed25519 public key that the desktop console app uses to sign
 /// admin API requests. The value is the base64 of the raw 32-byte key.
@@ -75,6 +76,21 @@ class _RepoBase {
 
 class Repo extends _RepoBase {
   static const activeOutreachRouteKeys = defaultActiveOutreachRouteKeys;
+  final Set<void Function()> _sessionReminderWorkListeners = {};
 
   Repo(super.db);
+
+  void addSessionReminderWorkListener(void Function() listener) =>
+      _sessionReminderWorkListeners.add(listener);
+
+  void removeSessionReminderWorkListener(void Function() listener) =>
+      _sessionReminderWorkListeners.remove(listener);
+
+  void notifySessionReminderWorkChanged() {
+    for (final listener in List<void Function()>.of(
+      _sessionReminderWorkListeners,
+    )) {
+      listener();
+    }
+  }
 }

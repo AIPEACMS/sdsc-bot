@@ -26,7 +26,9 @@ void main() {
     final initial = initialBody as Map<String, dynamic>;
     final initialRoutes = (initial['activeOutreach'] as Map)
         .cast<String, bool>();
-    expect(initialRoutes.length, 9);
+    expect(initialRoutes.length, 10);
+    expect(initialRoutes['session-reminder'], isTrue);
+    expect(initialRoutes['reminder'], isTrue);
     expect(initialRoutes.values, everyElement(isTrue));
 
     final (status, body) = await call(
