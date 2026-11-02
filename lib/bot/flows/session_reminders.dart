@@ -169,8 +169,7 @@ extension FlowsSessionReminders on Flows {
         }
         final updated = repo.findUser(userId);
         result = updated?.sessionRemindersEnabled == wantsEnabled
-            ? '✅ Reminder: ${wantsEnabled ? 'on' : 'off'}. '
-                  'You can change this anytime with /config_remind.'
+            ? '✅ Reminder: ${wantsEnabled ? 'on' : 'off'}.'
             : 'This reminder setting is no longer available.';
       } catch (error) {
         LogRing.log('reminder preference write failed user=$userId: $error');
