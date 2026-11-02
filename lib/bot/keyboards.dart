@@ -238,6 +238,123 @@ class RoleKeyboard {
     return [more, ...buttons];
   }
 
+  /// A stable signature of what a person sees. Command targets and role colors
+  /// are intentionally omitted: neither changes the button wording/layout.
+  static String layoutFingerprint(
+    String role, {
+    bool consoleIdentity = false,
+  }) => _fingerprint(buttonsFor(role, consoleIdentity: consoleIdentity));
+
+  /// Layouts that could have been delivered before per-user fingerprints were
+  /// recorded. Keep these snapshots when future layouts change so inactive
+  /// users can still be compared with the grid they last received.
+  static String layoutFingerprintForRelease(
+    String release,
+    String role, {
+    bool consoleIdentity = false,
+  }) =>
+      _fingerprint(_buttonsForRecordedRelease(release, role, consoleIdentity));
+
+  static String _fingerprint(List<GridButton> buttons) =>
+      buttons.map((button) => '${button.label.length}:${button.label}').join();
+
+  static List<GridButton> _buttonsForRecordedRelease(
+    String release,
+    String role,
+    bool consoleIdentity,
+  ) {
+    final isGlobalAdmin = role == 'gadmin' || role == 'console-gadmin';
+    final isAdmin = role == 'admin';
+    final buttons = switch (release) {
+      '4.14.2' => _release4142Buttons(role),
+      '4.13.2' => _release4132Buttons(role),
+      _ => throw ArgumentError.value(release, 'release'),
+    };
+    final showMore =
+        consoleIdentity ||
+        role == 'console-only' ||
+        role == 'console-gadmin' ||
+        isAdmin ||
+        isGlobalAdmin;
+    if (!showMore) return buttons;
+    final more = isGlobalAdmin
+        ? moreGlobalAdminCommandsButton
+        : isAdmin
+        ? moreAdminCommandsButton
+        : moreCommandsButton;
+    return [more, ...buttons];
+  }
+
+  static List<GridButton> _release4142Buttons(String role) => switch (role) {
+    'console-only' || 'console' => consoleButtons,
+    'gadmin' || 'console-gadmin' => [
+      GridButton('hold', '/hold', RoleColor.globalAdmin),
+      GridButton('unhold', '/unhold', RoleColor.globalAdmin),
+      GridButton('set-time', '/settime', RoleColor.globalAdmin),
+      ..._release4142AdminButtons,
+    ],
+    'admin' => _release4142AdminButtons,
+    'check' => checkButtons,
+    MemberTier.outMember => [
+      ..._release4142MemberButtons,
+      ...[GridButton('notify', '/notify', RoleColor.member)],
+    ],
+    'old' || 'console-old' => oldButtons,
+    _ => _release4142MemberButtons,
+  };
+
+  static const List<GridButton> _release4142MemberButtons = [
+    GridButton('start', '/start', RoleColor.member),
+    GridButton('(re)pick', '/repick', RoleColor.member),
+    GridButton('set-info', '/setinfo', RoleColor.member),
+    GridButton('my-status', '/mystatus', RoleColor.member),
+    GridButton('config-remind', '/config_remind', RoleColor.member),
+  ];
+
+  static const List<GridButton> _release4142AdminButtons = [
+    GridButton('add-user', '/adduser', RoleColor.admin),
+    GridButton('group-status', '/groupstatus', RoleColor.admin),
+    GridButton('all-status', '/allstatus', RoleColor.admin),
+    GridButton('mark-attend', '/confirm', RoleColor.admin),
+    ..._release4142MemberButtons,
+  ];
+
+  static List<GridButton> _release4132Buttons(String role) => switch (role) {
+    'console-only' || 'console' => consoleButtons,
+    'gadmin' || 'console-gadmin' => [
+      GridButton('hold', '/hold', RoleColor.globalAdmin),
+      GridButton('unhold', '/unhold', RoleColor.globalAdmin),
+      GridButton('set-time', '/settime', RoleColor.globalAdmin),
+      ..._release4132AdminButtons,
+    ],
+    'admin' => _release4132AdminButtons,
+    'check' => checkButtons,
+    MemberTier.outMember => [
+      ..._release4132MemberButtons,
+      ...[GridButton('notify', '/notify', RoleColor.member)],
+    ],
+    'old' || 'console-old' => oldButtons,
+    _ => _release4132MemberButtons,
+  };
+
+  static const List<GridButton> _release4132MemberButtons = [
+    GridButton('start', '/start', RoleColor.member),
+    GridButton('(re)pick', '/repick', RoleColor.member),
+    GridButton('set-info', '/setinfo', RoleColor.member),
+    GridButton('my-status', '/mystatus', RoleColor.member),
+  ];
+
+  static const List<GridButton> _release4132AdminButtons = [
+    GridButton('add-user', '/adduser', RoleColor.admin),
+    GridButton('add-out-user', '/addoutuser', RoleColor.admin),
+    GridButton('group-status', '/groupstatus', RoleColor.admin),
+    GridButton('all-status', '/allstatus', RoleColor.admin),
+    GridButton('ask', '/ask', RoleColor.admin),
+    GridButton('mark-attend', '/confirm', RoleColor.admin),
+    GridButton('broadcast', '/broadcast', RoleColor.admin),
+    ..._release4132MemberButtons,
+  ];
+
   /// The grid a user should see by default (highest tier wins).
   static String roleFor({
     required bool isConsole,

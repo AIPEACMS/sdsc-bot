@@ -263,6 +263,13 @@ extension FlowsPresentation on Flows {
     // Let the user know they're in — they can now use /start.
     final isCheck = tier == MemberTier.check && !isAdmin;
     final isOutMember = tier == MemberTier.outMember && !isAdmin;
+    final role = isAdmin
+        ? 'admin'
+        : isCheck
+        ? 'check'
+        : isOutMember
+        ? MemberTier.outMember
+        : 'member';
     await ctx.reply(
       isAdmin
           ? 'Welcome! You have been added as an <b>admin</b>. Send /start to see your commands.'
@@ -272,15 +279,11 @@ extension FlowsPresentation on Flows {
           ? 'Welcome! You have been added as a <b>Member-o</b>. Send /start to see your commands.'
           : 'Welcome! You have been added. Send /start to see your commands.',
       parseMode: ParseMode.html,
-      replyMarkup: RoleKeyboard.build(
-        isAdmin
-            ? 'admin'
-            : isCheck
-            ? 'check'
-            : isOutMember
-            ? MemberTier.outMember
-            : 'member',
-      ),
+      replyMarkup: RoleKeyboard.build(role),
+    );
+    repo.setSetting(
+      'role_grid_layout_$userId',
+      RoleKeyboard.layoutFingerprint(role),
     );
   }
 }

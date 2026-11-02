@@ -177,6 +177,28 @@ extension FlowsRegistration on Flows {
         role,
         consoleIdentity: config.isConsole(userId),
       );
+      final layoutKey = 'role_grid_layout_$userId';
+      final currentLayout = RoleKeyboard.layoutFingerprint(
+        role,
+        consoleIdentity: config.isConsole(userId),
+      );
+      final savedLayout = repo.getSetting(layoutKey);
+      final receivedCurrentGrid = ['4_14_0', '4_14_1', '4_14_2'].any(
+        (version) =>
+            repo.getSetting('role_grid_refresh_${version}_$userId') == '1',
+      );
+      final priorLayout =
+          savedLayout ??
+          RoleKeyboard.layoutFingerprintForRelease(
+            receivedCurrentGrid ? '4.14.2' : '4.13.2',
+            role,
+            consoleIdentity: config.isConsole(userId),
+          );
+      if (priorLayout == currentLayout) {
+        repo.setSetting(layoutKey, currentLayout);
+        repo.setSetting(marker, '1');
+        return;
+      }
       try {
         await ctx.reply(
           'Your command buttons have been updated.',
@@ -187,6 +209,7 @@ extension FlowsRegistration on Flows {
                   consoleIdentity: config.isConsole(userId),
                 ),
         );
+        repo.setSetting(layoutKey, currentLayout);
         repo.setSetting(marker, '1');
       } catch (error) {
         LogRing.log('role grid refresh failed user=$userId: $error');
@@ -240,6 +263,10 @@ extension FlowsRegistration on Flows {
         parseMode: ParseMode.html,
         replyMarkup: RoleKeyboard.build('check'),
       );
+      repo.setSetting(
+        'role_grid_layout_$userId',
+        RoleKeyboard.layoutFingerprint('check'),
+      );
       return;
     }
 
@@ -285,13 +312,15 @@ extension FlowsRegistration on Flows {
       sb.write('\nType /grid to switch which grid you see (console only).');
     }
 
+    final role = _gridFor(userId);
     await ctx.reply(
       sb.toString(),
       parseMode: ParseMode.html,
-      replyMarkup: RoleKeyboard.build(
-        _gridFor(userId),
-        consoleIdentity: isConsole,
-      ),
+      replyMarkup: RoleKeyboard.build(role, consoleIdentity: isConsole),
+    );
+    repo.setSetting(
+      'role_grid_layout_$userId',
+      RoleKeyboard.layoutFingerprint(role, consoleIdentity: isConsole),
     );
 
     // First-time profile: collect the preferred name. Only prompted until
@@ -322,13 +351,15 @@ extension FlowsRegistration on Flows {
                     '${section.commands.map((entry) => entry.display).join('\n')}',
               )
               .join('\n\n');
+    final role = _gridFor(userId);
     await ctx.reply(
       text,
       parseMode: ParseMode.html,
-      replyMarkup: RoleKeyboard.build(
-        _gridFor(userId),
-        consoleIdentity: isConsole,
-      ),
+      replyMarkup: RoleKeyboard.build(role, consoleIdentity: isConsole),
+    );
+    repo.setSetting(
+      'role_grid_layout_$userId',
+      RoleKeyboard.layoutFingerprint(role, consoleIdentity: isConsole),
     );
   }
 

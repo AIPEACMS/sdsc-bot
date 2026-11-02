@@ -74,6 +74,10 @@ extension FlowsAvailability on Flows {
       'Back to your console grid.',
       replyMarkup: RoleKeyboard.build(ownGrid, consoleIdentity: true),
     );
+    repo.setSetting(
+      'role_grid_layout_$userId',
+      RoleKeyboard.layoutFingerprint(ownGrid, consoleIdentity: true),
+    );
   }
 
   /// Which grid to show: the console's preview if set, otherwise the
