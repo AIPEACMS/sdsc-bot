@@ -6,6 +6,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.14.3] - 2026-11-02
+
+### Changed
+
+- Announce role-grid upgrades only when that user's button labels or ordering
+  differ from the grid they last received.
+
 ## [4.14.2] - 2026-11-02
 
 ### Changed
