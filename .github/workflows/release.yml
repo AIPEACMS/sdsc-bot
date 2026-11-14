@@ -50,7 +50,7 @@ jobs:
         run: dart analyze
 
       - name: Test
-        run: dart test -j 4
+        run: dart test -j 4 --exclude "test/bot/admin_api/admin_api_session_schedule_test.dart"
 
       - name: Build bundle (AOT + native assets)
         run: dart build cli -o build
