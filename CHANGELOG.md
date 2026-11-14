@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.15.0] - 2026-11-14
+
+### Added
+
+- Release builds for aarch64 alongside x86_64; assets are named
+  `sdsc-bot-<version>-x86.tar.gz` and `sdsc-bot-<version>-arm64.tar.gz` and
+  `sdsc.sh` fetches the one matching the host architecture.
+
+### Fixed
+
+- Admin API selected-week cases no longer depend on today's date.
+
 ## [4.14.3] - 2026-11-02
 
 ### Changed
