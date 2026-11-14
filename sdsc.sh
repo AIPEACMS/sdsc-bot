@@ -7,15 +7,16 @@
 #   ./sdsc.sh update            # update to the latest release
 #   ./sdsc.sh update v0.2.0     # update to a specific release tag
 #
-# Needs: curl, sha256sum, systemd. Run as root (or with sudo).
+# Needs: curl, sha256sum, file. Run as root (or with sudo). Detects the
+# machine's architecture and fetches the matching bundle.
 
 set -euo pipefail
 
-REPO="AIPEACM/sdsc-bot"
+REPO="AIPEACMS/sdsc-bot"
 API="https://api.github.com/repos/${REPO}/releases"
 INSTALL_DIR="/opt/sdsc-bot"
 BACKUP_DIR="/opt/sdsc-bot.prev"
-SERVICE="sdsc-bot"
+SERVICE="${SERVICE:-}"
 WORK="$(mktemp -d /tmp/sdsc-update.XXXXXX)"
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -53,16 +54,28 @@ main() {
 
   command -v curl >/dev/null || die "curl is required"
   command -v sha256sum >/dev/null || die "sha256sum is required"
+  command -v file >/dev/null || die "file is required"
 
-  local tag
+  local arch tag version asset base
+  case "$(uname -m)" in
+    x86_64)  arch=x86 ;;
+    aarch64) arch=arm64 ;;
+    *) die "unsupported architecture: $(uname -m)" ;;
+  esac
+
   tag="$(resolve_release "${1:-}")"
-  local version="${tag#v}"
-  local asset="sdsc-bot-${version}.tar.gz"
-  local base="https://github.com/${REPO}/releases/download/${tag}"
+  version="${tag#v}"
+
+  asset="sdsc-bot-${version}-${arch}.tar.gz"
+  base="https://github.com/${REPO}/releases/download/${tag}"
 
   log "fetching ${tag} (${asset})"
-  curl -fsSL -o "${WORK}/${asset}" "${base}/${asset}"
-  curl -fsSL -o "${WORK}/${asset}.sha256" "${base}/${asset}.sha256"
+  if ! curl -fsSL -o "${WORK}/${asset}" "${base}/${asset}" 2>/dev/null; then
+    asset="sdsc-bot-${version}.tar.gz"
+    log "no arch-suffixed asset; falling back to legacy ${asset}"
+    curl -fsSL -o "${WORK}/${asset}" "${base}/${asset}" || die "failed to download ${asset}"
+  fi
+  curl -fsSL -o "${WORK}/${asset}.sha256" "${base}/${asset}.sha256" || die "failed to download checksum"
 
   log "verifying checksum"
   (cd "$WORK" && sha256sum -c "${asset}.sha256")
@@ -72,6 +85,14 @@ main() {
   tar xzf "${WORK}/${asset}" -C "${WORK}/stage"
   [[ -x "${WORK}/stage/bin/main" ]] || die "bundle has no bin/main"
 
+  # confirm the binary matches this machine
+  local got
+  got=$(file -b "${WORK}/stage/bin/main")
+  case "$got" in
+    *"x86-64"*)  [[ "$arch" = "x86" ]] || die "binary arch mismatch: $got (expected $arch)" ;;
+    *"aarch64"*) [[ "$arch" = "arm64" ]] || die "binary arch mismatch: $got (expected $arch)" ;;
+  esac
+
   # keep the current install as a rollback point
   rm -rf "$BACKUP_DIR"
   if [[ -d "$INSTALL_DIR" ]]; then
@@ -79,6 +100,15 @@ main() {
   fi
   mv "${WORK}/stage" "$INSTALL_DIR"
   chown -R root:root "$INSTALL_DIR"
+
+  # pick the service name: explicit override, or the one that exists locally
+  if [[ -z "${SERVICE:-}" ]]; then
+    if [[ -f /etc/systemd/system/bot.service ]]; then
+      SERVICE=bot
+    else
+      SERVICE=sdsc-bot
+    fi
+  fi
 
   log "restarting ${SERVICE}"
   systemctl restart "$SERVICE"

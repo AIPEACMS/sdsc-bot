@@ -1,7 +1,8 @@
 name: release
 
-# On a version tag (v0.2.0, ...), build the bundle and publish it as a
-# GitHub Release asset. The VM then pulls it with `./sdsc.sh update`.
+# On a version tag (v0.2.0, ...), build the bundle for every supported
+# architecture and publish both as GitHub Release assets. The VM then pulls the
+# one matching its architecture with `./sdsc.sh update`.
 #
 # The tag is the deploy trigger and the version record: bump pubspec.yaml +
 # CHANGELOG and push a v* tag when a build is cut.
@@ -21,10 +22,16 @@ on:
       - 'docs/**'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x86
+            runner: ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v5
 
@@ -54,13 +61,30 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${GITHUB_REF_NAME#v}"
-          tar czf "sdsc-bot-${TAG}.tar.gz" -C build/bundle .
-          sha256sum "sdsc-bot-${TAG}.tar.gz" > "sdsc-bot-${TAG}.tar.gz.sha256"
+          tar czf "sdsc-bot-${TAG}-${{ matrix.arch }}.tar.gz" -C build/bundle .
+          sha256sum "sdsc-bot-${TAG}-${{ matrix.arch }}.tar.gz" > "sdsc-bot-${TAG}-${{ matrix.arch }}.tar.gz.sha256"
 
-      - name: Publish release
-        uses: softprops/action-gh-release@v3
+      - uses: actions/upload-artifact@v4
         with:
-          files: |
+          name: bundle-${{ matrix.arch }}
+          path: |
             sdsc-bot-*.tar.gz
             sdsc-bot-*.tar.gz.sha256
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            artifacts/sdsc-bot-*.tar.gz
+            artifacts/sdsc-bot-*.tar.gz.sha256
           generate_release_notes: false
