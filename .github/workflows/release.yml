@@ -12,6 +12,7 @@ name: release
 
 on:
   push:
+  workflow_dispatch:
     tags:
       - 'v*'
     paths-ignore:
