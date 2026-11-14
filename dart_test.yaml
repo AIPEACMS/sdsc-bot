@@ -1,5 +1,3 @@
-# Integration tests that drive a live Telegram mock endpoint are skipped in
-# CI; they need a reachable Telegram-compatible endpoint and are run locally.
+# Integration tests that need a live Telegram endpoint are skipped in CI.
 exclude:
-  - "test/bot/session_reminder_*_test.dart"
-  - "test/bot/admin/allocation_removal_notification_test.dart"
+  - "test/bot/admin_api/admin_api_session_schedule_test.dart"
