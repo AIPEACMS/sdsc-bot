@@ -1,2 +1,0 @@
-exclude:
-  - "admin_api_session_schedule_test.dart"

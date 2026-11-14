@@ -4,8 +4,17 @@ import 'package:sdsc_bot/sdsc_bot.dart';
 import '../../support/admin_api_harness.dart' as harness;
 
 void main() {
-  setUp(harness.setUpAdminApi);
-  tearDown(harness.tearDownAdminApi);
+  // These cases pin fixed weeks (2026-11-07 and later). Without a fixed clock
+  // they start failing the moment that week's deadline passes, which is a
+  // date-dependent test, not a code change.
+  setUp(() async {
+    Config.setDebugNow(DateTime.utc(2026, 11, 1));
+    await harness.setUpAdminApi();
+  });
+  tearDown(() async {
+    await harness.tearDownAdminApi();
+    Config.setDebugNow(null);
+  });
 
   test('selected-week read defaults to server-local current week', () async {
     final now = harness.api.config.toLocal(Config.nowUtc());
