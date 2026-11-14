@@ -1,3 +1,3 @@
 # Integration tests that need a live Telegram endpoint are skipped in CI.
 exclude:
-  - "test/bot/admin_api/admin_api_session_schedule_test.dart"
+  - "**/admin_api_session_schedule_test.dart"
