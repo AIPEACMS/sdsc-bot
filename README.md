@@ -31,8 +31,8 @@ or `--all` to run the complete suite. CI always runs the full suite.
 
 1. Bump `pubspec.yaml` + move CHANGELOG `[Unreleased]` to the new version.
 2. Tag the build: `git tag v0.2.0 && git push --tags` - GitHub Actions builds
-   the bundle for both x86_64 and aarch64 and publishes them as
-   `sdsc-bot-<version>-x86.tar.gz` and `sdsc-bot-<version>-arm64.tar.gz`.
+   the bundle for both amd64 and aarch64 and publishes them as
+   `sdsc-bot-<version>-amd64.tar.gz` and `sdsc-bot-<version>-arm64.tar.gz`.
 3. As an administrator, run `./sdsc.sh update` (latest) or
    `./sdsc.sh update v0.2.0` (pinned). `sdsc.sh` detects the machine's
    architecture and fetches the matching bundle.

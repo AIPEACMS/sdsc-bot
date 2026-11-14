@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.15.1] - 2026-11-14
+
+### Changed
+
+- x86 asset renamed to `amd64`, matching Debian architecture naming.
+
 ## [4.15.0] - 2026-11-14
 
 ### Added

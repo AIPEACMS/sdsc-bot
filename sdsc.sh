@@ -58,7 +58,7 @@ main() {
 
   local arch tag version asset base
   case "$(uname -m)" in
-    x86_64)  arch=x86 ;;
+    x86_64)  arch=amd64 ;;
     aarch64) arch=arm64 ;;
     *) die "unsupported architecture: $(uname -m)" ;;
   esac
@@ -89,7 +89,7 @@ main() {
   local got
   got=$(file -b "${WORK}/stage/bin/main")
   case "$got" in
-    *"x86-64"*)  [[ "$arch" = "x86" ]] || die "binary arch mismatch: $got (expected $arch)" ;;
+    *"x86-64"*)  [[ "$arch" = "amd64" ]] || die "binary arch mismatch: $got (expected $arch)" ;;
     *"aarch64"*) [[ "$arch" = "arm64" ]] || die "binary arch mismatch: $got (expected $arch)" ;;
   esac
 
