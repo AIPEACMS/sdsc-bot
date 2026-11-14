@@ -28,18 +28,14 @@ require_root() {
   fi
 }
 
-# resolve the release: latest by default, or a pinned tag
-resolve_release() {
+# release_json -- the release payload: latest by default, or a pinned tag.
+release_json() {
   local tag="${1:-}"
   if [[ -n "$tag" ]]; then
-    local url="${API}/tags/${tag}"
-    tag="$(curl -fsSL "$url" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')"
-    [[ -n "$tag" ]] || die "release tag '$1' not found"
+    curl -fsSL "${API}/tags/${tag}" || die "release tag '$tag' not found"
   else
-    tag="$(curl -fsSL "${API}/latest" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p')"
-    [[ -n "$tag" ]] || die "no releases found"
+    curl -fsSL "${API}/latest" || die "no releases found"
   fi
-  echo "$tag"
 }
 
 main() {
@@ -63,22 +59,37 @@ main() {
     *) die "unsupported architecture: $(uname -m)" ;;
   esac
 
-  tag="$(resolve_release "${1:-}")"
+  local json
+  json="$(release_json "${1:-}")"
+  tag="$(printf '%s' "$json" | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -1)"
+  [[ -n "$tag" ]] || die "no release tag in the API response"
   version="${tag#v}"
 
   asset="sdsc-bot-${version}-${arch}.tar.gz"
   base="https://github.com/${REPO}/releases/download/${tag}"
 
-  log "fetching ${tag} (${asset})"
-  if ! curl -fsSL -o "${WORK}/${asset}" "${base}/${asset}" 2>/dev/null; then
-    asset="sdsc-bot-${version}.tar.gz"
-    log "no arch-suffixed asset; falling back to legacy ${asset}"
-    curl -fsSL -o "${WORK}/${asset}" "${base}/${asset}" || die "failed to download ${asset}"
-  fi
-  curl -fsSL -o "${WORK}/${asset}.sha256" "${base}/${asset}.sha256" || die "failed to download checksum"
+  asset_digest() {
+    printf '%s' "$json" | awk -v want="$1" '
+      /"name":/ { n=$0; sub(/.*"name": *"/,"",n); sub(/".*/,"",n) }
+      /"digest":/ && n==want { d=$0; sub(/.*"digest": *"sha256:/,"",d); sub(/".*/,"",d); print d; exit }
+    '
+  }
 
-  log "verifying checksum"
-  (cd "$WORK" && sha256sum -c "${asset}.sha256")
+  local digest
+  digest="$(asset_digest "$asset")"
+  if [[ -z "$digest" ]]; then
+    asset="sdsc-bot-${version}.tar.gz"
+    digest="$(asset_digest "$asset")"
+    [[ -n "$digest" ]] || die "release ${tag} has no ${arch} bundle"
+    log "no arch-suffixed bundle; falling back to legacy ${asset}"
+  fi
+
+  log "fetching ${tag} (${asset})"
+  curl -fsSL -o "${WORK}/${asset}" "${base}/${asset}" || die "failed to download ${asset}"
+
+  log "verifying against GitHub's digest"
+  printf '%s  %s\n' "$digest" "$asset" > "${WORK}/expected.sha256"
+  (cd "$WORK" && sha256sum -c expected.sha256)
 
   log "staging extract"
   mkdir -p "${WORK}/stage"

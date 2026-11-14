@@ -63,14 +63,11 @@ jobs:
           set -euo pipefail
           TAG="${GITHUB_REF_NAME#v}"
           tar czf "sdsc-bot-${TAG}-${{ matrix.arch }}.tar.gz" -C build/bundle .
-          sha256sum "sdsc-bot-${TAG}-${{ matrix.arch }}.tar.gz" > "sdsc-bot-${TAG}-${{ matrix.arch }}.tar.gz.sha256"
 
       - uses: actions/upload-artifact@v4
         with:
           name: bundle-${{ matrix.arch }}
-          path: |
-            sdsc-bot-*.tar.gz
-            sdsc-bot-*.tar.gz.sha256
+          path: sdsc-bot-*.tar.gz
 
   release:
     needs: build
@@ -85,7 +82,5 @@ jobs:
 
       - uses: softprops/action-gh-release@v3
         with:
-          files: |
-            artifacts/sdsc-bot-*.tar.gz
-            artifacts/sdsc-bot-*.tar.gz.sha256
+          files: artifacts/sdsc-bot-*.tar.gz
           generate_release_notes: false

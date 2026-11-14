@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.15.2] - 2026-11-14
+
+### Changed
+
+- Releases publish only the bundles; verification uses the digest GitHub attaches to each asset instead of a duplicate `.sha256` file.
+
 ## [4.15.1] - 2026-11-14
 
 ### Changed
